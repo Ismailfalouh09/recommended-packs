@@ -387,6 +387,57 @@ curl.exe -X DELETE http://localhost:3000/admin/recommendation-rules/RECOMMENDATI
   -H "Authorization: Bearer ACCESS_TOKEN_HERE"
 ```
 
+### POST /admin/media/upload
+
+Replace `C:\path\to\image.jpg` with a local JPEG, PNG, WEBP, or AVIF image path. Cloudinary environment variables must be configured in `.env`; do not commit real credentials.
+
+```powershell
+curl.exe -X POST http://localhost:3000/admin/media/upload `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -F "file=@C:\path\to\image.jpg" `
+  -F "folder=recommended-packs/products" `
+  -F "altText=Foundation bottle shade medium warm" `
+  -F "usageContext=PRODUCT_MAIN_IMAGE"
+```
+
+Copy the media asset `id`.
+
+### GET /admin/media
+
+```powershell
+curl.exe "http://localhost:3000/admin/media?page=1&pageSize=20&search=foundation" `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### GET /admin/media/:id
+
+Replace `MEDIA_ASSET_ID_HERE`.
+
+```powershell
+curl.exe http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### PATCH /admin/media/:id
+
+Replace `MEDIA_ASSET_ID_HERE`.
+
+```powershell
+curl.exe -X PATCH http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -H "Content-Type: application/json" `
+  -d "{\"altText\":\"Updated image description\",\"usageContext\":\"PACK_MAIN_IMAGE\"}"
+```
+
+### DELETE /admin/media/:id
+
+Replace `MEDIA_ASSET_ID_HERE`. This deletes the Cloudinary image and soft-deletes the local media record.
+
+```powershell
+curl.exe -X DELETE http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
 ## Windows CMD
 
 ### GET /attributes
@@ -692,4 +743,44 @@ Replace `RECOMMENDATION_RULE_ID_HERE`.
 
 ```cmd
 curl -X DELETE http://localhost:3000/admin/recommendation-rules/RECOMMENDATION_RULE_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### POST /admin/media/upload
+
+Replace `C:\path\to\image.jpg` with a local JPEG, PNG, WEBP, or AVIF image path. Cloudinary environment variables must be configured in `.env`; do not commit real credentials.
+
+```cmd
+curl -X POST http://localhost:3000/admin/media/upload -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "folder=recommended-packs/products" -F "altText=Foundation bottle shade medium warm" -F "usageContext=PRODUCT_MAIN_IMAGE"
+```
+
+Copy the media asset `id`.
+
+### GET /admin/media
+
+```cmd
+curl "http://localhost:3000/admin/media?page=1&pageSize=20&search=foundation" -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### GET /admin/media/:id
+
+Replace `MEDIA_ASSET_ID_HERE`.
+
+```cmd
+curl http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### PATCH /admin/media/:id
+
+Replace `MEDIA_ASSET_ID_HERE`.
+
+```cmd
+curl -X PATCH http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE" -H "Content-Type: application/json" -d "{\"altText\":\"Updated image description\",\"usageContext\":\"PACK_MAIN_IMAGE\"}"
+```
+
+### DELETE /admin/media/:id
+
+Replace `MEDIA_ASSET_ID_HERE`. This deletes the Cloudinary image and soft-deletes the local media record.
+
+```cmd
+curl -X DELETE http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE"
 ```

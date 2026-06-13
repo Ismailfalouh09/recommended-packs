@@ -58,6 +58,7 @@ export function buildOpenApiConfig() {
       'Protected recommendation rule management and preview.',
     )
     .addTag('Admin Orders', 'Protected order inspection and status workflow.')
+    .addTag('Admin Media', 'Protected image upload and media asset management.')
     .build();
 }
 

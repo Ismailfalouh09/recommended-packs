@@ -113,6 +113,14 @@ enum MessageStatus {
   FAILED
 }
 
+enum MediaAssetProvider {
+  CLOUDINARY
+}
+
+enum MediaAssetType {
+  IMAGE
+}
+
 /**
  * =========================================================
  * 1. ATTRIBUTES / QUIZ FOUNDATION
@@ -701,7 +709,8 @@ model AdminUser {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  orderStatusChanges OrderStatusHistory[]
+  orderStatusChanges  OrderStatusHistory[]
+  uploadedMediaAssets MediaAsset[]
 
   @@index([role])
   @@index([isActive])
@@ -710,7 +719,50 @@ model AdminUser {
 
 /**
  * =========================================================
- * 8. FUTURE READY: EVENTS / MESSAGES
+ * 8. MEDIA ASSETS
+ * =========================================================
+ */
+
+model MediaAsset {
+  id                String             @id @default(uuid()) @db.Uuid
+  provider          MediaAssetProvider @default(CLOUDINARY)
+  assetType         MediaAssetType     @default(IMAGE) @map("asset_type")
+  publicId          String             @unique @map("public_id") @db.VarChar(255)
+  secureUrl         String             @map("secure_url")
+  url               String?
+  folder            String?            @db.VarChar(180)
+  originalName      String?            @map("original_name") @db.VarChar(255)
+  mimeType          String             @map("mime_type") @db.VarChar(120)
+  format            String?            @db.VarChar(40)
+  width             Int?
+  height            Int?
+  bytes             Int
+  altText           String?            @map("alt_text") @db.VarChar(255)
+  usageContext      String?            @map("usage_context") @db.VarChar(120)
+  relatedEntity     String?            @map("related_entity") @db.VarChar(80)
+  relatedEntityId   String?            @map("related_entity_id") @db.Uuid
+  uploadedByAdminId String?            @map("uploaded_by_admin_id") @db.Uuid
+  isDeleted         Boolean            @default(false) @map("is_deleted")
+  deletedAt         DateTime?          @map("deleted_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  uploadedByAdmin AdminUser? @relation(fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([provider])
+  @@index([assetType])
+  @@index([folder])
+  @@index([usageContext])
+  @@index([relatedEntity, relatedEntityId])
+  @@index([uploadedByAdminId])
+  @@index([isDeleted])
+  @@index([createdAt])
+  @@map("media_assets")
+}
+
+/**
+ * =========================================================
+ * 9. FUTURE READY: EVENTS / MESSAGES
  * =========================================================
  */
 

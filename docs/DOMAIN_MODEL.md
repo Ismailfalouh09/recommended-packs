@@ -2,7 +2,7 @@
 
 Source of truth: `prisma/schema.prisma`
 
-This document describes the current database model implemented through Task 13.
+This document describes the current database model implemented through Task 14.
 
 ## Relation Overview
 
@@ -33,6 +33,7 @@ erDiagram
   Order ||--o{ OrderItem : contains
   Order ||--o{ OrderStatusHistory : records
   AdminUser ||--o{ OrderStatusHistory : changes
+  AdminUser ||--o{ MediaAsset : uploads
 ```
 
 ## Quiz And Attributes
@@ -424,12 +425,31 @@ Main fields: `id`, `fullName`, `email`, `passwordHash`, `role`, `isActive`, `las
 Constraints: `email` is unique.
 
 Relations: has order status changes.
+Also has uploaded media assets after Task 14.
 
 Lifecycle: created/updated by local script `npm run admin:create`; no CRUD API.
 
 Used by: authentication, authorization, order status audit.
 
 API exposure: login/current-admin response only; password hash is never exposed.
+
+## Media
+
+### MediaAsset
+
+Purpose: stores metadata for uploaded image assets hosted by Cloudinary.
+
+Main fields: `id`, `provider`, `assetType`, `publicId`, `secureUrl`, `url`, `folder`, `originalName`, `mimeType`, `format`, `width`, `height`, `bytes`, `altText`, `usageContext`, `relatedEntity`, `relatedEntityId`, `uploadedByAdminId`, `isDeleted`, `deletedAt`, timestamps.
+
+Constraints: `publicId` is unique.
+
+Relations: optionally belongs to the admin user who uploaded the asset.
+
+Lifecycle: created by `POST /admin/media/upload`; metadata can be updated; delete removes the Cloudinary image and soft-deletes the local row with `isDeleted = true`.
+
+Used by: admin media management and future product/pack image attachment workflows.
+
+API exposure: protected admin API only.
 
 ## Future/Internal Entities
 
@@ -586,3 +606,19 @@ Meaning: future message delivery state.
 Values: `PENDING`, `SENT`, `FAILED`.
 
 Used by: `MessageLog`.
+
+### MediaAssetProvider
+
+Meaning: external media storage provider.
+
+Values: `CLOUDINARY`.
+
+Used by: `MediaAsset`.
+
+### MediaAssetType
+
+Meaning: type of uploaded media asset.
+
+Values: `IMAGE`.
+
+Used by: `MediaAsset`.

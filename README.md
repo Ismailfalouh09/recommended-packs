@@ -4,7 +4,7 @@ NestJS backend for beauty-pack personalization, recommendations, Cash on Deliver
 
 Current status:
 
-The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The backend now supports protected Cloudinary image uploads and media metadata management for future catalog attachment workflows.
 
 ## Stack
 
@@ -32,6 +32,7 @@ The backend feature implementation is paused after Admin Order Management. The c
 - Admin Pack CRUD
 - Admin Quiz, Attributes, and Recommendation Rules CRUD
 - Admin Order Management and Status Workflow
+- Media Management and Image Upload API
 - Swagger/OpenAPI documentation generation
 - Manual API test documentation
 
@@ -76,6 +77,20 @@ Start here:
 - [docs/API_CLIENT_IMPORT_GUIDE.md](./docs/API_CLIENT_IMPORT_GUIDE.md)
 - [docs/API_CURL_TESTS.md](./docs/API_CURL_TESTS.md)
 - [BACKEND_ROADMAP.md](./BACKEND_ROADMAP.md)
+
+## Media Upload Environment
+
+Task 14 uses Cloudinary for image storage. Configure these values in local `.env` only:
+
+```env
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+CLOUDINARY_UPLOAD_FOLDER="recommended-packs/dev"
+MEDIA_MAX_FILE_SIZE_BYTES=5242880
+```
+
+Never commit real Cloudinary credentials.
 
 ## OpenAPI Generation
 

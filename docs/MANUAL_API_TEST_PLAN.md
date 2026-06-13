@@ -2,7 +2,7 @@
 
 This plan is usable from Swagger UI, Bruno, or Postman.
 
-Backend status: feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Backend status: Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The current manual validation focus includes protected admin media upload, media listing, metadata updates, soft delete behavior, and OpenAPI coverage.
 
 ## Prerequisites
 
@@ -65,6 +65,7 @@ Use these variables in Swagger notes, Postman environments, or Bruno environment
 | `attributeOptionId` | attribute option ID |
 | `quizQuestionId` | quiz question ID |
 | `recommendationRuleId` | recommendation rule ID |
+| `mediaAssetId` | media asset ID from `POST /admin/media/upload` |
 
 ## Suite A - Health And Documentation
 
@@ -185,6 +186,33 @@ Use these variables in Swagger notes, Postman environments, or Bruno environment
 | J-07 | PATCH | `/admin/orders/:id/status` | OWNER/ADMIN | invalid `PREPARING` after delivered | 400 | invalid transition error | no history row |  | |
 | J-08 | PATCH | `/admin/orders/:id/status` | OWNER/ADMIN | `RETURNED` after delivered | 200 | status updated, payment `REFUNDED` | history row created |  | |
 | J-09 | PATCH | `/admin/orders/:id/status` | STAFF token | any write status | 403 | forbidden | no change |  | |
+
+## Suite K - Admin Media
+
+Before this suite, configure local Cloudinary credentials in `.env`:
+
+```env
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+CLOUDINARY_UPLOAD_FOLDER="recommended-packs/dev"
+MEDIA_MAX_FILE_SIZE_BYTES=5242880
+```
+
+Do not commit real values.
+
+| Test ID | Method | Endpoint | Auth | Request | Expected status | Expected response | DB check | Pass/Fail | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| K-01 | POST | `/admin/media/upload` | OWNER/ADMIN | multipart image file plus optional metadata | 201 or 200 | media asset with `secureUrl` and `publicId` | `media_assets` row created |  | Store `mediaAssetId` |
+| K-02 | POST | `/admin/media/upload` | OWNER/ADMIN | PDF or unsupported file | 400 | unsupported type error | no row created |  | |
+| K-03 | POST | `/admin/media/upload` | OWNER/ADMIN | file larger than configured max | 400 | size error | no row created |  | |
+| K-04 | POST | `/admin/media/upload` | missing Cloudinary env | 503 | Cloudinary not configured | no row created |  | Use only in isolated env |
+| K-05 | GET | `/admin/media` | STAFF/ADMIN/OWNER | pagination/filter query | 200 | paginated media assets | none |  | Deleted hidden by default |
+| K-06 | GET | `/admin/media/:id` | STAFF/ADMIN/OWNER | valid media ID | 200 | media asset detail | none |  | |
+| K-07 | PATCH | `/admin/media/:id` | OWNER/ADMIN | metadata update | 200 | updated metadata | row updated |  | Does not replace Cloudinary asset |
+| K-08 | PATCH | `/admin/media/:id` | STAFF token | metadata update | 403 | forbidden | no change |  | |
+| K-09 | DELETE | `/admin/media/:id` | OWNER/ADMIN | none | 200 | `isDeleted = true` | Cloudinary asset removed and row soft-deleted |  | |
+| K-10 | GET | `/admin/media/:id` | STAFF/ADMIN/OWNER | deleted media ID | 404 | not found | row remains soft-deleted |  | |
 
 ## Order Status Workflow Reference
 

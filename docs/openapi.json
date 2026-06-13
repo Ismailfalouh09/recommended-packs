@@ -3435,6 +3435,410 @@
           "Admin Orders"
         ]
       }
+    },
+    "/admin/media/upload": {
+      "post": {
+        "description": "OWNER and ADMIN can upload JPEG, PNG, WEBP, or AVIF images to Cloudinary. Metadata is stored locally for later product/pack attachment workflows.",
+        "operationId": "MediaController_uploadImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image file to upload."
+                  },
+                  "folder": {
+                    "type": "string",
+                    "example": "recommended-packs/products"
+                  },
+                  "altText": {
+                    "type": "string",
+                    "example": "Foundation bottle shade medium warm"
+                  },
+                  "usageContext": {
+                    "type": "string",
+                    "example": "PRODUCT_MAIN_IMAGE"
+                  },
+                  "relatedEntity": {
+                    "type": "string",
+                    "example": "PRODUCT"
+                  },
+                  "relatedEntityId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-4000-8000-000000000001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Image uploaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, invalid image type, invalid metadata, or file too large."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "503": {
+            "description": "Cloudinary credentials are not configured."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload an image asset",
+        "tags": [
+          "Admin Media"
+        ]
+      }
+    },
+    "/admin/media": {
+      "get": {
+        "description": "OWNER, ADMIN, and STAFF can list uploaded media assets. Deleted assets are hidden unless includeDeleted is true.",
+        "operationId": "MediaController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "foundation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CLOUDINARY"
+              ]
+            }
+          },
+          {
+            "name": "assetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "IMAGE"
+              ]
+            }
+          },
+          {
+            "name": "folder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "recommended-packs/products",
+              "type": "string"
+            }
+          },
+          {
+            "name": "usageContext",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "PRODUCT_MAIN_IMAGE",
+              "type": "string"
+            }
+          },
+          {
+            "name": "relatedEntity",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "PRODUCT",
+              "type": "string"
+            }
+          },
+          {
+            "name": "relatedEntityId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeDeleted",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": false,
+              "example": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "createdFrom",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-06-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdTo",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-06-30T23:59:59.999Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "updatedAt",
+                "bytes",
+                "originalName"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated media assets."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List media assets",
+        "tags": [
+          "Admin Media"
+        ]
+      }
+    },
+    "/admin/media/{id}": {
+      "get": {
+        "description": "OWNER, ADMIN, and STAFF can inspect one active media asset.",
+        "operationId": "MediaController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Media asset ID.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media asset details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Media asset not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get media asset details",
+        "tags": [
+          "Admin Media"
+        ]
+      },
+      "patch": {
+        "description": "OWNER and ADMIN can update local metadata only. This does not replace the uploaded Cloudinary asset.",
+        "operationId": "MediaController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Media asset ID.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMediaAssetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Media asset updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Media asset not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update media asset metadata",
+        "tags": [
+          "Admin Media"
+        ]
+      },
+      "delete": {
+        "description": "OWNER and ADMIN can delete the Cloudinary image and mark the local media record as deleted. This does not remove historical references from existing records.",
+        "operationId": "MediaController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Media asset ID.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media asset deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Media asset not found."
+          },
+          "503": {
+            "description": "Cloudinary credentials are not configured."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a media asset",
+        "tags": [
+          "Admin Media"
+        ]
+      }
     }
   },
   "info": {
@@ -3515,6 +3919,10 @@
     {
       "name": "Admin Orders",
       "description": "Protected order inspection and status workflow."
+    },
+    {
+      "name": "Admin Media",
+      "description": "Protected image upload and media asset management."
     }
   ],
   "servers": [
@@ -6005,6 +6413,157 @@
         "required": [
           "status"
         ]
+      },
+      "MediaAssetResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "CLOUDINARY"
+            ],
+            "example": "CLOUDINARY"
+          },
+          "assetType": {
+            "type": "string",
+            "enum": [
+              "IMAGE"
+            ],
+            "example": "IMAGE"
+          },
+          "publicId": {
+            "type": "string",
+            "example": "recommended-packs/products/sample-image"
+          },
+          "secureUrl": {
+            "type": "string",
+            "example": "https://res.cloudinary.com/demo/image/upload/v123/recommended-packs/products/sample-image.jpg"
+          },
+          "folder": {
+            "type": "object",
+            "example": "recommended-packs/products",
+            "nullable": true
+          },
+          "originalName": {
+            "type": "object",
+            "example": "foundation.jpg",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "image/jpeg"
+          },
+          "format": {
+            "type": "object",
+            "example": "jpg",
+            "nullable": true
+          },
+          "width": {
+            "type": "object",
+            "example": 1200,
+            "nullable": true
+          },
+          "height": {
+            "type": "object",
+            "example": 1200,
+            "nullable": true
+          },
+          "bytes": {
+            "type": "number",
+            "example": 245000
+          },
+          "altText": {
+            "type": "object",
+            "example": "Foundation bottle shade medium warm",
+            "nullable": true
+          },
+          "usageContext": {
+            "type": "object",
+            "example": "PRODUCT_MAIN_IMAGE",
+            "nullable": true
+          },
+          "relatedEntity": {
+            "type": "object",
+            "example": "PRODUCT",
+            "nullable": true
+          },
+          "relatedEntityId": {
+            "type": "object",
+            "example": "00000000-0000-4000-8000-000000000002",
+            "nullable": true
+          },
+          "uploadedByAdmin": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminSummaryResponse"
+              }
+            ]
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "example": false
+          },
+          "deletedAt": {
+            "type": "object",
+            "example": null,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-13T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-06-13T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "assetType",
+          "publicId",
+          "secureUrl",
+          "mimeType",
+          "bytes",
+          "isDeleted",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateMediaAssetDto": {
+        "type": "object",
+        "properties": {
+          "altText": {
+            "type": "string",
+            "description": "Accessible alt text or internal image description.",
+            "example": "Updated foundation shade image",
+            "nullable": true
+          },
+          "usageContext": {
+            "type": "string",
+            "description": "Optional usage context for future attachment workflows.",
+            "example": "PACK_MAIN_IMAGE",
+            "nullable": true
+          },
+          "relatedEntity": {
+            "type": "string",
+            "description": "Optional entity type this asset is intended for.",
+            "example": "PACK",
+            "nullable": true
+          },
+          "relatedEntityId": {
+            "type": "string",
+            "description": "Optional entity ID this asset is intended for.",
+            "example": "00000000-0000-4000-8000-000000000001",
+            "nullable": true
+          }
+        }
       },
       "ApiErrorResponse": {
         "type": "object",

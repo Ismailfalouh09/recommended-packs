@@ -2,7 +2,7 @@
 
 ## Current Stopping Point
 
-The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
 
 ## Completed
 
@@ -186,6 +186,22 @@ The backend feature implementation is paused after Admin Order Management. The c
 - Documentation index created under `docs/README.md`.
 - No Prisma schema change was required.
 - No recommendation logic, order workflow, stock reservation/deduction, WhatsApp, delivery integration, or frontend code was changed.
+
+### Task 14: Media Management and Image Upload API
+
+- Protected admin media module added.
+- `OWNER` and `ADMIN` can upload images, update local metadata, and delete media assets.
+- `OWNER`, `ADMIN`, and `STAFF` can read media assets.
+- `POST /admin/media/upload` uploads JPEG, PNG, WEBP, or AVIF images to Cloudinary and stores metadata locally.
+- `GET /admin/media` lists media assets with pagination, search, filters, and sorting.
+- `GET /admin/media/:id` returns one active media asset.
+- `PATCH /admin/media/:id` updates local metadata only.
+- `DELETE /admin/media/:id` deletes the Cloudinary image and soft-deletes the local media row.
+- `MediaAsset` Prisma model added with Cloudinary metadata, optional future attachment context, and uploader admin relation.
+- Safe Cloudinary environment placeholders added to `.env.example`.
+- No real Cloudinary credentials were committed.
+- No existing public or admin API contract was removed.
+- No recommendation logic, order workflow, stock reservation/deduction, delivery integration, WhatsApp integration, or frontend code was changed.
 
 ## Pending
 

@@ -1,8 +1,8 @@
 # API Audit Report
 
-Date: 2026-06-12 23:45 +01:00
+Date: 2026-06-13 18:45 +01:00
 
-Task: Task 14-DOC, documentation and OpenAPI preparation.
+Task: Task 14 Media Management and Image Upload API.
 
 Source of truth inspected:
 - `prisma/schema.prisma`
@@ -34,6 +34,7 @@ Source of truth inspected:
 - Admin quiz
 - Admin recommendation rules
 - Admin orders
+- Admin media
 - Prisma infrastructure
 
 ## 2. Implemented Endpoints
@@ -134,6 +135,13 @@ Admin orders:
 - `GET /admin/orders/:id`
 - `PATCH /admin/orders/:id/status`
 
+Admin media:
+- `POST /admin/media/upload`
+- `GET /admin/media`
+- `GET /admin/media/:id`
+- `PATCH /admin/media/:id`
+- `DELETE /admin/media/:id`
+
 ## 3. Endpoint Authentication Requirements
 
 Public endpoints:
@@ -163,10 +171,12 @@ Read roles:
 
 Write roles:
 - `OWNER` and `ADMIN` can create, update, deactivate, archive, reorder, and update order status.
+- `OWNER` and `ADMIN` can upload, update metadata, and delete media assets.
 
 Staff restrictions:
 - `STAFF` is read-only for admin catalog/configuration/order endpoints.
 - `STAFF` can use recommendation preview but cannot create/update/delete rules.
+- `STAFF` can read media assets but cannot upload, update, or delete them.
 
 ## 5. Missing Swagger Decorators
 
@@ -251,12 +261,13 @@ Current sensitive-data concern:
 
 ## 12. Known Backend Limitations
 
-- Feature development is paused after Admin Order Management.
+- Task 14 media management is implemented. Media assets are stored independently and are not yet attached by catalog, pack, quiz, or attribute CRUD endpoints.
 - No stock reservation or stock deduction occurs during order creation or status updates.
 - No payment provider integration exists.
 - Cash on Delivery is the only payment method.
 - No delivery provider integration exists.
 - No WhatsApp or messaging workflow exists.
+- Media upload stores metadata and Cloudinary URLs, but media assets are not yet attached to products, references, packs, categories, brands, attribute options, or quiz options by existing CRUD endpoints.
 - No admin user management CRUD exists.
 - No customer authentication exists.
 - Recommendation logic is V1 and rule-driven, but not ML/personalization beyond stored answers and compatibility rules.

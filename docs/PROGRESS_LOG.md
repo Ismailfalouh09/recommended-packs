@@ -2,7 +2,65 @@
 
 ## 2026-06-11 21:39 +01:00
 
-Current stopping point: The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Current stopping point: Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+
+## 2026-06-13 18:45 +01:00
+
+Task 14 completed: Media Management and Image Upload API.
+
+Objective: add a protected backend-only media foundation for image upload and media asset management without changing existing APIs.
+
+Files created or modified:
+- `prisma/schema.prisma`
+- `prisma/migrations/20260613183847_add_media_assets/migration.sql`
+- `src/modules/media/media.module.ts`
+- `src/modules/media/media.controller.ts`
+- `src/modules/media/media.service.ts`
+- `src/modules/media/cloudinary.service.ts`
+- `src/modules/media/dto/upload-media.dto.ts`
+- `src/modules/media/dto/query-media-assets.dto.ts`
+- `src/modules/media/dto/update-media-asset.dto.ts`
+- `src/modules/media/media.service.spec.ts`
+- `src/app.module.ts`
+- `src/common/swagger/api-response.models.ts`
+- `src/common/swagger/openapi.config.ts`
+- `.env.example`
+- `package.json`
+- `package-lock.json`
+- `BACKEND_ROADMAP.md`
+- `docs/PROGRESS_LOG.md`
+- `docs/DOMAIN_MODEL.md`
+- `docs/API_AUDIT_REPORT.md`
+- `docs/MANUAL_API_TEST_PLAN.md`
+- `docs/API_CURL_TESTS.md`
+- `README.md`
+
+Endpoints added:
+- `POST /admin/media/upload`
+- `GET /admin/media`
+- `GET /admin/media/:id`
+- `PATCH /admin/media/:id`
+- `DELETE /admin/media/:id`
+
+Validation/build status:
+- `npx prisma format` passed.
+- `npx prisma validate` passed.
+- `npx prisma migrate dev --name add_media_assets` passed.
+- `npx prisma generate` passed.
+- `npm run build` passed during implementation.
+
+Important notes:
+- All media endpoints require JWT authentication.
+- `OWNER` and `ADMIN` can upload, update metadata, and delete media assets.
+- `OWNER`, `ADMIN`, and `STAFF` can list/read media assets.
+- Upload accepts JPEG, PNG, WEBP, and AVIF images.
+- Upload stores Cloudinary metadata in `MediaAsset`.
+- Delete removes the Cloudinary asset and soft-deletes the local row.
+- `PATCH /admin/media/:id` updates local metadata only; it does not replace the Cloudinary asset.
+- Safe Cloudinary placeholders were added to `.env.example`.
+- No real Cloudinary credentials were committed.
+- No existing APIs were removed or modified.
+- No recommendation logic, order workflow, stock reservation/deduction, delivery integration, WhatsApp integration, or frontend work was added.
 
 ## 2026-06-13
 

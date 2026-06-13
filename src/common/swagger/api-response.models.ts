@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   AdminRole,
   MatchType,
+  MediaAssetProvider,
+  MediaAssetType,
   OrderStatus,
   PackStatus,
   PaymentMethod,
@@ -561,4 +563,84 @@ export class RecommendationRuleResponse {
 
   @ApiProperty({ example: true })
   isActive!: boolean;
+}
+
+export class MediaAssetResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({
+    enum: MediaAssetProvider,
+    example: MediaAssetProvider.CLOUDINARY,
+  })
+  provider!: MediaAssetProvider;
+
+  @ApiProperty({ enum: MediaAssetType, example: MediaAssetType.IMAGE })
+  assetType!: MediaAssetType;
+
+  @ApiProperty({ example: 'recommended-packs/products/sample-image' })
+  publicId!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/v123/recommended-packs/products/sample-image.jpg',
+  })
+  secureUrl!: string;
+
+  @ApiPropertyOptional({
+    example: 'recommended-packs/products',
+    nullable: true,
+  })
+  folder?: string | null;
+
+  @ApiPropertyOptional({ example: 'foundation.jpg', nullable: true })
+  originalName?: string | null;
+
+  @ApiProperty({ example: 'image/jpeg' })
+  mimeType!: string;
+
+  @ApiPropertyOptional({ example: 'jpg', nullable: true })
+  format?: string | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  height?: number | null;
+
+  @ApiProperty({ example: 245000 })
+  bytes!: number;
+
+  @ApiPropertyOptional({
+    example: 'Foundation bottle shade medium warm',
+    nullable: true,
+  })
+  altText?: string | null;
+
+  @ApiPropertyOptional({ example: 'PRODUCT_MAIN_IMAGE', nullable: true })
+  usageContext?: string | null;
+
+  @ApiPropertyOptional({ example: 'PRODUCT', nullable: true })
+  relatedEntity?: string | null;
+
+  @ApiPropertyOptional({
+    example: '00000000-0000-4000-8000-000000000002',
+    nullable: true,
+  })
+  relatedEntityId?: string | null;
+
+  @ApiPropertyOptional({ type: AdminSummaryResponse, nullable: true })
+  uploadedByAdmin?: AdminSummaryResponse | null;
+
+  @ApiProperty({ example: false })
+  isDeleted!: boolean;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  deletedAt?: string | null;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  updatedAt!: string;
 }

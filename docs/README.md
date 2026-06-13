@@ -2,7 +2,7 @@
 
 Current status:
 
-The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Documentation now includes the protected admin media endpoints, Cloudinary environment placeholders, and manual media API checks.
 
 ## Core Documentation
 
@@ -22,7 +22,7 @@ The backend feature implementation is paused after Admin Order Management. The c
   Ready-to-run Windows PowerShell and Windows CMD curl examples.
 
 - [TEST_PLAN_CURRENT_BACKEND.md](./TEST_PLAN_CURRENT_BACKEND.md)  
-  Earlier running backend test plan through Task 13.
+  Running backend test plan through Task 14.
 
 - [PROGRESS_LOG.md](./PROGRESS_LOG.md)  
   Task-by-task implementation history and current stopping point.
