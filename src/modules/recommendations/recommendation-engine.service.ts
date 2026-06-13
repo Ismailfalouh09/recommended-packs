@@ -24,6 +24,7 @@ export interface EngineReference {
   stockQuantity: number;
   reservedQuantity: number;
   isActive: boolean;
+  image?: unknown;
   attributes: EngineAttribute[];
 }
 
@@ -32,6 +33,7 @@ export interface EngineProduct {
   name: string;
   isActive: boolean;
   status: ProductStatus;
+  images?: unknown[];
   references: EngineReference[];
 }
 
@@ -48,6 +50,7 @@ export interface EnginePack {
   id: string;
   name: string;
   priority: number;
+  images?: unknown[];
   attributes: EngineAttribute[];
   items: EnginePackItem[];
 }
@@ -58,6 +61,8 @@ export interface SelectedRecommendationItem {
   productName: string;
   referenceId: string;
   referenceName: string;
+  productImages?: unknown[];
+  referenceImage?: unknown;
   quantity: number;
   itemScore: number;
   itemMaxScore: number;
@@ -68,6 +73,7 @@ export interface SelectedRecommendationItem {
 export interface EngineRecommendation {
   packId: string;
   packName: string;
+  packImages?: unknown[];
   rank: number;
   totalScore: number;
   matchPercentage: number;
@@ -255,6 +261,7 @@ export class RecommendationEngineService {
     return {
       packId: pack.id,
       packName: pack.name,
+      packImages: pack.images,
       rank: 0,
       totalScore,
       matchPercentage,
@@ -383,6 +390,8 @@ export class RecommendationEngineService {
       productName: item.product.name,
       referenceId: reference.id,
       referenceName: `${reference.referenceCode} ${reference.referenceName}`,
+      productImages: item.product.images,
+      referenceImage: reference.image,
       quantity: item.quantity,
       itemScore,
       itemMaxScore,

@@ -4,7 +4,7 @@ NestJS backend for beauty-pack personalization, recommendations, Cash on Deliver
 
 Current status:
 
-Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The backend now supports protected Cloudinary image uploads and media metadata management for future catalog attachment workflows.
+Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The backend now supports protected Cloudinary image uploads, product/pack/category/product-reference image relationships, optimized delivery URLs, and image fields in public catalog and recommendation responses.
 
 ## Stack
 
@@ -86,11 +86,13 @@ Task 14 uses Cloudinary for image storage. Configure these values in local `.env
 CLOUDINARY_CLOUD_NAME="your-cloud-name"
 CLOUDINARY_API_KEY="your-api-key"
 CLOUDINARY_API_SECRET="your-api-secret"
-CLOUDINARY_UPLOAD_FOLDER="recommended-packs/dev"
-MEDIA_MAX_FILE_SIZE_BYTES=5242880
+CLOUDINARY_FOLDER_PREFIX="beauty-app"
+MEDIA_MAX_FILE_SIZE_MB=5
 ```
 
 Never commit real Cloudinary credentials.
+
+Uploads currently flow through the backend: admin client to NestJS multipart endpoint to Cloudinary. Direct signed browser-to-Cloudinary upload is intentionally left as a future optimization.
 
 ## OpenAPI Generation
 

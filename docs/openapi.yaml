@@ -555,6 +555,692 @@ paths:
       security: *a9
       summary: Deactivate category
       tags: *a10
+  /admin/media/upload:
+    post:
+      description: OWNER and ADMIN can upload one JPEG, PNG, or WEBP image to
+        Cloudinary. Metadata is stored locally for later product/pack attachment
+        workflows.
+      operationId: MediaController_uploadImage
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG, or WEBP image file to upload.
+                altText:
+                  type: string
+                  example: Unassigned media asset
+      responses:
+        "201":
+          description: Image uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaAssetResponse"
+        "400":
+          description: Missing file, invalid image type, invalid metadata, or file too
+            large.
+        "401": &a11
+          description: Authentication required.
+        "403": &a12
+          description: Insufficient admin role.
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+        "503":
+          description: Cloudinary credentials are not configured.
+      security: &a13
+        - bearer: []
+      summary: Upload an image asset
+      tags: &a14
+        - Admin Media
+  /admin/media:
+    get:
+      description: OWNER, ADMIN, and STAFF can list uploaded media assets. Deleted
+        assets are hidden unless includeDeleted is true.
+      operationId: MediaController_findAll
+      parameters:
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            example: 1
+            type: number
+        - name: pageSize
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+        - name: search
+          required: false
+          in: query
+          schema:
+            example: foundation
+            type: string
+        - name: provider
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - CLOUDINARY
+        - name: assetType
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - IMAGE
+        - name: folder
+          required: false
+          in: query
+          schema:
+            example: recommended-packs/products
+            type: string
+        - name: usageContext
+          required: false
+          in: query
+          schema:
+            example: PRODUCT_MAIN_IMAGE
+            type: string
+        - name: relatedEntity
+          required: false
+          in: query
+          schema:
+            example: PRODUCT
+            type: string
+        - name: relatedEntityId
+          required: false
+          in: query
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+        - name: includeDeleted
+          required: false
+          in: query
+          schema:
+            default: false
+            example: false
+            type: boolean
+        - name: createdFrom
+          required: false
+          in: query
+          schema:
+            example: 2026-06-01T00:00:00.000Z
+            type: string
+        - name: createdTo
+          required: false
+          in: query
+          schema:
+            example: 2026-06-30T23:59:59.999Z
+            type: string
+        - name: sortBy
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - createdAt
+              - updatedAt
+              - bytes
+              - originalName
+        - name: sortOrder
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+      responses:
+        "200":
+          description: Paginated media assets.
+        "401": *a11
+        "403": *a12
+      security: *a13
+      summary: List media assets
+      tags: *a14
+  /admin/media/{id}:
+    get:
+      description: OWNER, ADMIN, and STAFF can inspect one active media asset.
+      operationId: MediaController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Media asset ID.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      responses:
+        "200":
+          description: Media asset details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaAssetResponse"
+        "401": *a11
+        "403": *a12
+        "404":
+          description: Media asset not found.
+      security: *a13
+      summary: Get media asset details
+      tags: *a14
+    patch:
+      description: OWNER and ADMIN can update local metadata only. This does not
+        replace the uploaded Cloudinary asset.
+      operationId: MediaController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Media asset ID.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMediaAssetDto"
+      responses:
+        "200":
+          description: Media asset updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaAssetResponse"
+        "401": *a11
+        "403": *a12
+        "404":
+          description: Media asset not found.
+      security: *a13
+      summary: Update media asset metadata
+      tags: *a14
+    delete:
+      description: OWNER and ADMIN can delete the Cloudinary image and mark the local
+        media record as deleted. This does not remove historical references from
+        existing records.
+      operationId: MediaController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Media asset ID.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      responses:
+        "200":
+          description: Media asset deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaAssetResponse"
+        "401": *a11
+        "403": *a12
+        "404":
+          description: Media asset not found.
+        "503":
+          description: Cloudinary credentials are not configured.
+      security: *a13
+      summary: Delete a media asset
+      tags: *a14
+  /admin/products/{productId}/images:
+    post:
+      description: Uploads one JPEG, PNG, or WEBP image to Cloudinary and attaches it
+        to a product as COVER or GALLERY. New covers demote the previous cover
+        to GALLERY.
+      operationId: ProductMediaController_upload
+      parameters:
+        - name: productId
+          required: true
+          in: path
+          description: Product ID.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                role:
+                  type: string
+                  enum:
+                    - COVER
+                    - GALLERY
+                altText:
+                  type: string
+                position:
+                  type: integer
+                  minimum: 0
+      responses:
+        "201":
+          description: Product image uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid file, metadata, or product.
+        "401": &a15
+          description: Authentication required.
+        "403": &a16
+          description: Insufficient admin role.
+        "404":
+          description: Product not found.
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: &a17
+        - bearer: []
+      summary: Upload a product image
+      tags: &a18
+        - Admin Product Media
+  /admin/products/{productId}/images/reorder:
+    patch:
+      description: Updates product image display positions in a transaction. Duplicate
+        IDs, duplicate positions, negative positions, and foreign images are
+        rejected.
+      operationId: ProductMediaController_reorder
+      parameters:
+        - name: productId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderMediaDto"
+      responses:
+        "200":
+          description: Product images reordered.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid reorder payload.
+        "401": *a15
+        "403": *a16
+        "404":
+          description: Product not found.
+      security: *a17
+      summary: Reorder product images
+      tags: *a18
+  /admin/products/{productId}/images/{imageId}:
+    patch:
+      description: Updates role, alt text, or position. Promoting an image to COVER
+        demotes the previous cover.
+      operationId: ProductMediaController_update
+      parameters:
+        - name: productId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMediaDto"
+      responses:
+        "200":
+          description: Product image updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "401": *a15
+        "403": *a16
+        "404":
+          description: Product image not found.
+      security: *a17
+      summary: Update product image metadata
+      tags: *a18
+    delete:
+      description: Deletes the product image relationship and removes the Cloudinary
+        asset when no other relationship references it.
+      operationId: ProductMediaController_delete
+      parameters:
+        - name: productId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product image deleted.
+        "401": *a15
+        "403": *a16
+        "404":
+          description: Product image not found.
+      security: *a17
+      summary: Delete a product image
+      tags: *a18
+  /admin/packs/{packId}/images:
+    post:
+      description: Uploads one JPEG, PNG, or WEBP image to Cloudinary and attaches it
+        to a pack as COVER or GALLERY. New covers demote the previous cover to
+        GALLERY.
+      operationId: PackMediaController_upload
+      parameters:
+        - name: packId
+          required: true
+          in: path
+          description: Pack ID.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                role:
+                  type: string
+                  enum:
+                    - COVER
+                    - GALLERY
+                altText:
+                  type: string
+                position:
+                  type: integer
+                  minimum: 0
+      responses:
+        "201":
+          description: Pack image uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid file, metadata, or pack.
+        "401": &a19
+          description: Authentication required.
+        "403": &a20
+          description: Insufficient admin role.
+        "404":
+          description: Pack not found.
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: &a21
+        - bearer: []
+      summary: Upload a pack image
+      tags: &a22
+        - Admin Pack Media
+  /admin/packs/{packId}/images/reorder:
+    patch:
+      operationId: PackMediaController_reorder
+      parameters:
+        - name: packId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderMediaDto"
+      responses:
+        "200":
+          description: Pack images reordered.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid reorder payload.
+        "401": *a19
+        "403": *a20
+        "404":
+          description: Pack not found.
+      security: *a21
+      summary: Reorder pack images
+      tags: *a22
+  /admin/packs/{packId}/images/{imageId}:
+    patch:
+      operationId: PackMediaController_update
+      parameters:
+        - name: packId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMediaDto"
+      responses:
+        "200":
+          description: Pack image updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "401": *a19
+        "403": *a20
+        "404":
+          description: Pack image not found.
+      security: *a21
+      summary: Update pack image metadata
+      tags: *a22
+    delete:
+      operationId: PackMediaController_delete
+      parameters:
+        - name: packId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pack image deleted.
+        "401": *a19
+        "403": *a20
+        "404":
+          description: Pack image not found.
+      security: *a21
+      summary: Delete a pack image
+      tags: *a22
+  /admin/categories/{categoryId}/image:
+    put:
+      description: Uploads a new image, replaces the category image relationship
+        transactionally, and then attempts to delete the old Cloudinary asset.
+      operationId: CategoryMediaController_replace
+      parameters:
+        - name: categoryId
+          required: true
+          in: path
+          description: Category ID.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                altText:
+                  type: string
+      responses:
+        "201":
+          description: Category image created or replaced.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid file or metadata.
+        "401": &a23
+          description: Authentication required.
+        "403": &a24
+          description: Insufficient admin role.
+        "404":
+          description: Category not found.
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: &a25
+        - bearer: []
+      summary: Create or replace a category image
+      tags: &a26
+        - Admin Category Media
+    delete:
+      operationId: CategoryMediaController_delete
+      parameters:
+        - name: categoryId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Category image deleted.
+        "401": *a23
+        "403": *a24
+        "404":
+          description: Category image not found.
+      security: *a25
+      summary: Delete a category image
+      tags: *a26
+  /admin/product-references/{referenceId}/image:
+    put:
+      description: Uploads one shade/swatch image for a product reference. Replacement
+        keeps the old relation until the new upload and database write succeed.
+      operationId: ProductReferenceMediaController_replace
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          description: Product reference ID.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                altText:
+                  type: string
+      responses:
+        "201":
+          description: Product reference image created or replaced.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid file or metadata.
+        "401": &a27
+          description: Authentication required.
+        "403": &a28
+          description: Insufficient admin role.
+        "404":
+          description: Product reference not found.
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: &a29
+        - bearer: []
+      summary: Create or replace a product reference image
+      tags: &a30
+        - Admin Product Reference Media
+    delete:
+      operationId: ProductReferenceMediaController_delete
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product reference image deleted.
+        "401": *a27
+        "403": *a28
+        "404":
+          description: Product reference image not found.
+      security: *a29
+      summary: Delete a product reference image
+      tags: *a30
   /admin/brands:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated brands.
@@ -594,14 +1280,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminBrandResponse"
-        "401": &a11
+        "401": &a31
           description: Authentication required.
-        "403": &a12
+        "403": &a32
           description: Insufficient admin role.
-      security: &a13
+      security: &a33
         - bearer: []
       summary: List admin brands
-      tags: &a14
+      tags: &a34
         - Admin Brands
     post:
       description: OWNER and ADMIN can create brands.
@@ -616,13 +1302,13 @@ paths:
       responses:
         "200":
           description: Brand created.
-        "401": *a11
-        "403": *a12
+        "401": *a31
+        "403": *a32
         "409":
           description: Brand name already exists.
-      security: *a13
+      security: *a33
       summary: Create brand
-      tags: *a14
+      tags: *a34
   /admin/brands/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read brand details.
@@ -640,13 +1326,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminBrandResponse"
-        "401": *a11
-        "403": *a12
+        "401": *a31
+        "403": *a32
         "404":
           description: Brand not found.
-      security: *a13
+      security: *a33
       summary: Get admin brand details
-      tags: *a14
+      tags: *a34
     patch:
       description: OWNER and ADMIN can update mutable brand fields.
       operationId: AdminBrandsController_update
@@ -665,15 +1351,15 @@ paths:
       responses:
         "200":
           description: Brand updated.
-        "401": *a11
-        "403": *a12
+        "401": *a31
+        "403": *a32
         "404":
           description: Brand not found.
         "409":
           description: Brand name already exists.
-      security: *a13
+      security: *a33
       summary: Update brand
-      tags: *a14
+      tags: *a34
     delete:
       description: OWNER and ADMIN can soft-deactivate brands.
       operationId: AdminBrandsController_deactivate
@@ -686,13 +1372,13 @@ paths:
       responses:
         "200":
           description: Brand deactivated.
-        "401": *a11
-        "403": *a12
+        "401": *a31
+        "403": *a32
         "404":
           description: Brand not found.
-      security: *a13
+      security: *a33
       summary: Deactivate brand
-      tags: *a14
+      tags: *a34
   /quiz/questions:
     get:
       description: Returns active quiz questions with active selectable options
@@ -709,7 +1395,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/QuizQuestionResponse"
       summary: List active quiz questions
-      tags: &a15
+      tags: &a35
         - Quiz
   /quiz/profiles:
     post:
@@ -735,7 +1421,7 @@ paths:
           description: Invalid group, invalid option, duplicate answer, or missing
             required answer.
       summary: Create a customer quiz profile
-      tags: *a15
+      tags: *a35
   /admin/quiz/questions:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated quiz questions.
@@ -812,14 +1498,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QuizQuestionResponse"
-        "401": &a16
+        "401": &a36
           description: Authentication required.
-        "403": &a17
+        "403": &a37
           description: Insufficient admin role.
-      security: &a18
+      security: &a38
         - bearer: []
       summary: List admin quiz questions
-      tags: &a19
+      tags: &a39
         - Admin Quiz
     post:
       description: OWNER and ADMIN can create quiz questions and mapped answer
@@ -835,13 +1521,13 @@ paths:
       responses:
         "200":
           description: Quiz question created.
-        "401": *a16
-        "403": *a17
+        "401": *a36
+        "403": *a37
         "409":
           description: Only one active question is allowed per attribute group.
-      security: *a18
+      security: *a38
       summary: Create quiz question
-      tags: *a19
+      tags: *a39
   /admin/quiz/questions/reorder:
     patch:
       description: OWNER and ADMIN can update quiz question step order in bulk.
@@ -856,11 +1542,11 @@ paths:
       responses:
         "200":
           description: Quiz questions reordered.
-        "401": *a16
-        "403": *a17
-      security: *a18
+        "401": *a36
+        "403": *a37
+      security: *a38
       summary: Reorder quiz questions
-      tags: *a19
+      tags: *a39
   /admin/quiz/questions/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read quiz question details.
@@ -878,13 +1564,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QuizQuestionResponse"
-        "401": *a16
-        "403": *a17
+        "401": *a36
+        "403": *a37
         "404":
           description: Quiz question not found.
-      security: *a18
+      security: *a38
       summary: Get admin quiz question details
-      tags: *a19
+      tags: *a39
     patch:
       description: OWNER and ADMIN can update quiz question fields and replace
         options. Active uniqueness per attribute group is enforced.
@@ -904,15 +1590,15 @@ paths:
       responses:
         "200":
           description: Quiz question updated.
-        "401": *a16
-        "403": *a17
+        "401": *a36
+        "403": *a37
         "404":
           description: Quiz question not found.
         "409":
           description: Only one active question is allowed per attribute group.
-      security: *a18
+      security: *a38
       summary: Update quiz question
-      tags: *a19
+      tags: *a39
     delete:
       description: OWNER and ADMIN can soft-deactivate quiz questions.
       operationId: AdminQuizController_deactivate
@@ -925,13 +1611,13 @@ paths:
       responses:
         "200":
           description: Quiz question deactivated.
-        "401": *a16
-        "403": *a17
+        "401": *a36
+        "403": *a37
         "404":
           description: Quiz question not found.
-      security: *a18
+      security: *a38
       summary: Deactivate quiz question
-      tags: *a19
+      tags: *a39
   /products:
     get:
       description: Returns active products ordered by creation date with category,
@@ -948,7 +1634,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/ProductResponse"
       summary: List active products
-      tags: &a20
+      tags: &a40
         - Products
   /products/{id}:
     get:
@@ -973,7 +1659,7 @@ paths:
         "404":
           description: Product not found.
       summary: Get an active product by ID
-      tags: *a20
+      tags: *a40
   /admin/products:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated products with admin-only
@@ -1052,14 +1738,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductResponse"
-        "401": &a21
+        "401": &a41
           description: Authentication required.
-        "403": &a22
+        "403": &a42
           description: Insufficient admin role.
-      security: &a23
+      security: &a43
         - bearer: []
       summary: List admin products
-      tags: &a24
+      tags: &a44
         - Admin Products
     post:
       description: OWNER and ADMIN can create catalog products.
@@ -1074,13 +1760,13 @@ paths:
       responses:
         "200":
           description: Product created.
-        "401": *a21
-        "403": *a22
+        "401": *a41
+        "403": *a42
         "409":
           description: Product slug already exists.
-      security: *a23
+      security: *a43
       summary: Create product
-      tags: *a24
+      tags: *a44
   /admin/products/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read full product details.
@@ -1098,13 +1784,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductResponse"
-        "401": *a21
-        "403": *a22
+        "401": *a41
+        "403": *a42
         "404":
           description: Product not found.
-      security: *a23
+      security: *a43
       summary: Get admin product details
-      tags: *a24
+      tags: *a44
     patch:
       description: OWNER and ADMIN can update mutable product fields.
       operationId: AdminProductsController_update
@@ -1123,15 +1809,15 @@ paths:
       responses:
         "200":
           description: Product updated.
-        "401": *a21
-        "403": *a22
+        "401": *a41
+        "403": *a42
         "404":
           description: Product not found.
         "409":
           description: Product slug already exists.
-      security: *a23
+      security: *a43
       summary: Update product
-      tags: *a24
+      tags: *a44
     delete:
       description: OWNER and ADMIN can archive a product and deactivate its references.
       operationId: AdminProductsController_archive
@@ -1144,13 +1830,13 @@ paths:
       responses:
         "200":
           description: Product archived.
-        "401": *a21
-        "403": *a22
+        "401": *a41
+        "403": *a42
         "404":
           description: Product not found.
-      security: *a23
+      security: *a43
       summary: Archive product
-      tags: *a24
+      tags: *a44
   /admin/products/{productId}/references:
     get:
       description: OWNER, ADMIN, and STAFF can read references for one product.
@@ -1201,16 +1887,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductReferenceResponse"
-        "401": &a25
+        "401": &a45
           description: Authentication required.
-        "403": &a26
+        "403": &a46
           description: Insufficient admin role.
         "404":
           description: Product not found.
-      security: &a27
+      security: &a47
         - bearer: []
       summary: List product references for a product
-      tags: &a28
+      tags: &a48
         - Admin Product References
     post:
       description: OWNER and ADMIN can create product references and compatibility
@@ -1231,13 +1917,13 @@ paths:
       responses:
         "200":
           description: Product reference created.
-        "401": *a25
-        "403": *a26
+        "401": *a45
+        "403": *a46
         "409":
           description: Duplicate reference code, SKU, or barcode.
-      security: *a27
+      security: *a47
       summary: Create product reference
-      tags: *a28
+      tags: *a48
   /admin/product-references/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read product reference details.
@@ -1255,13 +1941,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductReferenceResponse"
-        "401": *a25
-        "403": *a26
+        "401": *a45
+        "403": *a46
         "404":
           description: Product reference not found.
-      security: *a27
+      security: *a47
       summary: Get product reference details
-      tags: *a28
+      tags: *a48
     patch:
       description: OWNER and ADMIN can update references and replace compatibility
         attributes.
@@ -1281,15 +1967,15 @@ paths:
       responses:
         "200":
           description: Product reference updated.
-        "401": *a25
-        "403": *a26
+        "401": *a45
+        "403": *a46
         "404":
           description: Product reference not found.
         "409":
           description: Duplicate reference code, SKU, or barcode.
-      security: *a27
+      security: *a47
       summary: Update product reference
-      tags: *a28
+      tags: *a48
     delete:
       description: OWNER and ADMIN can soft-deactivate product references.
       operationId: AdminProductReferencesController_deactivate
@@ -1302,13 +1988,13 @@ paths:
       responses:
         "200":
           description: Product reference deactivated.
-        "401": *a25
-        "403": *a26
+        "401": *a45
+        "403": *a46
         "404":
           description: Product reference not found.
-      security: *a27
+      security: *a47
       summary: Deactivate product reference
-      tags: *a28
+      tags: *a48
   /admin/product-references/{id}/stock:
     patch:
       description: OWNER and ADMIN can update stock, reserved quantity, and low-stock
@@ -1329,13 +2015,13 @@ paths:
       responses:
         "200":
           description: Product reference stock updated.
-        "401": *a25
-        "403": *a26
+        "401": *a45
+        "403": *a46
         "404":
           description: Product reference not found.
-      security: *a27
+      security: *a47
       summary: Update product reference stock counts
-      tags: *a28
+      tags: *a48
   /packs:
     get:
       description: Returns active packs with attributes, pack items, products, and
@@ -1352,7 +2038,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/PackResponse"
       summary: List active packs
-      tags: &a29
+      tags: &a49
         - Packs
   /packs/{id}:
     get:
@@ -1377,7 +2063,7 @@ paths:
         "404":
           description: Pack not found.
       summary: Get an active pack by ID
-      tags: *a29
+      tags: *a49
   /admin/packs:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated packs with admin metadata.
@@ -1465,14 +2151,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PackResponse"
-        "401": &a30
+        "401": &a50
           description: Authentication required.
-        "403": &a31
+        "403": &a51
           description: Insufficient admin role.
-      security: &a32
+      security: &a52
         - bearer: []
       summary: List admin packs
-      tags: &a33
+      tags: &a53
         - Admin Packs
     post:
       description: OWNER and ADMIN can create draft or active packs. Active packs must
@@ -1488,13 +2174,13 @@ paths:
       responses:
         "200":
           description: Pack created.
-        "401": *a30
-        "403": *a31
+        "401": *a50
+        "403": *a51
         "409":
           description: Pack slug already exists.
-      security: *a32
+      security: *a52
       summary: Create pack
-      tags: *a33
+      tags: *a53
   /admin/packs/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read full pack details.
@@ -1512,13 +2198,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PackResponse"
-        "401": *a30
-        "403": *a31
+        "401": *a50
+        "403": *a51
         "404":
           description: Pack not found.
-      security: *a32
+      security: *a52
       summary: Get admin pack details
-      tags: *a33
+      tags: *a53
     patch:
       description: OWNER and ADMIN can update packs. Nested items and attributes are
         replaced transactionally when provided.
@@ -1538,15 +2224,15 @@ paths:
       responses:
         "200":
           description: Pack updated.
-        "401": *a30
-        "403": *a31
+        "401": *a50
+        "403": *a51
         "404":
           description: Pack not found.
         "409":
           description: Pack slug already exists.
-      security: *a32
+      security: *a52
       summary: Update pack
-      tags: *a33
+      tags: *a53
     delete:
       description: OWNER and ADMIN can archive a pack without deleting historical relations.
       operationId: AdminPacksController_archive
@@ -1559,13 +2245,13 @@ paths:
       responses:
         "200":
           description: Pack archived.
-        "401": *a30
-        "403": *a31
+        "401": *a50
+        "403": *a51
         "404":
           description: Pack not found.
-      security: *a32
+      security: *a52
       summary: Archive pack
-      tags: *a33
+      tags: *a53
   /recommendations:
     post:
       description: Loads profile answers and active packs/products/references, selects
@@ -1591,7 +2277,7 @@ paths:
         "404":
           description: Customer profile not found.
       summary: Generate recommendations for a customer profile
-      tags: &a34
+      tags: &a54
         - Recommendations
   /recommendations/{sessionId}:
     get:
@@ -1615,7 +2301,7 @@ paths:
         "404":
           description: Recommendation session not found.
       summary: Get a stored recommendation session
-      tags: *a34
+      tags: *a54
   /admin/recommendation-rules:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated recommendation scoring rules.
@@ -1679,14 +2365,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationRuleResponse"
-        "401": &a35
+        "401": &a55
           description: Authentication required.
-        "403": &a36
+        "403": &a56
           description: Insufficient admin role.
-      security: &a37
+      security: &a57
         - bearer: []
       summary: List recommendation rules
-      tags: &a38
+      tags: &a58
         - Admin Recommendation Rules
     post:
       description: OWNER and ADMIN can create scoring rules. Rule codes are immutable
@@ -1702,13 +2388,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule created.
-        "401": *a35
-        "403": *a36
+        "401": *a55
+        "403": *a56
         "409":
           description: Recommendation rule code already exists.
-      security: *a37
+      security: *a57
       summary: Create recommendation rule
-      tags: *a38
+      tags: *a58
   /admin/recommendation-rules/preview:
     post:
       description: OWNER, ADMIN, and STAFF can preview current rule effects. This
@@ -1728,11 +2414,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationResponse"
-        "401": *a35
-        "403": *a36
-      security: *a37
+        "401": *a55
+        "403": *a56
+      security: *a57
       summary: Preview recommendations without persistence
-      tags: *a38
+      tags: *a58
   /admin/recommendation-rules/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read recommendation rule details.
@@ -1750,13 +2436,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationRuleResponse"
-        "401": *a35
-        "403": *a36
+        "401": *a55
+        "403": *a56
         "404":
           description: Recommendation rule not found.
-      security: *a37
+      security: *a57
       summary: Get recommendation rule details
-      tags: *a38
+      tags: *a58
     patch:
       description: OWNER and ADMIN can update mutable recommendation rule fields.
       operationId: AdminRecommendationRulesController_update
@@ -1775,13 +2461,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule updated.
-        "401": *a35
-        "403": *a36
+        "401": *a55
+        "403": *a56
         "404":
           description: Recommendation rule not found.
-      security: *a37
+      security: *a57
       summary: Update recommendation rule
-      tags: *a38
+      tags: *a58
     delete:
       description: OWNER and ADMIN can soft-deactivate recommendation rules.
       operationId: AdminRecommendationRulesController_deactivate
@@ -1794,13 +2480,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule deactivated.
-        "401": *a35
-        "403": *a36
+        "401": *a55
+        "403": *a56
         "404":
           description: Recommendation rule not found.
-      security: *a37
+      security: *a57
       summary: Deactivate recommendation rule
-      tags: *a38
+      tags: *a58
   /orders:
     post:
       description: Creates or reuses a customer, creates a default delivery address,
@@ -1827,7 +2513,7 @@ paths:
         "404":
           description: Recommendation result not found.
       summary: Create a Cash on Delivery order
-      tags: &a39
+      tags: &a59
         - Orders
   /orders/{id}:
     get:
@@ -1852,7 +2538,7 @@ paths:
         "404":
           description: Order not found.
       summary: Get safe public order summary
-      tags: *a39
+      tags: *a59
   /admin/orders:
     get:
       description: OWNER, ADMIN, and STAFF can search, filter, sort, and paginate orders.
@@ -1975,14 +2661,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": &a40
+        "401": &a60
           description: Authentication required.
-        "403": &a41
+        "403": &a61
           description: Insufficient admin role.
-      security: &a42
+      security: &a62
         - bearer: []
       summary: List admin orders
-      tags: &a43
+      tags: &a63
         - Admin Orders
   /admin/orders/{id}:
     get:
@@ -2003,13 +2689,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": *a40
-        "403": *a41
+        "401": *a60
+        "403": *a61
         "404":
           description: Order not found.
-      security: *a42
+      security: *a62
       summary: Get admin order details
-      tags: *a43
+      tags: *a63
   /admin/orders/{id}/status:
     patch:
       description: OWNER and ADMIN can move an order through the enforced workflow.
@@ -2035,267 +2721,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": *a40
-        "403": *a41
+        "401": *a60
+        "403": *a61
         "404":
           description: Order not found.
-      security: *a42
+      security: *a62
       summary: Update order status
-      tags: *a43
-  /admin/media/upload:
-    post:
-      description: OWNER and ADMIN can upload JPEG, PNG, WEBP, or AVIF images to
-        Cloudinary. Metadata is stored locally for later product/pack attachment
-        workflows.
-      operationId: MediaController_uploadImage
-      parameters: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Image file to upload.
-                folder:
-                  type: string
-                  example: recommended-packs/products
-                altText:
-                  type: string
-                  example: Foundation bottle shade medium warm
-                usageContext:
-                  type: string
-                  example: PRODUCT_MAIN_IMAGE
-                relatedEntity:
-                  type: string
-                  example: PRODUCT
-                relatedEntityId:
-                  type: string
-                  format: uuid
-                  example: 00000000-0000-4000-8000-000000000001
-      responses:
-        "201":
-          description: Image uploaded.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MediaAssetResponse"
-        "400":
-          description: Missing file, invalid image type, invalid metadata, or file too
-            large.
-        "401": &a44
-          description: Authentication required.
-        "403": &a45
-          description: Insufficient admin role.
-        "503":
-          description: Cloudinary credentials are not configured.
-      security: &a46
-        - bearer: []
-      summary: Upload an image asset
-      tags: &a47
-        - Admin Media
-  /admin/media:
-    get:
-      description: OWNER, ADMIN, and STAFF can list uploaded media assets. Deleted
-        assets are hidden unless includeDeleted is true.
-      operationId: MediaController_findAll
-      parameters:
-        - name: page
-          required: false
-          in: query
-          schema:
-            default: 1
-            example: 1
-            type: number
-        - name: pageSize
-          required: false
-          in: query
-          schema:
-            maximum: 100
-            default: 20
-            example: 20
-            type: number
-        - name: search
-          required: false
-          in: query
-          schema:
-            example: foundation
-            type: string
-        - name: provider
-          required: false
-          in: query
-          schema:
-            type: string
-            enum:
-              - CLOUDINARY
-        - name: assetType
-          required: false
-          in: query
-          schema:
-            type: string
-            enum:
-              - IMAGE
-        - name: folder
-          required: false
-          in: query
-          schema:
-            example: recommended-packs/products
-            type: string
-        - name: usageContext
-          required: false
-          in: query
-          schema:
-            example: PRODUCT_MAIN_IMAGE
-            type: string
-        - name: relatedEntity
-          required: false
-          in: query
-          schema:
-            example: PRODUCT
-            type: string
-        - name: relatedEntityId
-          required: false
-          in: query
-          schema:
-            example: 00000000-0000-4000-8000-000000000001
-            type: string
-        - name: includeDeleted
-          required: false
-          in: query
-          schema:
-            default: false
-            example: false
-            type: boolean
-        - name: createdFrom
-          required: false
-          in: query
-          schema:
-            example: 2026-06-01T00:00:00.000Z
-            type: string
-        - name: createdTo
-          required: false
-          in: query
-          schema:
-            example: 2026-06-30T23:59:59.999Z
-            type: string
-        - name: sortBy
-          required: false
-          in: query
-          schema:
-            type: string
-            enum:
-              - createdAt
-              - updatedAt
-              - bytes
-              - originalName
-        - name: sortOrder
-          required: false
-          in: query
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-      responses:
-        "200":
-          description: Paginated media assets.
-        "401": *a44
-        "403": *a45
-      security: *a46
-      summary: List media assets
-      tags: *a47
-  /admin/media/{id}:
-    get:
-      description: OWNER, ADMIN, and STAFF can inspect one active media asset.
-      operationId: MediaController_findOne
-      parameters:
-        - name: id
-          required: true
-          in: path
-          description: Media asset ID.
-          schema:
-            example: 00000000-0000-4000-8000-000000000001
-            type: string
-      responses:
-        "200":
-          description: Media asset details.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MediaAssetResponse"
-        "401": *a44
-        "403": *a45
-        "404":
-          description: Media asset not found.
-      security: *a46
-      summary: Get media asset details
-      tags: *a47
-    patch:
-      description: OWNER and ADMIN can update local metadata only. This does not
-        replace the uploaded Cloudinary asset.
-      operationId: MediaController_update
-      parameters:
-        - name: id
-          required: true
-          in: path
-          description: Media asset ID.
-          schema:
-            example: 00000000-0000-4000-8000-000000000001
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateMediaAssetDto"
-      responses:
-        "200":
-          description: Media asset updated.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MediaAssetResponse"
-        "401": *a44
-        "403": *a45
-        "404":
-          description: Media asset not found.
-      security: *a46
-      summary: Update media asset metadata
-      tags: *a47
-    delete:
-      description: OWNER and ADMIN can delete the Cloudinary image and mark the local
-        media record as deleted. This does not remove historical references from
-        existing records.
-      operationId: MediaController_delete
-      parameters:
-        - name: id
-          required: true
-          in: path
-          description: Media asset ID.
-          schema:
-            example: 00000000-0000-4000-8000-000000000001
-            type: string
-      responses:
-        "200":
-          description: Media asset deleted.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MediaAssetResponse"
-        "401": *a44
-        "403": *a45
-        "404":
-          description: Media asset not found.
-        "503":
-          description: Cloudinary credentials are not configured.
-      security: *a46
-      summary: Delete a media asset
-      tags: *a47
+      tags: *a63
 info:
   title: Beauty Pack Recommendation API
   description: Backend API for beauty-pack personalization, recommendations, COD
@@ -2341,6 +2773,15 @@ tags:
     description: Protected order inspection and status workflow.
   - name: Admin Media
     description: Protected image upload and media asset management.
+  - name: Admin Product Media
+    description: Protected product image upload, update, reorder, and deletion.
+  - name: Admin Pack Media
+    description: Protected pack image upload, update, reorder, and deletion.
+  - name: Admin Category Media
+    description: Protected category image create, replace, and deletion.
+  - name: Admin Product Reference Media
+    description: Protected product-reference shade or swatch image create, replace,
+      and deletion.
 servers:
   - url: http://localhost:3000
     description: Local development
@@ -2380,7 +2821,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: &a48
+          enum: &a64
             - OWNER
             - ADMIN
             - STAFF
@@ -2423,7 +2864,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: *a48
+          enum: *a64
           example: ADMIN
         isActive:
           type: boolean
@@ -2567,6 +3008,90 @@ components:
         isActive:
           type: boolean
           example: true
+    MediaUrlVariantsResponse:
+      type: object
+      properties:
+        original:
+          type: string
+          example: https://res.cloudinary.com/demo/image/upload/v123/beauty-app/products/sample-image
+        thumbnail:
+          type: string
+          example: https://res.cloudinary.com/demo/image/upload/c_fill,w_200,h_200,g_auto,q_auto,f_auto/beauty-app/products/sample-image
+        card:
+          type: string
+          example: https://res.cloudinary.com/demo/image/upload/c_fill,w_600,h_600,g_auto,q_auto,f_auto/beauty-app/products/sample-image
+        detail:
+          type: string
+          example: https://res.cloudinary.com/demo/image/upload/c_limit,w_1200,h_1200,q_auto,f_auto/beauty-app/products/sample-image
+        swatch:
+          type: string
+          example: https://res.cloudinary.com/demo/image/upload/c_fill,w_300,h_300,q_auto,f_auto/beauty-app/product-references/sample-swatch
+      required:
+        - original
+        - thumbnail
+        - card
+        - detail
+    MediaImageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        mediaAssetId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000002
+        role:
+          type: string
+          enum:
+            - COVER
+            - GALLERY
+            - THUMBNAIL
+            - SWATCH
+            - ICON
+          example: COVER
+        position:
+          type: number
+          example: 0
+        altText:
+          type: object
+          example: Foundation bottle shade medium warm
+          nullable: true
+        format:
+          type: object
+          example: webp
+          nullable: true
+        mimeType:
+          type: object
+          example: image/webp
+          nullable: true
+        width:
+          type: object
+          example: 1200
+          nullable: true
+        height:
+          type: object
+          example: 1200
+          nullable: true
+        bytes:
+          type: object
+          example: 143000
+          nullable: true
+        urls:
+          $ref: "#/components/schemas/MediaUrlVariantsResponse"
+        createdAt:
+          type: string
+          example: 2026-06-13T10:00:00.000Z
+        updatedAt:
+          type: string
+          example: 2026-06-13T10:00:00.000Z
+      required:
+        - id
+        - mediaAssetId
+        - role
+        - position
+        - urls
+        - createdAt
+        - updatedAt
     AdminCategoryResponse:
       type: object
       properties:
@@ -2579,6 +3104,11 @@ components:
         name:
           type: string
           example: Foundation
+        image:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/MediaImageResponse"
         isActive:
           type: boolean
           example: true
@@ -2642,6 +3172,180 @@ components:
           type: boolean
           example: true
           default: true
+    MediaAssetResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        provider:
+          type: string
+          enum:
+            - CLOUDINARY
+          example: CLOUDINARY
+        assetType:
+          type: string
+          enum:
+            - IMAGE
+          example: IMAGE
+        publicId:
+          type: string
+          example: recommended-packs/products/sample-image
+        providerAssetId:
+          type: object
+          example: 1234567890abcdef
+          nullable: true
+        secureUrl:
+          type: string
+          example: https://res.cloudinary.com/demo/image/upload/v123/recommended-packs/products/sample-image.jpg
+        folder:
+          type: object
+          example: recommended-packs/products
+          nullable: true
+        resourceType:
+          type: string
+          example: image
+        originalName:
+          type: object
+          example: foundation.jpg
+          nullable: true
+        mimeType:
+          type: string
+          example: image/jpeg
+        format:
+          type: object
+          example: jpg
+          nullable: true
+        version:
+          type: object
+          example: "1718292000"
+          nullable: true
+        width:
+          type: object
+          example: 1200
+          nullable: true
+        height:
+          type: object
+          example: 1200
+          nullable: true
+        bytes:
+          type: number
+          example: 245000
+        altText:
+          type: object
+          example: Foundation bottle shade medium warm
+          nullable: true
+        usageContext:
+          type: object
+          example: PRODUCT_MAIN_IMAGE
+          nullable: true
+        relatedEntity:
+          type: object
+          example: PRODUCT
+          nullable: true
+        relatedEntityId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000002
+          nullable: true
+        uploadedByAdmin:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/AdminSummaryResponse"
+        urls:
+          $ref: "#/components/schemas/MediaUrlVariantsResponse"
+        isDeleted:
+          type: boolean
+          example: false
+        deletedAt:
+          type: object
+          example: null
+          nullable: true
+        createdAt:
+          type: string
+          example: 2026-06-13T10:00:00.000Z
+        updatedAt:
+          type: string
+          example: 2026-06-13T10:00:00.000Z
+      required:
+        - id
+        - provider
+        - assetType
+        - publicId
+        - secureUrl
+        - resourceType
+        - mimeType
+        - bytes
+        - urls
+        - isDeleted
+        - createdAt
+        - updatedAt
+    UpdateMediaAssetDto:
+      type: object
+      properties:
+        altText:
+          type: string
+          description: Accessible alt text or internal image description.
+          example: Updated foundation shade image
+          nullable: true
+        usageContext:
+          type: string
+          description: Optional usage context for future attachment workflows.
+          example: PACK_MAIN_IMAGE
+          nullable: true
+        relatedEntity:
+          type: string
+          description: Optional entity type this asset is intended for.
+          example: PACK
+          nullable: true
+        relatedEntityId:
+          type: string
+          description: Optional entity ID this asset is intended for.
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+    ReorderMediaItemDto:
+      type: object
+      properties:
+        imageId:
+          type: string
+          description: Product or pack image relation ID.
+          example: 00000000-0000-4000-8000-000000000001
+        position:
+          type: number
+          description: New non-negative display position.
+          example: 0
+          minimum: 0
+      required:
+        - imageId
+        - position
+    ReorderMediaDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReorderMediaItemDto"
+      required:
+        - items
+    UpdateMediaDto:
+      type: object
+      properties:
+        role:
+          type: string
+          description: Product or pack image role.
+          enum:
+            - COVER
+            - GALLERY
+          example: COVER
+        altText:
+          type: string
+          description: Alternative text or internal image description.
+          example: Updated foundation image description
+        position:
+          type: number
+          description: Non-negative display position.
+          example: 1
+          minimum: 0
     AdminBrandResponse:
       type: object
       properties:
@@ -2914,7 +3618,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: &a49
+          enum: &a65
             - SINGLE
             - MULTIPLE
           default: SINGLE
@@ -2951,7 +3655,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: *a49
+          enum: *a65
           default: SINGLE
         isRequired:
           type: boolean
@@ -2981,6 +3685,11 @@ components:
         name:
           type: string
           example: Foundation
+        image:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/MediaImageResponse"
       required:
         - id
         - code
@@ -3059,6 +3768,11 @@ components:
         isActive:
           type: boolean
           example: true
+        image:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/MediaImageResponse"
         attributes:
           type: array
           items:
@@ -3108,6 +3822,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ProductReferenceResponse"
+        coverImage:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/MediaImageResponse"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaImageResponse"
       required:
         - id
         - name
@@ -3117,6 +3840,7 @@ components:
         - status
         - category
         - references
+        - images
     CreateProductDto:
       type: object
       properties:
@@ -3150,7 +3874,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: &a50
+          enum: &a66
             - DRAFT
             - ACTIVE
             - ARCHIVED
@@ -3198,7 +3922,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: *a50
+          enum: *a66
           default: DRAFT
         isActive:
           type: boolean
@@ -3422,6 +4146,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PackItemResponse"
+        coverImage:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/MediaImageResponse"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaImageResponse"
       required:
         - id
         - name
@@ -3431,6 +4164,7 @@ components:
         - isActive
         - attributes
         - items
+        - images
     PackItemInputDto:
       type: object
       properties:
@@ -3507,7 +4241,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: &a51
+          enum: &a67
             - FIXED
             - SUM_ITEMS
             - SUM_ITEMS_WITH_DISCOUNT
@@ -3537,7 +4271,7 @@ components:
           default: 0
         status:
           type: string
-          enum: &a52
+          enum: &a68
             - DRAFT
             - ACTIVE
             - ARCHIVED
@@ -3575,7 +4309,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: *a51
+          enum: *a67
           example: FIXED
         fixedPrice:
           type: object
@@ -3602,7 +4336,7 @@ components:
           default: 0
         status:
           type: string
-          enum: *a52
+          enum: *a68
           default: DRAFT
         isActive:
           type: boolean
@@ -3766,7 +4500,7 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: &a53
+          enum: &a69
             - PACK
             - PRODUCT
             - REFERENCE
@@ -3775,7 +4509,7 @@ components:
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: &a54
+          enum: &a70
             - MUST_MATCH
             - SHOULD_MATCH
             - EXCLUDE_IF_MATCH
@@ -3804,13 +4538,13 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: *a53
+          enum: *a69
         attributeGroupId:
           type: object
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: *a54
+          enum: *a70
         scoreValue:
           type: number
           example: 15
@@ -3902,7 +4636,7 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: &a55
+          enum: &a71
             - PENDING_CONFIRMATION
             - CONFIRMED
             - PREPARING
@@ -3913,7 +4647,7 @@ components:
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: &a56
+          enum: &a72
             - UNPAID
             - PAID
             - REFUNDED
@@ -3959,11 +4693,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a55
+          enum: *a71
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a56
+          enum: *a72
           example: UNPAID
         totalAmount:
           type: number
@@ -4085,11 +4819,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a55
+          enum: *a71
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a56
+          enum: *a72
           example: UNPAID
         totalAmount:
           type: number
@@ -4157,122 +4891,6 @@ components:
           example: Customer confirmed by phone
       required:
         - status
-    MediaAssetResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          example: 00000000-0000-4000-8000-000000000001
-        provider:
-          type: string
-          enum:
-            - CLOUDINARY
-          example: CLOUDINARY
-        assetType:
-          type: string
-          enum:
-            - IMAGE
-          example: IMAGE
-        publicId:
-          type: string
-          example: recommended-packs/products/sample-image
-        secureUrl:
-          type: string
-          example: https://res.cloudinary.com/demo/image/upload/v123/recommended-packs/products/sample-image.jpg
-        folder:
-          type: object
-          example: recommended-packs/products
-          nullable: true
-        originalName:
-          type: object
-          example: foundation.jpg
-          nullable: true
-        mimeType:
-          type: string
-          example: image/jpeg
-        format:
-          type: object
-          example: jpg
-          nullable: true
-        width:
-          type: object
-          example: 1200
-          nullable: true
-        height:
-          type: object
-          example: 1200
-          nullable: true
-        bytes:
-          type: number
-          example: 245000
-        altText:
-          type: object
-          example: Foundation bottle shade medium warm
-          nullable: true
-        usageContext:
-          type: object
-          example: PRODUCT_MAIN_IMAGE
-          nullable: true
-        relatedEntity:
-          type: object
-          example: PRODUCT
-          nullable: true
-        relatedEntityId:
-          type: object
-          example: 00000000-0000-4000-8000-000000000002
-          nullable: true
-        uploadedByAdmin:
-          nullable: true
-          type: object
-          allOf:
-            - $ref: "#/components/schemas/AdminSummaryResponse"
-        isDeleted:
-          type: boolean
-          example: false
-        deletedAt:
-          type: object
-          example: null
-          nullable: true
-        createdAt:
-          type: string
-          example: 2026-06-13T10:00:00.000Z
-        updatedAt:
-          type: string
-          example: 2026-06-13T10:00:00.000Z
-      required:
-        - id
-        - provider
-        - assetType
-        - publicId
-        - secureUrl
-        - mimeType
-        - bytes
-        - isDeleted
-        - createdAt
-        - updatedAt
-    UpdateMediaAssetDto:
-      type: object
-      properties:
-        altText:
-          type: string
-          description: Accessible alt text or internal image description.
-          example: Updated foundation shade image
-          nullable: true
-        usageContext:
-          type: string
-          description: Optional usage context for future attachment workflows.
-          example: PACK_MAIN_IMAGE
-          nullable: true
-        relatedEntity:
-          type: string
-          description: Optional entity type this asset is intended for.
-          example: PACK
-          nullable: true
-        relatedEntityId:
-          type: string
-          description: Optional entity ID this asset is intended for.
-          example: 00000000-0000-4000-8000-000000000001
-          nullable: true
     ApiErrorResponse:
       type: object
       properties:

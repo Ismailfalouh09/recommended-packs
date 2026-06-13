@@ -28,6 +28,14 @@ This repository is the NestJS backend for a beauty ecommerce recommendation engi
 - Generate the Prisma client after schema changes.
 - Keep migrations intentional and tied to approved schema changes.
 
+## Media
+
+- Store image metadata in PostgreSQL and image binaries in the configured media provider only.
+- Do not store permanent uploads, Base64 image payloads, or generated thumbnails on the backend server.
+- Keep Cloudinary SDK usage inside the media storage provider layer.
+- Feature services must use `MediaService`, `MediaUrlService`, or the provider abstraction; they must not call Cloudinary directly.
+- Do not let clients choose provider IDs, Cloudinary folders, public IDs, secure URLs, or transformations.
+
 ## Code Quality
 
 - Use clean TypeScript with explicit public APIs.

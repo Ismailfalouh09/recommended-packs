@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  MediaRole,
   PackStatus,
   Prisma,
   RecommendationConditionType,
@@ -17,6 +18,7 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreateRecommendationDto } from './dto/create-recommendation.dto';
 import { CreateRecommendationRuleDto } from './dto/create-recommendation-rule.dto';
 import { QueryRecommendationRulesDto } from './dto/query-recommendation-rules.dto';
@@ -33,6 +35,7 @@ export class RecommendationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly recommendationEngine: RecommendationEngineService,
+    private readonly mediaUrlService?: MediaUrlService,
   ) {}
 
   async create(createRecommendationDto: CreateRecommendationDto) {
@@ -156,6 +159,19 @@ export class RecommendationsService {
             pack: {
               select: {
                 name: true,
+                images: {
+                  orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                  select: {
+                    id: true,
+                    mediaId: true,
+                    role: true,
+                    position: true,
+                    altText: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    media: true,
+                  },
+                },
               },
             },
             items: {
@@ -171,12 +187,36 @@ export class RecommendationsService {
                 product: {
                   select: {
                     name: true,
+                    images: {
+                      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                      select: {
+                        id: true,
+                        mediaId: true,
+                        role: true,
+                        position: true,
+                        altText: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        media: true,
+                      },
+                    },
                   },
                 },
                 selectedProductReference: {
                   select: {
                     referenceCode: true,
                     referenceName: true,
+                    image: {
+                      select: {
+                        id: true,
+                        mediaId: true,
+                        role: true,
+                        altText: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        media: true,
+                      },
+                    },
                   },
                 },
               },
@@ -204,6 +244,10 @@ export class RecommendationsService {
         recommendationResultId: result.id,
         packId: result.packId,
         packName: result.pack.name,
+        packCoverImage: this.coverImage(result.pack.images),
+        packImages: result.pack.images.map((image) =>
+          this.toImageResponse(image),
+        ),
         rank: result.rank,
         totalScore: result.totalScore,
         matchPercentage: Number(result.matchPercentage),
@@ -214,8 +258,12 @@ export class RecommendationsService {
           packItemId: item.packItemId,
           productId: item.productId,
           productName: item.product.name,
+          productCoverImage: this.coverImage(item.product.images),
           referenceId: item.selectedProductReferenceId,
           referenceName: `${item.selectedProductReference.referenceCode} ${item.selectedProductReference.referenceName}`,
+          referenceImage: this.toReferenceImageResponse(
+            item.selectedProductReference.image,
+          ),
           quantity: item.quantity,
           itemScore: item.itemScore,
           reason: item.reasonJson,
@@ -281,6 +329,19 @@ export class RecommendationsService {
         id: true,
         name: true,
         priority: true,
+        images: {
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            mediaId: true,
+            role: true,
+            position: true,
+            altText: true,
+            createdAt: true,
+            updatedAt: true,
+            media: true,
+          },
+        },
         attributes: {
           select: {
             matchType: true,
@@ -312,6 +373,19 @@ export class RecommendationsService {
                 name: true,
                 isActive: true,
                 status: true,
+                images: {
+                  orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                  select: {
+                    id: true,
+                    mediaId: true,
+                    role: true,
+                    position: true,
+                    altText: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    media: true,
+                  },
+                },
                 references: {
                   where: {
                     isActive: true,
@@ -323,6 +397,17 @@ export class RecommendationsService {
                     id: true,
                     referenceCode: true,
                     referenceName: true,
+                    image: {
+                      select: {
+                        id: true,
+                        mediaId: true,
+                        role: true,
+                        altText: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        media: true,
+                      },
+                    },
                     stockQuantity: true,
                     reservedQuantity: true,
                     isActive: true,
@@ -381,6 +466,10 @@ export class RecommendationsService {
       ),
       packId: recommendation.packId,
       packName: recommendation.packName,
+      packCoverImage: this.coverImage(recommendation.packImages ?? []),
+      packImages: (recommendation.packImages ?? []).map((image) =>
+        this.toImageResponse(image),
+      ),
       rank: recommendation.rank,
       totalScore: recommendation.totalScore,
       matchPercentage: recommendation.matchPercentage,
@@ -388,13 +477,60 @@ export class RecommendationsService {
       selectedItems: recommendation.selectedItems.map((item) => ({
         productId: item.productId,
         productName: item.productName,
+        productCoverImage: this.coverImage(item.productImages ?? []),
         referenceId: item.referenceId,
         referenceName: item.referenceName,
+        referenceImage: this.toReferenceImageResponse(item.referenceImage),
         quantity: item.quantity,
         itemScore: item.itemScore,
         reason: item.reason,
       })),
     }));
+  }
+
+  private coverImage(images: unknown[]) {
+    const typedImages = images as any[];
+    const cover = typedImages.find((image) => image.role === MediaRole.COVER);
+    return cover ? this.toImageResponse(cover) : null;
+  }
+
+  private toReferenceImageResponse(image: unknown) {
+    if (!image) {
+      return null;
+    }
+
+    return this.toImageResponse(
+      {
+        ...(image as any),
+        role: MediaRole.SWATCH,
+        position: 0,
+      },
+      true,
+    );
+  }
+
+  private toImageResponse(image: any, includeSwatch = false) {
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: image.role,
+      position: image.position,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.mediaUrlService?.buildUrls(image.media, { includeSwatch }) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+        ...(includeSwatch ? { swatch: image.media.secureUrl } : {}),
+      },
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
+    };
   }
 
   async adminFindRules(query: QueryRecommendationRulesDto) {

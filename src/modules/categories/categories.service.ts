@@ -9,13 +9,17 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { QueryCategoriesDto } from './dto/query-categories.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaUrlService?: MediaUrlService,
+  ) {}
 
   async findAll(query: QueryCategoriesDto) {
     const pagination = paginationParams(query);
@@ -175,6 +179,16 @@ export class CategoriesService {
           children: true,
         },
       },
+      image: {
+        select: {
+          id: true,
+          mediaId: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
     } satisfies Prisma.CategorySelect;
   }
 
@@ -191,6 +205,7 @@ export class CategoriesService {
       createdAt: category.createdAt,
       updatedAt: category.updatedAt,
       parent: category.parent,
+      image: this.toCategoryImageResponse(category.image),
       productCount: category._count.products,
       childCategoryCount: category._count.children,
     };
@@ -200,6 +215,33 @@ export class CategoriesService {
     return {
       ...this.toListResponse(category),
       children: category.children,
+    };
+  }
+
+  private toCategoryImageResponse(image: any) {
+    if (!image) {
+      return null;
+    }
+
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: 'ICON',
+      position: 0,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.mediaUrlService?.buildUrls(image.media) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+      },
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
     };
   }
 

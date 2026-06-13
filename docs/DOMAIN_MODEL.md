@@ -34,6 +34,14 @@ erDiagram
   Order ||--o{ OrderStatusHistory : records
   AdminUser ||--o{ OrderStatusHistory : changes
   AdminUser ||--o{ MediaAsset : uploads
+  Product ||--o{ ProductImage : has_images
+  Pack ||--o{ PackImage : has_images
+  Category ||--o| CategoryImage : has_image
+  ProductReference ||--o| ProductReferenceImage : has_swatch
+  MediaAsset ||--o{ ProductImage : backs
+  MediaAsset ||--o{ PackImage : backs
+  MediaAsset ||--o{ CategoryImage : backs
+  MediaAsset ||--o{ ProductReferenceImage : backs
 ```
 
 ## Quiz And Attributes
@@ -144,7 +152,7 @@ Main fields: `id`, `parentId`, `code`, `name`, `description`, `imageUrl`, `sortO
 
 Constraints: `code` is unique; parent is nullable.
 
-Relations: self-referencing parent/children and products.
+Relations: self-referencing parent/children, products, and optional category image.
 
 Lifecycle: admin-managed; deletion is soft-deactivation.
 
@@ -176,7 +184,7 @@ Main fields: `id`, `categoryId`, `brandId`, `name`, `slug`, `description`, `base
 
 Constraints: `slug` is unique.
 
-Relations: belongs to category and optional brand; has references, pack items, recommendation result items, and order items.
+Relations: belongs to category and optional brand; has references, pack items, recommendation result items, order items, and product images.
 
 Lifecycle: admin-managed; archive sets `status = ARCHIVED` and `isActive = false`.
 
@@ -192,7 +200,7 @@ Main fields: `id`, `productId`, `referenceCode`, `referenceName`, `barcode`, `sk
 
 Constraints: unique `(productId, referenceCode)`, unique `barcode`, unique `sku`.
 
-Relations: belongs to product; has compatibility attributes; used by pack items, recommendation items, and order items.
+Relations: belongs to product; has compatibility attributes; has optional product-reference image; used by pack items, recommendation items, and order items.
 
 Lifecycle: admin-managed; deletion is soft-deactivation.
 
@@ -226,7 +234,7 @@ Main fields: `id`, `name`, `slug`, `description`, `mainImageUrl`, `priceMode`, p
 
 Constraints: `slug` is unique.
 
-Relations: has pack items, pack attributes, recommendation results, orders, and order items.
+Relations: has pack items, pack attributes, pack images, recommendation results, orders, and order items.
 
 Lifecycle: admin-managed; archive sets `status = ARCHIVED` and `isActive = false`.
 
@@ -439,17 +447,81 @@ API exposure: login/current-admin response only; password hash is never exposed.
 
 Purpose: stores metadata for uploaded image assets hosted by Cloudinary.
 
-Main fields: `id`, `provider`, `assetType`, `publicId`, `secureUrl`, `url`, `folder`, `originalName`, `mimeType`, `format`, `width`, `height`, `bytes`, `altText`, `usageContext`, `relatedEntity`, `relatedEntityId`, `uploadedByAdminId`, `isDeleted`, `deletedAt`, timestamps.
+Main fields: `id`, `provider`, `assetType`, `providerAssetId`, `publicId`, `secureUrl`, `url`, `resourceType`, `folder`, `originalName`, `mimeType`, `format`, `width`, `height`, `bytes`, `version`, `altText`, `usageContext`, `relatedEntity`, `relatedEntityId`, `uploadedByAdminId`, `isDeleted`, `deletedAt`, timestamps.
 
 Constraints: `publicId` is unique.
 
-Relations: optionally belongs to the admin user who uploaded the asset.
+Relations: optionally belongs to the admin user who uploaded the asset; backs product images, pack images, category images, and product-reference images.
 
-Lifecycle: created by `POST /admin/media/upload`; metadata can be updated; delete removes the Cloudinary image and soft-deletes the local row with `isDeleted = true`.
+Lifecycle: created by generic or entity media upload endpoints. Generic media rows can be soft-deleted. Entity image replacement/deletion removes relation rows and deletes the media row when no other relationship references it.
 
-Used by: admin media management and future product/pack image attachment workflows.
+Used by: admin media management, product images, pack images, category images, product-reference shade/swatch images, and recommendation response image data.
 
 API exposure: protected admin API only.
+
+### ProductImage
+
+Purpose: attaches a Cloudinary-backed media asset to a product as a cover or gallery image.
+
+Main fields: `id`, `productId`, `mediaId`, `role`, `position`, `altText`, timestamps.
+
+Constraints: unique `(productId, mediaId)` plus indexes for product position and role.
+
+Relations: belongs to one product and one media asset.
+
+Lifecycle: managed by protected product image endpoints. Service logic enforces a single `COVER` per product and demotes the previous cover to `GALLERY`.
+
+Used by: public/admin product responses and recommendation product image responses.
+
+API exposure: protected admin write API; nested public read exposure.
+
+### PackImage
+
+Purpose: attaches a Cloudinary-backed media asset to a pack as a cover or gallery image.
+
+Main fields: `id`, `packId`, `mediaId`, `role`, `position`, `altText`, timestamps.
+
+Constraints: unique `(packId, mediaId)` plus indexes for pack position and role.
+
+Relations: belongs to one pack and one media asset.
+
+Lifecycle: managed by protected pack image endpoints. Service logic enforces a single `COVER` per pack and demotes the previous cover to `GALLERY`.
+
+Used by: public/admin pack responses and recommendation pack image responses.
+
+API exposure: protected admin write API; nested public read exposure.
+
+### CategoryImage
+
+Purpose: stores the single image attached to a category.
+
+Main fields: `id`, `categoryId`, `mediaId`, `altText`, timestamps.
+
+Constraints: unique `categoryId` and unique `mediaId`.
+
+Relations: belongs to one category and one media asset.
+
+Lifecycle: managed by protected category image endpoints. Replacement keeps the old relationship until the new upload and database write succeed, then attempts provider cleanup for the old asset.
+
+Used by: category summaries in product/admin responses.
+
+API exposure: protected admin write API; nested public/admin read exposure.
+
+### ProductReferenceImage
+
+Purpose: stores the single shade or swatch image attached to a product reference.
+
+Main fields: `id`, `productReferenceId`, `mediaId`, `role`, `altText`, timestamps.
+
+Constraints: unique `productReferenceId` and unique `mediaId`.
+
+Relations: belongs to one product reference and one media asset.
+
+Lifecycle: managed by protected product-reference image endpoints. The backend manages the role as `SWATCH`.
+
+Used by: product references, pack item references, and recommendation selected-reference responses.
+
+API exposure: protected admin write API; nested public/admin read exposure.
 
 ## Future/Internal Entities
 
@@ -622,3 +694,11 @@ Meaning: type of uploaded media asset.
 Values: `IMAGE`.
 
 Used by: `MediaAsset`.
+
+### MediaRole
+
+Meaning: relationship role for media attached to a catalog entity.
+
+Values: `COVER`, `GALLERY`, `THUMBNAIL`, `SWATCH`, `ICON`.
+
+Used by: `ProductImage`, `PackImage`, and `ProductReferenceImage`. Category images are exposed as icon-style images by the response mapper.

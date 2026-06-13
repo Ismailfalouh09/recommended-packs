@@ -4,20 +4,24 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { MediaRole, Prisma, ProductStatus } from '@prisma/client';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
   paginatedResponse,
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaUrlService?: MediaUrlService,
+  ) {}
 
   private readonly productSelect = {
     id: true,
@@ -33,6 +37,16 @@ export class ProductsService {
         id: true,
         code: true,
         name: true,
+        image: {
+          select: {
+            id: true,
+            mediaId: true,
+            altText: true,
+            createdAt: true,
+            updatedAt: true,
+            media: true,
+          },
+        },
       },
     },
     brand: {
@@ -51,6 +65,17 @@ export class ProductsService {
         priceOverride: true,
         priceDelta: true,
         imageUrl: true,
+        image: {
+          select: {
+            id: true,
+            mediaId: true,
+            role: true,
+            altText: true,
+            createdAt: true,
+            updatedAt: true,
+            media: true,
+          },
+        },
         stockQuantity: true,
         isDefault: true,
         attributes: {
@@ -78,10 +103,23 @@ export class ProductsService {
         },
       },
     },
+    images: {
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        mediaId: true,
+        role: true,
+        position: true,
+        altText: true,
+        createdAt: true,
+        updatedAt: true,
+        media: true,
+      },
+    },
   } satisfies Prisma.ProductSelect;
 
   async findAll() {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: {
         isActive: true,
         status: 'ACTIVE',
@@ -89,6 +127,8 @@ export class ProductsService {
       orderBy: [{ createdAt: 'desc' }],
       select: this.productSelect,
     });
+
+    return products.map((product) => this.toPublicProductResponse(product));
   }
 
   async findOne(id: string) {
@@ -105,7 +145,7 @@ export class ProductsService {
       throw new NotFoundException(`Product ${id} was not found.`);
     }
 
-    return product;
+    return this.toPublicProductResponse(product);
   }
 
   async adminFindAll(query: QueryProductsDto) {
@@ -290,6 +330,16 @@ export class ProductsService {
           id: true,
           code: true,
           name: true,
+          image: {
+            select: {
+              id: true,
+              mediaId: true,
+              altText: true,
+              createdAt: true,
+              updatedAt: true,
+              media: true,
+            },
+          },
         },
       },
       brand: {
@@ -304,6 +354,30 @@ export class ProductsService {
           stockQuantity: true,
           reservedQuantity: true,
           isActive: true,
+          image: {
+            select: {
+              id: true,
+              mediaId: true,
+              role: true,
+              altText: true,
+              createdAt: true,
+              updatedAt: true,
+              media: true,
+            },
+          },
+        },
+      },
+      images: {
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          mediaId: true,
+          role: true,
+          position: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
         },
       },
     } satisfies Prisma.ProductSelect;
@@ -323,6 +397,17 @@ export class ProductsService {
           priceOverride: true,
           priceDelta: true,
           imageUrl: true,
+          image: {
+            select: {
+              id: true,
+              mediaId: true,
+              role: true,
+              altText: true,
+              createdAt: true,
+              updatedAt: true,
+              media: true,
+            },
+          },
           stockQuantity: true,
           reservedQuantity: true,
           lowStockThreshold: true,
@@ -382,7 +467,15 @@ export class ProductsService {
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
       category: product.category,
+      categoryImage: this.toSingleImageResponse(
+        product.category?.image,
+        MediaRole.ICON,
+      ),
       brand: product.brand,
+      coverImage: this.coverImage(product.images ?? []),
+      images: (product.images ?? []).map((image: any) =>
+        this.toImageResponse(image),
+      ),
       referenceCount: product.references.length,
       activeReferenceCount: product.references.filter(
         (reference: { isActive: boolean }) => reference.isActive,
@@ -405,6 +498,7 @@ export class ProductsService {
         priceOverride: toMoneyNumber(reference.priceOverride),
         priceDelta: toMoneyNumber(reference.priceDelta),
         imageUrl: reference.imageUrl,
+        image: this.toReferenceImageResponse(reference.image),
         stockQuantity: reference.stockQuantity,
         reservedQuantity: reference.reservedQuantity,
         availableStock: this.availableStock(reference),
@@ -417,6 +511,91 @@ export class ProductsService {
         updatedAt: reference.updatedAt,
         attributes: reference.attributes,
       })),
+      coverImage: this.coverImage(product.images ?? []),
+      images: (product.images ?? []).map((image: any) =>
+        this.toImageResponse(image),
+      ),
+    };
+  }
+
+  private toPublicProductResponse(product: any) {
+    return {
+      ...product,
+      category: product.category
+        ? {
+            ...product.category,
+            image: this.toSingleImageResponse(
+              product.category.image,
+              MediaRole.ICON,
+            ),
+          }
+        : null,
+      references: product.references.map((reference: any) => ({
+        ...reference,
+        image: this.toReferenceImageResponse(reference.image),
+      })),
+      coverImage: this.coverImage(product.images),
+      images: product.images.map((image: any) => this.toImageResponse(image)),
+    };
+  }
+
+  private coverImage(images: any[] = []) {
+    const cover = images.find((image) => image.role === MediaRole.COVER);
+    return cover ? this.toImageResponse(cover) : null;
+  }
+
+  private toReferenceImageResponse(image: any) {
+    return this.toSingleImageResponse(image, MediaRole.SWATCH, true);
+  }
+
+  private toSingleImageResponse(
+    image: any,
+    role: MediaRole,
+    includeSwatch = false,
+  ) {
+    if (!image) {
+      return null;
+    }
+
+    return this.toImageResponse(
+      {
+        ...image,
+        role,
+        position: 0,
+      },
+      includeSwatch,
+    );
+  }
+
+  private toImageResponse(image: any, includeSwatch = false) {
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: image.role,
+      position: image.position,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.buildUrls(image.media, includeSwatch),
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
+    };
+  }
+
+  private buildUrls(media: any, includeSwatch = false) {
+    if (this.mediaUrlService) {
+      return this.mediaUrlService.buildUrls(media, { includeSwatch });
+    }
+
+    return {
+      original: media.secureUrl,
+      thumbnail: media.secureUrl,
+      card: media.secureUrl,
+      detail: media.secureUrl,
+      ...(includeSwatch ? { swatch: media.secureUrl } : {}),
     };
   }
 

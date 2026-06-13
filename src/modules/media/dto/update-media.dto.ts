@@ -11,11 +11,11 @@ import {
 } from 'class-validator';
 import { optionalTrimmedString } from '../../../common/transforms/query.transforms';
 
-export class UploadMediaDto {
+export class UpdateMediaDto {
   @ApiPropertyOptional({
-    description: 'Image role for products and packs. Defaults to GALLERY.',
+    description: 'Product or pack image role.',
     enum: [MediaRole.COVER, MediaRole.GALLERY],
-    example: MediaRole.GALLERY,
+    example: MediaRole.COVER,
   })
   @IsOptional()
   @IsEnum(MediaRole)
@@ -23,7 +23,7 @@ export class UploadMediaDto {
 
   @ApiPropertyOptional({
     description: 'Alternative text or internal image description.',
-    example: 'Soft glam foundation product image',
+    example: 'Updated foundation image description',
   })
   @IsOptional()
   @Transform(({ value }) => optionalTrimmedString(value))
@@ -32,30 +32,12 @@ export class UploadMediaDto {
   altText?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Non-negative display position. Defaults to the next position.',
-    example: 0,
+    description: 'Non-negative display position.',
+    example: 1,
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) =>
-    value === undefined || value === null || value === ''
-      ? undefined
-      : Number(value),
-  )
   @IsInt()
   @Min(0)
   position?: number;
-}
-
-export class UploadSingleImageDto {
-  @ApiPropertyOptional({
-    description: 'Alternative text or internal image description.',
-    example: 'Medium warm shade swatch',
-  })
-  @IsOptional()
-  @Transform(({ value }) => optionalTrimmedString(value))
-  @IsString()
-  @MaxLength(255)
-  altText?: string;
 }

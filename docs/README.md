@@ -2,7 +2,7 @@
 
 Current status:
 
-Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Documentation now includes the protected admin media endpoints, Cloudinary environment placeholders, and manual media API checks.
+Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Documentation now includes protected admin media endpoints, entity image endpoints, Cloudinary environment placeholders, public image response behavior, and manual media API checks.
 
 ## Core Documentation
 

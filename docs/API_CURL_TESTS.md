@@ -389,15 +389,13 @@ curl.exe -X DELETE http://localhost:3000/admin/recommendation-rules/RECOMMENDATI
 
 ### POST /admin/media/upload
 
-Replace `C:\path\to\image.jpg` with a local JPEG, PNG, WEBP, or AVIF image path. Cloudinary environment variables must be configured in `.env`; do not commit real credentials.
+Replace `C:\path\to\image.jpg` with a local JPEG, PNG, or WEBP image path. Cloudinary environment variables must be configured in `.env`; do not commit real credentials.
 
 ```powershell
 curl.exe -X POST http://localhost:3000/admin/media/upload `
   -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
   -F "file=@C:\path\to\image.jpg" `
-  -F "folder=recommended-packs/products" `
-  -F "altText=Foundation bottle shade medium warm" `
-  -F "usageContext=PRODUCT_MAIN_IMAGE"
+  -F "altText=Unassigned image"
 ```
 
 Copy the media asset `id`.
@@ -435,6 +433,116 @@ Replace `MEDIA_ASSET_ID_HERE`. This deletes the Cloudinary image and soft-delete
 
 ```powershell
 curl.exe -X DELETE http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### POST /admin/products/:productId/images
+
+Replace `PRODUCT_ID_HERE` and the local file path.
+
+```powershell
+curl.exe -X POST http://localhost:3000/admin/products/PRODUCT_ID_HERE/images `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -F "file=@C:\path\to\image.jpg" `
+  -F "role=COVER" `
+  -F "altText=Foundation product cover" `
+  -F "position=0"
+```
+
+Copy the returned image relation `id` as `PRODUCT_IMAGE_ID_HERE`.
+
+### PATCH /admin/products/:productId/images/reorder
+
+```powershell
+curl.exe -X PATCH http://localhost:3000/admin/products/PRODUCT_ID_HERE/images/reorder `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -H "Content-Type: application/json" `
+  -d "{\"items\":[{\"imageId\":\"PRODUCT_IMAGE_ID_HERE\",\"position\":0}]}"
+```
+
+### PATCH /admin/products/:productId/images/:imageId
+
+```powershell
+curl.exe -X PATCH http://localhost:3000/admin/products/PRODUCT_ID_HERE/images/PRODUCT_IMAGE_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -H "Content-Type: application/json" `
+  -d "{\"role\":\"GALLERY\",\"altText\":\"Updated product image\",\"position\":1}"
+```
+
+### DELETE /admin/products/:productId/images/:imageId
+
+```powershell
+curl.exe -X DELETE http://localhost:3000/admin/products/PRODUCT_ID_HERE/images/PRODUCT_IMAGE_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### POST /admin/packs/:packId/images
+
+```powershell
+curl.exe -X POST http://localhost:3000/admin/packs/PACK_ID_HERE/images `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -F "file=@C:\path\to\image.jpg" `
+  -F "role=COVER" `
+  -F "altText=Pack cover image" `
+  -F "position=0"
+```
+
+Copy the returned image relation `id` as `PACK_IMAGE_ID_HERE`.
+
+### PATCH /admin/packs/:packId/images/reorder
+
+```powershell
+curl.exe -X PATCH http://localhost:3000/admin/packs/PACK_ID_HERE/images/reorder `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -H "Content-Type: application/json" `
+  -d "{\"items\":[{\"imageId\":\"PACK_IMAGE_ID_HERE\",\"position\":0}]}"
+```
+
+### PATCH /admin/packs/:packId/images/:imageId
+
+```powershell
+curl.exe -X PATCH http://localhost:3000/admin/packs/PACK_ID_HERE/images/PACK_IMAGE_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -H "Content-Type: application/json" `
+  -d "{\"role\":\"GALLERY\",\"altText\":\"Updated pack image\",\"position\":1}"
+```
+
+### DELETE /admin/packs/:packId/images/:imageId
+
+```powershell
+curl.exe -X DELETE http://localhost:3000/admin/packs/PACK_ID_HERE/images/PACK_IMAGE_ID_HERE `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### PUT /admin/categories/:categoryId/image
+
+```powershell
+curl.exe -X PUT http://localhost:3000/admin/categories/CATEGORY_ID_HERE/image `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -F "file=@C:\path\to\image.jpg" `
+  -F "altText=Category image"
+```
+
+### DELETE /admin/categories/:categoryId/image
+
+```powershell
+curl.exe -X DELETE http://localhost:3000/admin/categories/CATEGORY_ID_HERE/image `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### PUT /admin/product-references/:referenceId/image
+
+```powershell
+curl.exe -X PUT http://localhost:3000/admin/product-references/REFERENCE_ID_HERE/image `
+  -H "Authorization: Bearer ACCESS_TOKEN_HERE" `
+  -F "file=@C:\path\to\image.jpg" `
+  -F "altText=Medium warm swatch"
+```
+
+### DELETE /admin/product-references/:referenceId/image
+
+```powershell
+curl.exe -X DELETE http://localhost:3000/admin/product-references/REFERENCE_ID_HERE/image `
   -H "Authorization: Bearer ACCESS_TOKEN_HERE"
 ```
 
@@ -747,10 +855,10 @@ curl -X DELETE http://localhost:3000/admin/recommendation-rules/RECOMMENDATION_R
 
 ### POST /admin/media/upload
 
-Replace `C:\path\to\image.jpg` with a local JPEG, PNG, WEBP, or AVIF image path. Cloudinary environment variables must be configured in `.env`; do not commit real credentials.
+Replace `C:\path\to\image.jpg` with a local JPEG, PNG, or WEBP image path. Cloudinary environment variables must be configured in `.env`; do not commit real credentials.
 
 ```cmd
-curl -X POST http://localhost:3000/admin/media/upload -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "folder=recommended-packs/products" -F "altText=Foundation bottle shade medium warm" -F "usageContext=PRODUCT_MAIN_IMAGE"
+curl -X POST http://localhost:3000/admin/media/upload -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "altText=Unassigned image"
 ```
 
 Copy the media asset `id`.
@@ -783,4 +891,80 @@ Replace `MEDIA_ASSET_ID_HERE`. This deletes the Cloudinary image and soft-delete
 
 ```cmd
 curl -X DELETE http://localhost:3000/admin/media/MEDIA_ASSET_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### POST /admin/products/:productId/images
+
+```cmd
+curl -X POST http://localhost:3000/admin/products/PRODUCT_ID_HERE/images -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "role=COVER" -F "altText=Foundation product cover" -F "position=0"
+```
+
+Copy the returned image relation `id` as `PRODUCT_IMAGE_ID_HERE`.
+
+### PATCH /admin/products/:productId/images/reorder
+
+```cmd
+curl -X PATCH http://localhost:3000/admin/products/PRODUCT_ID_HERE/images/reorder -H "Authorization: Bearer ACCESS_TOKEN_HERE" -H "Content-Type: application/json" -d "{\"items\":[{\"imageId\":\"PRODUCT_IMAGE_ID_HERE\",\"position\":0}]}"
+```
+
+### PATCH /admin/products/:productId/images/:imageId
+
+```cmd
+curl -X PATCH http://localhost:3000/admin/products/PRODUCT_ID_HERE/images/PRODUCT_IMAGE_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE" -H "Content-Type: application/json" -d "{\"role\":\"GALLERY\",\"altText\":\"Updated product image\",\"position\":1}"
+```
+
+### DELETE /admin/products/:productId/images/:imageId
+
+```cmd
+curl -X DELETE http://localhost:3000/admin/products/PRODUCT_ID_HERE/images/PRODUCT_IMAGE_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### POST /admin/packs/:packId/images
+
+```cmd
+curl -X POST http://localhost:3000/admin/packs/PACK_ID_HERE/images -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "role=COVER" -F "altText=Pack cover image" -F "position=0"
+```
+
+Copy the returned image relation `id` as `PACK_IMAGE_ID_HERE`.
+
+### PATCH /admin/packs/:packId/images/reorder
+
+```cmd
+curl -X PATCH http://localhost:3000/admin/packs/PACK_ID_HERE/images/reorder -H "Authorization: Bearer ACCESS_TOKEN_HERE" -H "Content-Type: application/json" -d "{\"items\":[{\"imageId\":\"PACK_IMAGE_ID_HERE\",\"position\":0}]}"
+```
+
+### PATCH /admin/packs/:packId/images/:imageId
+
+```cmd
+curl -X PATCH http://localhost:3000/admin/packs/PACK_ID_HERE/images/PACK_IMAGE_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE" -H "Content-Type: application/json" -d "{\"role\":\"GALLERY\",\"altText\":\"Updated pack image\",\"position\":1}"
+```
+
+### DELETE /admin/packs/:packId/images/:imageId
+
+```cmd
+curl -X DELETE http://localhost:3000/admin/packs/PACK_ID_HERE/images/PACK_IMAGE_ID_HERE -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### PUT /admin/categories/:categoryId/image
+
+```cmd
+curl -X PUT http://localhost:3000/admin/categories/CATEGORY_ID_HERE/image -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "altText=Category image"
+```
+
+### DELETE /admin/categories/:categoryId/image
+
+```cmd
+curl -X DELETE http://localhost:3000/admin/categories/CATEGORY_ID_HERE/image -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+```
+
+### PUT /admin/product-references/:referenceId/image
+
+```cmd
+curl -X PUT http://localhost:3000/admin/product-references/REFERENCE_ID_HERE/image -H "Authorization: Bearer ACCESS_TOKEN_HERE" -F "file=@C:\path\to\image.jpg" -F "altText=Medium warm swatch"
+```
+
+### DELETE /admin/product-references/:referenceId/image
+
+```cmd
+curl -X DELETE http://localhost:3000/admin/product-references/REFERENCE_ID_HERE/image -H "Authorization: Bearer ACCESS_TOKEN_HERE"
 ```

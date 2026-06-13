@@ -121,6 +121,14 @@ enum MediaAssetType {
   IMAGE
 }
 
+enum MediaRole {
+  COVER
+  GALLERY
+  THUMBNAIL
+  SWATCH
+  ICON
+}
+
 /**
  * =========================================================
  * 1. ATTRIBUTES / QUIZ FOUNDATION
@@ -278,6 +286,7 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
 
   products Product[]
+  image    CategoryImage?
 
   @@index([parentId])
   @@index([sortOrder])
@@ -318,6 +327,7 @@ model Product {
   brand    Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
   references                ProductReference[]
+  images                    ProductImage[]
   packItems                 PackItem[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
@@ -350,6 +360,7 @@ model ProductReference {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   attributes                ProductReferenceAttribute[]
+  image                     ProductReferenceImage?
   packItems                 PackItem[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
@@ -410,6 +421,7 @@ model Pack {
 
   items                 PackItem[]
   attributes            PackAttribute[]
+  images                PackImage[]
   recommendationResults RecommendationResult[]
   orders                Order[]                @relation("SelectedPackOrders")
   orderItems            OrderItem[]            @relation("PackOrderItems")
@@ -727,9 +739,11 @@ model MediaAsset {
   id                String             @id @default(uuid()) @db.Uuid
   provider          MediaAssetProvider @default(CLOUDINARY)
   assetType         MediaAssetType     @default(IMAGE) @map("asset_type")
+  providerAssetId   String?            @map("provider_asset_id") @db.VarChar(255)
   publicId          String             @unique @map("public_id") @db.VarChar(255)
   secureUrl         String             @map("secure_url")
   url               String?
+  resourceType      String             @default("image") @map("resource_type") @db.VarChar(40)
   folder            String?            @db.VarChar(180)
   originalName      String?            @map("original_name") @db.VarChar(255)
   mimeType          String             @map("mime_type") @db.VarChar(120)
@@ -737,6 +751,7 @@ model MediaAsset {
   width             Int?
   height            Int?
   bytes             Int
+  version           String?            @db.VarChar(80)
   altText           String?            @map("alt_text") @db.VarChar(255)
   usageContext      String?            @map("usage_context") @db.VarChar(120)
   relatedEntity     String?            @map("related_entity") @db.VarChar(80)
@@ -749,8 +764,14 @@ model MediaAsset {
 
   uploadedByAdmin AdminUser? @relation(fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
 
+  productImages          ProductImage[]
+  packImages             PackImage[]
+  categoryImages         CategoryImage[]
+  productReferenceImages ProductReferenceImage[]
+
   @@index([provider])
   @@index([assetType])
+  @@index([providerAssetId])
   @@index([folder])
   @@index([usageContext])
   @@index([relatedEntity, relatedEntityId])
@@ -758,6 +779,79 @@ model MediaAsset {
   @@index([isDeleted])
   @@index([createdAt])
   @@map("media_assets")
+}
+
+model ProductImage {
+  id        String    @id @default(uuid()) @db.Uuid
+  productId String    @map("product_id") @db.Uuid
+  mediaId   String    @map("media_id") @db.Uuid
+  role      MediaRole @default(GALLERY)
+  position  Int       @default(0)
+  altText   String?   @map("alt_text") @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  media   MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, mediaId])
+  @@index([productId, position])
+  @@index([productId, role])
+  @@index([mediaId])
+  @@map("product_images")
+}
+
+model PackImage {
+  id        String    @id @default(uuid()) @db.Uuid
+  packId    String    @map("pack_id") @db.Uuid
+  mediaId   String    @map("media_id") @db.Uuid
+  role      MediaRole @default(GALLERY)
+  position  Int       @default(0)
+  altText   String?   @map("alt_text") @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  pack  Pack       @relation(fields: [packId], references: [id], onDelete: Cascade)
+  media MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, mediaId])
+  @@index([packId, position])
+  @@index([packId, role])
+  @@index([mediaId])
+  @@map("pack_images")
+}
+
+model CategoryImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  categoryId String   @unique @map("category_id") @db.Uuid
+  mediaId    String   @unique @map("media_id") @db.Uuid
+  altText    String?  @map("alt_text") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  media    MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([mediaId])
+  @@map("category_images")
+}
+
+model ProductReferenceImage {
+  id                 String    @id @default(uuid()) @db.Uuid
+  productReferenceId String    @unique @map("product_reference_id") @db.Uuid
+  mediaId            String    @unique @map("media_id") @db.Uuid
+  role               MediaRole @default(SWATCH)
+  altText            String?   @map("alt_text") @db.VarChar(255)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  productReference ProductReference @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+  media            MediaAsset       @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([productReferenceId])
+  @@index([mediaId])
+  @@map("product_reference_images")
 }
 
 /**

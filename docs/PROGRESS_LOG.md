@@ -2,7 +2,76 @@
 
 ## 2026-06-11 21:39 +01:00
 
-Current stopping point: Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+Current stopping point: Task 14 Media Management and Image Upload API is fully implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+
+## 2026-06-13 20:19 +01:00
+
+Task 14 completed: full Media Management and Image Upload API.
+
+Objective: implement Cloudinary-backed image management for products, product references/shades, packs, categories, recommendation responses, and future quiz-option extension points without storing image binaries on the backend server.
+
+Files created or modified:
+- `prisma/schema.prisma`
+- `prisma/migrations/20260613185217_add_media_management/migration.sql`
+- `src/modules/media/**`
+- `src/modules/products/products.service.ts`
+- `src/modules/packs/packs.service.ts`
+- `src/modules/categories/categories.service.ts`
+- `src/modules/product-references/product-references.service.ts`
+- `src/modules/recommendations/recommendations.service.ts`
+- `src/modules/recommendations/recommendation-engine.service.ts`
+- `src/common/swagger/api-response.models.ts`
+- `src/common/swagger/openapi.config.ts`
+- `.env.example`
+- `package.json`
+- `package-lock.json`
+- project documentation under `docs/`, `README.md`, `PROJECT_BRIEF.md`, `BACKEND_ROADMAP.md`, and `AGENTS.md`
+
+Endpoints added:
+- `POST /admin/products/:productId/images`
+- `PATCH /admin/products/:productId/images/reorder`
+- `PATCH /admin/products/:productId/images/:imageId`
+- `DELETE /admin/products/:productId/images/:imageId`
+- `POST /admin/packs/:packId/images`
+- `PATCH /admin/packs/:packId/images/reorder`
+- `PATCH /admin/packs/:packId/images/:imageId`
+- `DELETE /admin/packs/:packId/images/:imageId`
+- `PUT /admin/categories/:categoryId/image`
+- `DELETE /admin/categories/:categoryId/image`
+- `PUT /admin/product-references/:referenceId/image`
+- `DELETE /admin/product-references/:referenceId/image`
+
+Existing media endpoints retained:
+- `POST /admin/media/upload`
+- `GET /admin/media`
+- `GET /admin/media/:id`
+- `PATCH /admin/media/:id`
+- `DELETE /admin/media/:id`
+
+Validation/build status:
+- `npx prisma format` passed.
+- `npx prisma validate` passed.
+- `npx prisma migrate dev --name add_media_management` passed.
+- `npx prisma generate` passed.
+- `npm run build` passed.
+- `npm test -- --runInBand` passed.
+- `npm run test:e2e` passed.
+- `npm run swagger:generate` passed.
+- `npm run swagger:check` passed.
+- `npx prisma migrate status` passed.
+- `npm run lint` failed because the repository still has broad pre-existing unsafe TypeScript lint debt; Task 14-specific files also have some lint cleanup left around typed Prisma response helpers.
+
+Important notes:
+- Cloudinary SDK access is isolated to the storage provider layer.
+- Tests mock `MediaStorageProvider`; real Cloudinary credentials are not required for automated tests.
+- Product and pack cover behavior is transactional and demotes previous covers instead of deleting them.
+- Category and product-reference replacement uploads the new image first, commits database replacement, then attempts old-provider cleanup.
+- Entity deletion removes the database relationship before provider cleanup.
+- Optimized URL variants are generated at response time and are not stored in PostgreSQL.
+- Public product, pack, category, product-reference, and recommendation responses include image data additively.
+- Direct signed browser-to-Cloudinary upload is documented as future work only.
+- No real Cloudinary credentials were committed.
+- No recommendation scoring, order workflow, stock reservation/deduction, delivery integration, WhatsApp integration, or frontend work was added.
 
 ## 2026-06-13 18:45 +01:00
 
@@ -53,7 +122,7 @@ Important notes:
 - All media endpoints require JWT authentication.
 - `OWNER` and `ADMIN` can upload, update metadata, and delete media assets.
 - `OWNER`, `ADMIN`, and `STAFF` can list/read media assets.
-- Upload accepts JPEG, PNG, WEBP, and AVIF images.
+- Upload accepts JPEG, PNG, and WEBP images.
 - Upload stores Cloudinary metadata in `MediaAsset`.
 - Delete removes the Cloudinary asset and soft-deletes the local row.
 - `PATCH /admin/media/:id` updates local metadata only; it does not replace the Cloudinary asset.
@@ -742,3 +811,4 @@ No active recommendation scoring issue is known after Task 7B. Larger packs no l
 - Admin pack CRUD: OK
 - Admin quiz, attributes, and recommendation rules CRUD: OK
 - Admin order management and status workflow: OK
+- Media management and image upload API: OK

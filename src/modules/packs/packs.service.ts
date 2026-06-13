@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  MediaRole,
   MatchType,
   PackStatus,
   PriceMode,
@@ -18,6 +19,7 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { PackAttributeInputDto } from './dto/pack-attribute-input.dto';
 import { PackItemInputDto } from './dto/pack-item-input.dto';
@@ -60,7 +62,10 @@ interface PackScalarState {
 
 @Injectable()
 export class PacksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaUrlService?: MediaUrlService,
+  ) {}
 
   private readonly packAttributeSelect = {
     id: true,
@@ -90,6 +95,17 @@ export class PacksService {
     priceOverride: true,
     priceDelta: true,
     imageUrl: true,
+    image: {
+      select: {
+        id: true,
+        mediaId: true,
+        role: true,
+        altText: true,
+        createdAt: true,
+        updatedAt: true,
+        media: true,
+      },
+    },
     stockQuantity: true,
     isDefault: true,
   } satisfies Prisma.ProductReferenceSelect;
@@ -101,6 +117,19 @@ export class PacksService {
     basePrice: true,
     currency: true,
     mainImageUrl: true,
+    images: {
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        mediaId: true,
+        role: true,
+        position: true,
+        altText: true,
+        createdAt: true,
+        updatedAt: true,
+        media: true,
+      },
+    },
     category: {
       select: {
         id: true,
@@ -132,6 +161,19 @@ export class PacksService {
       currency: true,
       priority: true,
       status: true,
+      images: {
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          mediaId: true,
+          role: true,
+          position: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
       attributes: {
         orderBy: [{ attributeGroup: { sortOrder: 'asc' } }],
         select: this.packAttributeSelect,
@@ -165,7 +207,7 @@ export class PacksService {
   }
 
   async findAll() {
-    return this.prisma.pack.findMany({
+    const packs = await this.prisma.pack.findMany({
       where: {
         isActive: true,
         status: 'ACTIVE',
@@ -173,6 +215,8 @@ export class PacksService {
       orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
       select: this.packSelect(false),
     });
+
+    return packs.map((pack) => this.toPublicPackResponse(pack));
   }
 
   async findOne(id: string) {
@@ -189,7 +233,7 @@ export class PacksService {
       throw new NotFoundException(`Pack ${id} was not found.`);
     }
 
-    return pack;
+    return this.toPublicPackResponse(pack);
   }
 
   async adminFindAll(query: QueryPacksDto) {
@@ -422,6 +466,19 @@ export class PacksService {
       isActive: true,
       createdAt: true,
       updatedAt: true,
+      images: {
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          mediaId: true,
+          role: true,
+          position: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
       _count: {
         select: {
           items: true,
@@ -565,6 +622,10 @@ export class PacksService {
       attributeCount: pack._count.attributes,
       createdAt: pack.createdAt,
       updatedAt: pack.updatedAt,
+      coverImage: this.coverImage(pack.images ?? []),
+      images: (pack.images ?? []).map((image: any) =>
+        this.toImageResponse(image),
+      ),
     };
   }
 
@@ -597,6 +658,10 @@ export class PacksService {
         product: {
           ...item.product,
           basePrice: toMoneyNumber(item.product.basePrice),
+          coverImage: this.coverImage(item.product.images ?? []),
+          images: (item.product.images ?? []).map((image: any) =>
+            this.toImageResponse(image),
+          ),
           references: item.product.references.map((reference: any) => ({
             ...reference,
             priceOverride: toMoneyNumber(reference.priceOverride),
@@ -605,6 +670,7 @@ export class PacksService {
               reference.stockQuantity - reference.reservedQuantity,
               0,
             ),
+            image: this.toReferenceImageResponse(reference.image),
           })),
         },
         productReference: item.productReference
@@ -617,9 +683,100 @@ export class PacksService {
                   item.productReference.reservedQuantity,
                 0,
               ),
+              image: this.toReferenceImageResponse(item.productReference.image),
             }
           : null,
       })),
+    };
+  }
+
+  private toPublicPackResponse(pack: any) {
+    return {
+      ...pack,
+      fixedPrice: toMoneyNumber(pack.fixedPrice),
+      discountAmount: toMoneyNumber(pack.discountAmount),
+      discountPercentage: toMoneyNumber(pack.discountPercentage),
+      minBudget: toMoneyNumber(pack.minBudget),
+      maxBudget: toMoneyNumber(pack.maxBudget),
+      coverImage: this.coverImage(pack.images),
+      images: pack.images.map((image: any) => this.toImageResponse(image)),
+      items: pack.items.map((item: any) => ({
+        ...item,
+        product: {
+          ...item.product,
+          basePrice: toMoneyNumber(item.product.basePrice),
+          coverImage: this.coverImage(item.product.images ?? []),
+          images: (item.product.images ?? []).map((image: any) =>
+            this.toImageResponse(image),
+          ),
+          references: (item.product.references ?? []).map((reference: any) => ({
+            ...reference,
+            priceOverride: toMoneyNumber(reference.priceOverride),
+            priceDelta: toMoneyNumber(reference.priceDelta),
+            image: this.toReferenceImageResponse(reference.image),
+          })),
+        },
+        productReference: item.productReference
+          ? {
+              ...item.productReference,
+              priceOverride: toMoneyNumber(item.productReference.priceOverride),
+              priceDelta: toMoneyNumber(item.productReference.priceDelta),
+              image: this.toReferenceImageResponse(item.productReference.image),
+            }
+          : null,
+      })),
+    };
+  }
+
+  private coverImage(images: any[] = []) {
+    const cover = images.find((image) => image.role === MediaRole.COVER);
+    return cover ? this.toImageResponse(cover) : null;
+  }
+
+  private toReferenceImageResponse(image: any) {
+    if (!image) {
+      return null;
+    }
+
+    return this.toImageResponse(
+      {
+        ...image,
+        role: image.role ?? MediaRole.SWATCH,
+        position: 0,
+      },
+      true,
+    );
+  }
+
+  private toImageResponse(image: any, includeSwatch = false) {
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: image.role,
+      position: image.position,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.buildUrls(image.media, includeSwatch),
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
+    };
+  }
+
+  private buildUrls(media: any, includeSwatch = false) {
+    if (this.mediaUrlService) {
+      return this.mediaUrlService.buildUrls(media, { includeSwatch });
+    }
+
+    return {
+      original: media.secureUrl,
+      thumbnail: media.secureUrl,
+      card: media.secureUrl,
+      detail: media.secureUrl,
+      ...(includeSwatch ? { swatch: media.secureUrl } : {}),
     };
   }
 

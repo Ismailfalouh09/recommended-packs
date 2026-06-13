@@ -23,9 +23,11 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiPayloadTooLargeResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnsupportedMediaTypeResponse,
 } from '@nestjs/swagger';
 import { AdminRole } from '@prisma/client';
 import { memoryStorage } from 'multer';
@@ -35,10 +37,13 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { CurrentAdmin } from '../auth/types/jwt-payload.type';
+import { defaultMediaMaxFileSizeMb } from './constants/media.constants';
 import { QueryMediaAssetsDto } from './dto/query-media-assets.dto';
 import { UpdateMediaAssetDto } from './dto/update-media-asset.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import { MediaService } from './media.service';
+import { ImageFileValidationPipe } from './pipes/image-file-validation.pipe';
+import type { ValidatedImageFile } from './pipes/image-file-validation.pipe';
 
 @ApiTags('Admin Media')
 @ApiBearerAuth('bearer')
@@ -54,13 +59,13 @@ export class MediaController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: defaultMediaMaxFileSizeMb * 1024 * 1024 },
     }),
   )
   @ApiOperation({
     summary: 'Upload an image asset',
     description:
-      'OWNER and ADMIN can upload JPEG, PNG, WEBP, or AVIF images to Cloudinary. Metadata is stored locally for later product/pack attachment workflows.',
+      'OWNER and ADMIN can upload one JPEG, PNG, or WEBP image to Cloudinary. Metadata is stored locally for later product/pack attachment workflows.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -71,28 +76,11 @@ export class MediaController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Image file to upload.',
-        },
-        folder: {
-          type: 'string',
-          example: 'recommended-packs/products',
+          description: 'JPEG, PNG, or WEBP image file to upload.',
         },
         altText: {
           type: 'string',
-          example: 'Foundation bottle shade medium warm',
-        },
-        usageContext: {
-          type: 'string',
-          example: 'PRODUCT_MAIN_IMAGE',
-        },
-        relatedEntity: {
-          type: 'string',
-          example: 'PRODUCT',
-        },
-        relatedEntityId: {
-          type: 'string',
-          format: 'uuid',
-          example: '00000000-0000-4000-8000-000000000001',
+          example: 'Unassigned media asset',
         },
       },
     },
@@ -105,11 +93,15 @@ export class MediaController {
     description:
       'Missing file, invalid image type, invalid metadata, or file too large.',
   })
+  @ApiPayloadTooLargeResponse({ description: 'Image file is too large.' })
+  @ApiUnsupportedMediaTypeResponse({
+    description: 'Unsupported or mismatched image type.',
+  })
   @ApiServiceUnavailableResponse({
     description: 'Cloudinary credentials are not configured.',
   })
   uploadImage(
-    @UploadedFile() file: Express.Multer.File | undefined,
+    @UploadedFile(ImageFileValidationPipe) file: ValidatedImageFile,
     @Body() dto: UploadMediaDto,
     @CurrentAdminUser() currentAdmin: CurrentAdmin,
   ) {

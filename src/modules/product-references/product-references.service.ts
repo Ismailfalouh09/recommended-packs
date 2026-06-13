@@ -11,6 +11,7 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreateProductReferenceDto } from './dto/create-product-reference.dto';
 import { QueryProductReferencesDto } from './dto/query-product-references.dto';
 import { ReferenceAttributeInputDto } from './dto/reference-attribute-input.dto';
@@ -27,7 +28,10 @@ interface ResolvedReferenceAttribute {
 
 @Injectable()
 export class ProductReferencesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaUrlService?: MediaUrlService,
+  ) {}
 
   async findAllForProduct(productId: string, query: QueryProductReferencesDto) {
     await this.ensureProductExists(productId);
@@ -318,6 +322,17 @@ export class ProductReferencesService {
       priceOverride: true,
       priceDelta: true,
       imageUrl: true,
+      image: {
+        select: {
+          id: true,
+          mediaId: true,
+          role: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
       stockQuantity: true,
       reservedQuantity: true,
       lowStockThreshold: true,
@@ -377,6 +392,7 @@ export class ProductReferencesService {
       priceOverride: toMoneyNumber(reference.priceOverride),
       priceDelta: toMoneyNumber(reference.priceDelta),
       imageUrl: reference.imageUrl,
+      image: this.toReferenceImageResponse(reference.image),
       stockQuantity: reference.stockQuantity,
       reservedQuantity: reference.reservedQuantity,
       availableStock,
@@ -388,6 +404,36 @@ export class ProductReferencesService {
       updatedAt: reference.updatedAt,
       product: reference.product,
       attributes: reference.attributes,
+    };
+  }
+
+  private toReferenceImageResponse(image: any) {
+    if (!image) {
+      return null;
+    }
+
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: image.role,
+      position: 0,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.mediaUrlService?.buildUrls(image.media, {
+        includeSwatch: true,
+      }) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+        swatch: image.media.secureUrl,
+      },
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
     };
   }
 

@@ -2,7 +2,7 @@
 
 This plan is usable from Swagger UI, Bruno, or Postman.
 
-Backend status: Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The current manual validation focus includes protected admin media upload, media listing, metadata updates, soft delete behavior, and OpenAPI coverage.
+Backend status: Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The current manual validation focus includes protected admin media upload, entity image attachment/replacement/reorder/delete behavior, image URL variants, public response integration, and OpenAPI coverage.
 
 ## Prerequisites
 
@@ -66,6 +66,8 @@ Use these variables in Swagger notes, Postman environments, or Bruno environment
 | `quizQuestionId` | quiz question ID |
 | `recommendationRuleId` | recommendation rule ID |
 | `mediaAssetId` | media asset ID from `POST /admin/media/upload` |
+| `productImageId` | image relation ID from `POST /admin/products/:productId/images` |
+| `packImageId` | image relation ID from `POST /admin/packs/:packId/images` |
 
 ## Suite A - Health And Documentation
 
@@ -195,17 +197,17 @@ Before this suite, configure local Cloudinary credentials in `.env`:
 CLOUDINARY_CLOUD_NAME="your-cloud-name"
 CLOUDINARY_API_KEY="your-api-key"
 CLOUDINARY_API_SECRET="your-api-secret"
-CLOUDINARY_UPLOAD_FOLDER="recommended-packs/dev"
-MEDIA_MAX_FILE_SIZE_BYTES=5242880
+CLOUDINARY_FOLDER_PREFIX="beauty-app"
+MEDIA_MAX_FILE_SIZE_MB=5
 ```
 
 Do not commit real values.
 
 | Test ID | Method | Endpoint | Auth | Request | Expected status | Expected response | DB check | Pass/Fail | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| K-01 | POST | `/admin/media/upload` | OWNER/ADMIN | multipart image file plus optional metadata | 201 or 200 | media asset with `secureUrl` and `publicId` | `media_assets` row created |  | Store `mediaAssetId` |
-| K-02 | POST | `/admin/media/upload` | OWNER/ADMIN | PDF or unsupported file | 400 | unsupported type error | no row created |  | |
-| K-03 | POST | `/admin/media/upload` | OWNER/ADMIN | file larger than configured max | 400 | size error | no row created |  | |
+| K-01 | POST | `/admin/media/upload` | OWNER/ADMIN | multipart JPEG/PNG/WEBP file plus optional `altText` | 201 or 200 | media asset with `secureUrl`, `publicId`, and `urls` | `media_assets` row created |  | Store `mediaAssetId` |
+| K-02 | POST | `/admin/media/upload` | OWNER/ADMIN | PDF or unsupported file | 415 | unsupported type error | no row created |  | |
+| K-03 | POST | `/admin/media/upload` | OWNER/ADMIN | file larger than configured max | 413 | size error | no row created |  | |
 | K-04 | POST | `/admin/media/upload` | missing Cloudinary env | 503 | Cloudinary not configured | no row created |  | Use only in isolated env |
 | K-05 | GET | `/admin/media` | STAFF/ADMIN/OWNER | pagination/filter query | 200 | paginated media assets | none |  | Deleted hidden by default |
 | K-06 | GET | `/admin/media/:id` | STAFF/ADMIN/OWNER | valid media ID | 200 | media asset detail | none |  | |
@@ -213,6 +215,20 @@ Do not commit real values.
 | K-08 | PATCH | `/admin/media/:id` | STAFF token | metadata update | 403 | forbidden | no change |  | |
 | K-09 | DELETE | `/admin/media/:id` | OWNER/ADMIN | none | 200 | `isDeleted = true` | Cloudinary asset removed and row soft-deleted |  | |
 | K-10 | GET | `/admin/media/:id` | STAFF/ADMIN/OWNER | deleted media ID | 404 | not found | row remains soft-deleted |  | |
+| K-11 | POST | `/admin/products/:productId/images` | OWNER/ADMIN | multipart image, `role=GALLERY`, optional `altText`, `position` | 201 or 200 | product image relation with URL variants | `product_images` and `media_assets` rows created |  | |
+| K-12 | POST | `/admin/products/:productId/images` | OWNER/ADMIN | multipart image, `role=COVER` | 201 or 200 | cover image relation | previous product cover demoted to `GALLERY` |  | |
+| K-13 | PATCH | `/admin/products/:productId/images/reorder` | OWNER/ADMIN | JSON reorder payload | 200 | ordered image relations | positions updated transactionally |  | |
+| K-14 | PATCH | `/admin/products/:productId/images/:imageId` | OWNER/ADMIN | update `altText`, `position`, or `role` | 200 | updated image relation | cover demotion occurs if promoted |  | |
+| K-15 | DELETE | `/admin/products/:productId/images/:imageId` | OWNER/ADMIN | none | 200 | deletion summary | relation deleted before provider cleanup |  | |
+| K-16 | POST | `/admin/packs/:packId/images` | OWNER/ADMIN | multipart image, `role=GALLERY` or `COVER` | 201 or 200 | pack image relation with URL variants | `pack_images` and `media_assets` rows created |  | |
+| K-17 | PATCH | `/admin/packs/:packId/images/reorder` | OWNER/ADMIN | JSON reorder payload | 200 | ordered image relations | positions updated transactionally |  | |
+| K-18 | PUT | `/admin/categories/:categoryId/image` | OWNER/ADMIN | multipart image and optional `altText` | 201 or 200 | category image relation | old category image replaced after DB commit |  | |
+| K-19 | DELETE | `/admin/categories/:categoryId/image` | OWNER/ADMIN | none | 200 | deletion summary | category image relation deleted |  | |
+| K-20 | PUT | `/admin/product-references/:referenceId/image` | OWNER/ADMIN | multipart shade/swatch image | 201 or 200 | image relation with `swatch` URL | old reference image replaced after DB commit |  | |
+| K-21 | DELETE | `/admin/product-references/:referenceId/image` | OWNER/ADMIN | none | 200 | deletion summary | reference image relation deleted |  | |
+| K-22 | GET | `/products/:id` | none | product with images | 200 | includes `coverImage`, `images`, category `image`, and reference `image` | none |  | |
+| K-23 | GET | `/packs/:id` | none | pack with images | 200 | includes `coverImage`, `images`, product images, and reference images | none |  | |
+| K-24 | POST | `/recommendations` | none | valid profile after images attached | 201 or 200 | recommendations include pack/product/reference image data | recommendation rows stored normally |  | |
 
 ## Order Status Workflow Reference
 

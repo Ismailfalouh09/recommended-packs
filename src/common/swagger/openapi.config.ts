@@ -59,6 +59,22 @@ export function buildOpenApiConfig() {
     )
     .addTag('Admin Orders', 'Protected order inspection and status workflow.')
     .addTag('Admin Media', 'Protected image upload and media asset management.')
+    .addTag(
+      'Admin Product Media',
+      'Protected product image upload, update, reorder, and deletion.',
+    )
+    .addTag(
+      'Admin Pack Media',
+      'Protected pack image upload, update, reorder, and deletion.',
+    )
+    .addTag(
+      'Admin Category Media',
+      'Protected category image create, replace, and deletion.',
+    )
+    .addTag(
+      'Admin Product Reference Media',
+      'Protected product-reference shade or swatch image create, replace, and deletion.',
+    )
     .build();
 }
 

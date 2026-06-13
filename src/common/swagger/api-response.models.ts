@@ -4,6 +4,7 @@ import {
   MatchType,
   MediaAssetProvider,
   MediaAssetType,
+  MediaRole,
   OrderStatus,
   PackStatus,
   PaymentMethod,
@@ -197,6 +198,9 @@ export class CategorySummaryResponse {
 
   @ApiProperty({ example: 'Foundation' })
   name!: string;
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  image?: MediaImageResponse | null;
 }
 
 export class BrandSummaryResponse {
@@ -227,6 +231,82 @@ export class AttributeMatchResponse {
   attributeOption!: AttributeOptionResponse;
 }
 
+export class MediaUrlVariantsResponse {
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/v123/beauty-app/products/sample-image',
+  })
+  original!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_fill,w_200,h_200,g_auto,q_auto,f_auto/beauty-app/products/sample-image',
+  })
+  thumbnail!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_fill,w_600,h_600,g_auto,q_auto,f_auto/beauty-app/products/sample-image',
+  })
+  card!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_limit,w_1200,h_1200,q_auto,f_auto/beauty-app/products/sample-image',
+  })
+  detail!: string;
+
+  @ApiPropertyOptional({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_fill,w_300,h_300,q_auto,f_auto/beauty-app/product-references/sample-swatch',
+  })
+  swatch?: string;
+}
+
+export class MediaImageResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: '00000000-0000-4000-8000-000000000002' })
+  mediaAssetId!: string;
+
+  @ApiProperty({ enum: MediaRole, example: MediaRole.COVER })
+  role!: MediaRole;
+
+  @ApiProperty({ example: 0 })
+  position!: number;
+
+  @ApiPropertyOptional({
+    example: 'Foundation bottle shade medium warm',
+    nullable: true,
+  })
+  altText?: string | null;
+
+  @ApiPropertyOptional({ example: 'webp', nullable: true })
+  format?: string | null;
+
+  @ApiPropertyOptional({ example: 'image/webp', nullable: true })
+  mimeType?: string | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  height?: number | null;
+
+  @ApiPropertyOptional({ example: 143000, nullable: true })
+  bytes?: number | null;
+
+  @ApiProperty({ type: MediaUrlVariantsResponse })
+  urls!: MediaUrlVariantsResponse;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  updatedAt!: string;
+}
+
 export class ProductReferenceResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;
@@ -254,6 +334,9 @@ export class ProductReferenceResponse {
 
   @ApiProperty({ example: true })
   isActive!: boolean;
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  image?: MediaImageResponse | null;
 
   @ApiProperty({ type: [AttributeMatchResponse] })
   attributes!: AttributeMatchResponse[];
@@ -286,6 +369,12 @@ export class ProductResponse {
 
   @ApiProperty({ type: [ProductReferenceResponse] })
   references!: ProductReferenceResponse[];
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  coverImage?: MediaImageResponse | null;
+
+  @ApiProperty({ type: [MediaImageResponse] })
+  images!: MediaImageResponse[];
 }
 
 export class PackItemResponse {
@@ -338,6 +427,12 @@ export class PackResponse {
 
   @ApiProperty({ type: [PackItemResponse] })
   items!: PackItemResponse[];
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  coverImage?: MediaImageResponse | null;
+
+  @ApiProperty({ type: [MediaImageResponse] })
+  images!: MediaImageResponse[];
 }
 
 export class RecommendationResultItemResponse {
@@ -581,6 +676,9 @@ export class MediaAssetResponse {
   @ApiProperty({ example: 'recommended-packs/products/sample-image' })
   publicId!: string;
 
+  @ApiPropertyOptional({ example: '1234567890abcdef', nullable: true })
+  providerAssetId?: string | null;
+
   @ApiProperty({
     example:
       'https://res.cloudinary.com/demo/image/upload/v123/recommended-packs/products/sample-image.jpg',
@@ -593,6 +691,9 @@ export class MediaAssetResponse {
   })
   folder?: string | null;
 
+  @ApiProperty({ example: 'image' })
+  resourceType!: string;
+
   @ApiPropertyOptional({ example: 'foundation.jpg', nullable: true })
   originalName?: string | null;
 
@@ -601,6 +702,9 @@ export class MediaAssetResponse {
 
   @ApiPropertyOptional({ example: 'jpg', nullable: true })
   format?: string | null;
+
+  @ApiPropertyOptional({ example: '1718292000', nullable: true })
+  version?: string | null;
 
   @ApiPropertyOptional({ example: 1200, nullable: true })
   width?: number | null;
@@ -631,6 +735,9 @@ export class MediaAssetResponse {
 
   @ApiPropertyOptional({ type: AdminSummaryResponse, nullable: true })
   uploadedByAdmin?: AdminSummaryResponse | null;
+
+  @ApiProperty({ type: MediaUrlVariantsResponse })
+  urls!: MediaUrlVariantsResponse;
 
   @ApiProperty({ example: false })
   isDeleted!: boolean;

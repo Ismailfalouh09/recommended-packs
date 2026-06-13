@@ -141,6 +141,18 @@ Admin media:
 - `GET /admin/media/:id`
 - `PATCH /admin/media/:id`
 - `DELETE /admin/media/:id`
+- `POST /admin/products/:productId/images`
+- `PATCH /admin/products/:productId/images/reorder`
+- `PATCH /admin/products/:productId/images/:imageId`
+- `DELETE /admin/products/:productId/images/:imageId`
+- `POST /admin/packs/:packId/images`
+- `PATCH /admin/packs/:packId/images/reorder`
+- `PATCH /admin/packs/:packId/images/:imageId`
+- `DELETE /admin/packs/:packId/images/:imageId`
+- `PUT /admin/categories/:categoryId/image`
+- `DELETE /admin/categories/:categoryId/image`
+- `PUT /admin/product-references/:referenceId/image`
+- `DELETE /admin/product-references/:referenceId/image`
 
 ## 3. Endpoint Authentication Requirements
 
@@ -172,6 +184,7 @@ Read roles:
 Write roles:
 - `OWNER` and `ADMIN` can create, update, deactivate, archive, reorder, and update order status.
 - `OWNER` and `ADMIN` can upload, update metadata, and delete media assets.
+- `OWNER` and `ADMIN` can create, replace, update, reorder, and delete product, pack, category, and product-reference images.
 
 Staff restrictions:
 - `STAFF` is read-only for admin catalog/configuration/order endpoints.
@@ -261,13 +274,14 @@ Current sensitive-data concern:
 
 ## 12. Known Backend Limitations
 
-- Task 14 media management is implemented. Media assets are stored independently and are not yet attached by catalog, pack, quiz, or attribute CRUD endpoints.
+- Task 14 media management is implemented for products, packs, categories, and product references.
 - No stock reservation or stock deduction occurs during order creation or status updates.
 - No payment provider integration exists.
 - Cash on Delivery is the only payment method.
 - No delivery provider integration exists.
 - No WhatsApp or messaging workflow exists.
-- Media upload stores metadata and Cloudinary URLs, but media assets are not yet attached to products, references, packs, categories, brands, attribute options, or quiz options by existing CRUD endpoints.
+- Brand logos, attribute option images, and quiz option images still use existing URL fields or future extension points; no dedicated Cloudinary relationship endpoints exist for them yet.
+- Direct signed browser-to-Cloudinary upload is not implemented.
 - No admin user management CRUD exists.
 - No customer authentication exists.
 - Recommendation logic is V1 and rule-driven, but not ML/personalization beyond stored answers and compatibility rules.
