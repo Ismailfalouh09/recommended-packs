@@ -1,0 +1,564 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  AdminRole,
+  MatchType,
+  OrderStatus,
+  PackStatus,
+  PaymentMethod,
+  PaymentStatus,
+  PriceMode,
+  ProductStatus,
+  RecommendationConditionType,
+  RecommendationStatus,
+  RecommendationTargetType,
+  SelectionMode,
+  SelectionType,
+  SourceChannel,
+} from '@prisma/client';
+
+const uuidExample = '00000000-0000-4000-8000-000000000001';
+
+export class ApiErrorResponse {
+  @ApiProperty({ example: 400 })
+  statusCode!: number;
+
+  @ApiProperty({
+    oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+    example: ['attributeGroupCode must not be empty'],
+  })
+  message!: string | string[];
+
+  @ApiPropertyOptional({ example: 'Bad Request' })
+  error?: string;
+}
+
+export class PaginatedResponseMetadata {
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 20 })
+  pageSize!: number;
+
+  @ApiProperty({ example: 42 })
+  totalItems!: number;
+
+  @ApiProperty({ example: 3 })
+  totalPages!: number;
+
+  @ApiProperty({ example: true })
+  hasNextPage!: boolean;
+
+  @ApiProperty({ example: false })
+  hasPreviousPage!: boolean;
+}
+
+export class AdminSummaryResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Admin User' })
+  fullName!: string;
+
+  @ApiProperty({ example: 'admin@example.com' })
+  email!: string;
+
+  @ApiProperty({ enum: AdminRole, example: AdminRole.ADMIN })
+  role!: AdminRole;
+}
+
+export class AuthLoginResponse {
+  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example' })
+  accessToken!: string;
+
+  @ApiProperty({ example: 'Bearer' })
+  tokenType!: string;
+
+  @ApiProperty({ example: '1d' })
+  expiresIn!: string;
+
+  @ApiProperty({ type: AdminSummaryResponse })
+  admin!: AdminSummaryResponse;
+}
+
+export class CurrentAdminResponse extends AdminSummaryResponse {
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+}
+
+export class AttributeOptionResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'MEDIUM' })
+  code!: string;
+
+  @ApiProperty({ example: 'Medium' })
+  label!: string;
+}
+
+export class AttributeGroupResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'SKIN_COLOR' })
+  code!: string;
+
+  @ApiProperty({ example: 'Skin Color' })
+  name!: string;
+
+  @ApiProperty({ type: [AttributeOptionResponse] })
+  options!: AttributeOptionResponse[];
+}
+
+export class QuizAttributeGroupResponse {
+  @ApiProperty({ example: 'SKIN_COLOR' })
+  code!: string;
+
+  @ApiProperty({ example: 'Skin Color' })
+  name!: string;
+}
+
+export class QuizQuestionOptionResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: uuidExample })
+  attributeOptionId!: string;
+
+  @ApiProperty({ example: 'MEDIUM' })
+  code!: string;
+
+  @ApiProperty({ example: 'Medium' })
+  label!: string;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  displayLabel?: string | null;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  displayImageUrl?: string | null;
+}
+
+export class QuizQuestionResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'What is your skin color?' })
+  questionText!: string;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  helperText?: string | null;
+
+  @ApiProperty({ enum: SelectionType, example: SelectionType.SINGLE })
+  selectionType!: SelectionType;
+
+  @ApiProperty({ example: true })
+  isRequired!: boolean;
+
+  @ApiProperty({ example: 1 })
+  stepOrder!: number;
+
+  @ApiProperty({ type: QuizAttributeGroupResponse })
+  attributeGroup!: QuizAttributeGroupResponse;
+
+  @ApiProperty({ type: [QuizQuestionOptionResponse] })
+  options!: QuizQuestionOptionResponse[];
+}
+
+export class CustomerProfileAnswerResponse {
+  @ApiProperty({ example: 'SKIN_COLOR' })
+  attributeGroupCode!: string;
+
+  @ApiProperty({ example: 'MEDIUM' })
+  attributeOptionCode!: string;
+}
+
+export class CustomerProfileResponse {
+  @ApiProperty({ example: uuidExample })
+  customerProfileId!: string;
+
+  @ApiProperty({ example: '00000000-0000-4000-8000-000000000002' })
+  sessionToken!: string;
+
+  @ApiProperty({ enum: SourceChannel, example: SourceChannel.INSTAGRAM })
+  sourceChannel!: SourceChannel;
+
+  @ApiProperty({ type: [CustomerProfileAnswerResponse] })
+  answers!: CustomerProfileAnswerResponse[];
+}
+
+export class CategorySummaryResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'FOUNDATION' })
+  code!: string;
+
+  @ApiProperty({ example: 'Foundation' })
+  name!: string;
+}
+
+export class BrandSummaryResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Demo Beauty' })
+  name!: string;
+}
+
+export class AttributeMatchResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ enum: MatchType, example: MatchType.COMPATIBLE })
+  matchType!: MatchType;
+
+  @ApiProperty({ example: 40 })
+  scoreValue!: number;
+
+  @ApiProperty({ example: false })
+  isHardFilter!: boolean;
+
+  @ApiProperty({ type: QuizAttributeGroupResponse })
+  attributeGroup!: QuizAttributeGroupResponse;
+
+  @ApiProperty({ type: AttributeOptionResponse })
+  attributeOption!: AttributeOptionResponse;
+}
+
+export class ProductReferenceResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'RF2' })
+  referenceCode!: string;
+
+  @ApiProperty({ example: 'Medium Warm' })
+  referenceName!: string;
+
+  @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
+  sku?: string | null;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  barcode?: string | null;
+
+  @ApiProperty({ example: 0 })
+  priceDelta!: number;
+
+  @ApiProperty({ example: 20 })
+  stockQuantity!: number;
+
+  @ApiProperty({ example: 0 })
+  reservedQuantity!: number;
+
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+
+  @ApiProperty({ type: [AttributeMatchResponse] })
+  attributes!: AttributeMatchResponse[];
+}
+
+export class ProductResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  name!: string;
+
+  @ApiProperty({ example: 'foundation-x' })
+  slug!: string;
+
+  @ApiProperty({ example: 120 })
+  basePrice!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ enum: ProductStatus, example: ProductStatus.ACTIVE })
+  status!: ProductStatus;
+
+  @ApiProperty({ type: CategorySummaryResponse })
+  category!: CategorySummaryResponse;
+
+  @ApiPropertyOptional({ type: BrandSummaryResponse, nullable: true })
+  brand?: BrandSummaryResponse | null;
+
+  @ApiProperty({ type: [ProductReferenceResponse] })
+  references!: ProductReferenceResponse[];
+}
+
+export class PackItemResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({
+    enum: SelectionMode,
+    example: SelectionMode.AUTO_BEST_REFERENCE,
+  })
+  selectionMode!: SelectionMode;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: true })
+  isRequired!: boolean;
+
+  @ApiProperty({ type: ProductResponse })
+  product!: ProductResponse;
+
+  @ApiPropertyOptional({ type: ProductReferenceResponse, nullable: true })
+  productReference?: ProductReferenceResponse | null;
+}
+
+export class PackResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Natural Glow Pack' })
+  name!: string;
+
+  @ApiProperty({ example: 'natural-glow-pack' })
+  slug!: string;
+
+  @ApiProperty({ enum: PriceMode, example: PriceMode.FIXED })
+  priceMode!: PriceMode;
+
+  @ApiPropertyOptional({ example: 299, nullable: true })
+  fixedPrice?: number | null;
+
+  @ApiProperty({ enum: PackStatus, example: PackStatus.ACTIVE })
+  status!: PackStatus;
+
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+
+  @ApiProperty({ type: [AttributeMatchResponse] })
+  attributes!: AttributeMatchResponse[];
+
+  @ApiProperty({ type: [PackItemResponse] })
+  items!: PackItemResponse[];
+}
+
+export class RecommendationResultItemResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 65 })
+  itemScore!: number;
+
+  @ApiProperty({ type: ProductResponse })
+  product!: ProductResponse;
+
+  @ApiProperty({ type: ProductReferenceResponse })
+  selectedProductReference!: ProductReferenceResponse;
+}
+
+export class RecommendationPackResponse {
+  @ApiProperty({ example: uuidExample })
+  recommendationResultId!: string;
+
+  @ApiProperty({ example: 1 })
+  rank!: number;
+
+  @ApiProperty({ example: 83 })
+  totalScore!: number;
+
+  @ApiProperty({ example: 83 })
+  matchPercentage!: number;
+
+  @ApiProperty({ example: 'Strong match for your selected profile.' })
+  reasonSummary!: string;
+
+  @ApiProperty({ type: PackResponse })
+  pack!: PackResponse;
+
+  @ApiProperty({ type: [RecommendationResultItemResponse] })
+  items!: RecommendationResultItemResponse[];
+
+  @ApiProperty({
+    example: {
+      packScore: 30,
+      rawItemsScore: 145,
+      normalizedItemsScore: 48,
+      priorityBonus: 5,
+    },
+  })
+  reasonJson!: Record<string, unknown>;
+}
+
+export class RecommendationResponse {
+  @ApiProperty({ example: uuidExample })
+  sessionId!: string;
+
+  @ApiProperty({
+    enum: RecommendationStatus,
+    example: RecommendationStatus.COMPLETED,
+  })
+  status!: RecommendationStatus;
+
+  @ApiProperty({ example: 'v1' })
+  algorithmVersion!: string;
+
+  @ApiProperty({ type: [RecommendationPackResponse] })
+  recommendedPacks!: RecommendationPackResponse[];
+}
+
+export class PublicOrderResponse {
+  @ApiProperty({ example: uuidExample })
+  orderId!: string;
+
+  @ApiProperty({ example: 'ORD-20260612-0001' })
+  orderNumber!: string;
+
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.PENDING_CONFIRMATION })
+  orderStatus!: OrderStatus;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ example: 299 })
+  totalAmount!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ example: 'Natural Glow Pack' })
+  packName!: string;
+
+  @ApiProperty({ example: '2026-06-12T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-06-12T10:00:00.000Z' })
+  updatedAt!: string;
+}
+
+export class OrderItemResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  productNameSnapshot!: string;
+
+  @ApiProperty({ example: 'Medium Warm' })
+  referenceNameSnapshot!: string;
+
+  @ApiProperty({ example: 120 })
+  unitPriceSnapshot!: number;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  totalPrice!: number;
+}
+
+export class OrderCreateResponse extends PublicOrderResponse {
+  @ApiProperty({ type: [OrderItemResponse] })
+  items!: OrderItemResponse[];
+}
+
+export class AdminOrderCustomerResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Demo Customer' })
+  fullName!: string;
+
+  @ApiProperty({ example: '0600000000' })
+  phone!: string;
+
+  @ApiPropertyOptional({ example: '0600000000', nullable: true })
+  whatsappPhone?: string | null;
+}
+
+export class AdminOrderAddressResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Casablanca' })
+  city!: string;
+
+  @ApiProperty({ example: 'Maarif' })
+  addressLine!: string;
+
+  @ApiPropertyOptional({ example: 'Near the pharmacy', nullable: true })
+  extraInfo?: string | null;
+}
+
+export class AdminOrderStatusHistoryResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiPropertyOptional({ enum: OrderStatus, nullable: true })
+  oldStatus?: OrderStatus | null;
+
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.CONFIRMED })
+  newStatus!: OrderStatus;
+
+  @ApiPropertyOptional({
+    example: 'Customer confirmed by phone',
+    nullable: true,
+  })
+  comment?: string | null;
+
+  @ApiPropertyOptional({ type: AdminSummaryResponse, nullable: true })
+  changedByAdmin?: AdminSummaryResponse | null;
+
+  @ApiProperty({ example: '2026-06-12T10:00:00.000Z' })
+  createdAt!: string;
+}
+
+export class AdminOrderDetailsResponse extends PublicOrderResponse {
+  @ApiProperty({ enum: PaymentMethod, example: PaymentMethod.CASH_ON_DELIVERY })
+  paymentMethod!: PaymentMethod;
+
+  @ApiProperty({ type: AdminOrderCustomerResponse })
+  customer!: AdminOrderCustomerResponse;
+
+  @ApiProperty({ type: AdminOrderAddressResponse })
+  customerAddress!: AdminOrderAddressResponse;
+
+  @ApiProperty({ type: [OrderItemResponse] })
+  items!: OrderItemResponse[];
+
+  @ApiProperty({ type: [AdminOrderStatusHistoryResponse] })
+  statusHistory!: AdminOrderStatusHistoryResponse[];
+}
+
+export class AdminCategoryResponse extends CategorySummaryResponse {
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+}
+
+export class AdminBrandResponse extends BrandSummaryResponse {
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+}
+
+export class RecommendationRuleResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'SKIN_COLOR_MATCH' })
+  code!: string;
+
+  @ApiProperty({ example: 'Skin color match' })
+  name!: string;
+
+  @ApiProperty({ enum: RecommendationTargetType })
+  targetType!: RecommendationTargetType;
+
+  @ApiProperty({ enum: RecommendationConditionType })
+  conditionType!: RecommendationConditionType;
+
+  @ApiProperty({ example: 40 })
+  scoreValue!: number;
+
+  @ApiProperty({ example: 1 })
+  weight!: number;
+
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+}

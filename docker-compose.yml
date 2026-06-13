@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: beauty_pack_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: beauty_pack_db
+      POSTGRES_USER: beauty_user
+      POSTGRES_PASSWORD: beauty_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - beauty_pack_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beauty_user -d beauty_pack_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  beauty_pack_postgres_data:
