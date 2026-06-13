@@ -2,7 +2,7 @@
 
 ## Current Stopping Point
 
-Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+Task 15.5 Admin Dashboard Backend Readiness is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
 
 ## Completed
 
@@ -228,6 +228,17 @@ Task 14 Media Management and Image Upload API is implemented on `feature/task-14
 - No real Cloudinary credentials were committed.
 - No existing public or admin API contract was removed.
 - No recommendation scoring, order workflow, stock reservation/deduction, delivery integration, WhatsApp integration, or frontend code was changed.
+
+### Task 15.5: Admin Dashboard Backend Readiness
+
+- Verified admin API coverage for authentication, categories, brands, products, product references and stock, packs, attributes and quiz, recommendation rules, orders, and media.
+- Confirmed catalog media integration exists for product cover/gallery, pack cover/gallery, category image, and product-reference swatch.
+- Added environment-controlled CORS through `ADMIN_DASHBOARD_ORIGIN`.
+- Regenerated and verified OpenAPI artifacts.
+- Created `frontend-handoff/` with OpenAPI copies, login/setup guidance, page-to-endpoint mapping, role permissions, known limitations, frontend environment example, and backend version notes.
+- Documented dashboard blockers and non-goals.
+- No admin-dashboard frontend was built.
+- No new business endpoint, stock reservation, WhatsApp integration, delivery integration, online payment, or refresh-token flow was added.
 
 ## Pending
 

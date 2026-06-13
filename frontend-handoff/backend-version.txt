@@ -1,0 +1,6 @@
+package=recommended-packs-backend@0.0.1
+branch=feature/task-14-media-management
+handoff=Task 15.5 Admin Dashboard Backend Readiness
+api_base_url=http://localhost:3000
+swagger_url=http://localhost:3000/api/docs
+openapi_json_url=http://localhost:3000/api/docs-json

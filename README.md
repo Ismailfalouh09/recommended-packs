@@ -4,7 +4,7 @@ NestJS backend for beauty-pack personalization, recommendations, Cash on Deliver
 
 Current status:
 
-Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. The backend now supports protected Cloudinary image uploads, product/pack/category/product-reference image relationships, optimized delivery URLs, and image fields in public catalog and recommendation responses.
+Task 15.5 Admin Dashboard Backend Readiness is implemented on `feature/task-14-media-management`. The backend is prepared for a separate admin-dashboard frontend with environment-controlled CORS, current OpenAPI artifacts, and a `frontend-handoff/` bundle.
 
 ## Stack
 
@@ -35,6 +35,7 @@ Task 14 Media Management and Image Upload API is implemented on `feature/task-14
 - Media Management and Image Upload API
 - Swagger/OpenAPI documentation generation
 - Manual API test documentation
+- Admin dashboard frontend handoff package
 
 ## Setup
 
@@ -65,6 +66,24 @@ OpenAPI JSON endpoint:
 ```text
 http://localhost:3000/api/docs-json
 ```
+
+## Admin Dashboard Integration
+
+Configure the dashboard origin in local backend `.env`:
+
+```env
+ADMIN_DASHBOARD_ORIGIN="http://localhost:5173"
+```
+
+The backend only enables browser CORS for the configured origin. Do not use unrestricted production CORS.
+
+Frontend handoff files are available in:
+
+```text
+frontend-handoff/
+```
+
+That folder contains copied OpenAPI JSON/YAML, login instructions, page-to-endpoint mapping, role permissions, known limitations, frontend `.env.example`, and backend version notes.
 
 ## Documentation
 

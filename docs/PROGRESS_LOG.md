@@ -2,7 +2,48 @@
 
 ## 2026-06-11 21:39 +01:00
 
-Current stopping point: Task 14 Media Management and Image Upload API is fully implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+Current stopping point: Task 15.5 Admin Dashboard Backend Readiness is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+
+## 2026-06-13 20:56 +01:00
+
+Task 15.5 completed: Admin Dashboard Backend Readiness.
+
+Objective: prepare the existing NestJS backend for integration with a separate admin-dashboard frontend without building the frontend or adding unrelated business features.
+
+Files created or modified:
+- `src/main.ts`
+- `.env.example`
+- `frontend-handoff/openapi.json`
+- `frontend-handoff/openapi.yaml`
+- `frontend-handoff/FRONTEND_HANDOFF.md`
+- `frontend-handoff/PAGE_ENDPOINT_MAPPING.md`
+- `frontend-handoff/ROLE_PERMISSION_MATRIX.md`
+- `frontend-handoff/KNOWN_LIMITATIONS.md`
+- `frontend-handoff/.env.example`
+- `frontend-handoff/backend-version.txt`
+- `README.md`
+- `BACKEND_ROADMAP.md`
+- `docs/PROGRESS_LOG.md`
+- `docs/openapi.json`
+- `docs/openapi.yaml`
+
+Endpoints added:
+- None.
+
+Important notes:
+- CORS is controlled by `ADMIN_DASHBOARD_ORIGIN`.
+- Admin API coverage was verified for authentication, catalog, product references and stock, packs, quiz/attributes, recommendation rules, orders, and media.
+- Catalog media integration is available for product cover/gallery, pack cover/gallery, category image, and product-reference swatch.
+- The frontend handoff folder contains copied OpenAPI artifacts, setup guidance, page endpoint mapping, role permissions, limitations, and a frontend environment example.
+- Complete admin smoke flow passed against a temporary local backend on port `3015`: login, create category/brand, create product/reference, update stock, upload and attach images, create pack, configure quiz/rule, preview recommendation, create order, and confirm order.
+- `npx prisma validate` passed.
+- `npx prisma generate` passed.
+- `npm run build` passed.
+- `npm test -- --runInBand` passed.
+- `npm run swagger:generate` passed.
+- `npm run swagger:check` passed.
+- No admin-dashboard frontend was built.
+- No stock reservation, WhatsApp integration, delivery integration, online payment, refresh-token flow, or new business endpoint was added.
 
 ## 2026-06-13 20:19 +01:00
 
@@ -812,3 +853,4 @@ No active recommendation scoring issue is known after Task 7B. Larger packs no l
 - Admin quiz, attributes, and recommendation rules CRUD: OK
 - Admin order management and status workflow: OK
 - Media management and image upload API: OK
+- Admin dashboard backend readiness: OK

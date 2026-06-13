@@ -10,6 +10,16 @@ import {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const adminDashboardOrigin = process.env.ADMIN_DASHBOARD_ORIGIN;
+
+  if (adminDashboardOrigin) {
+    app.enableCors({
+      origin: adminDashboardOrigin,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Authorization', 'Content-Type'],
+    });
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
