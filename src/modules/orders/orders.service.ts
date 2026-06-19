@@ -18,6 +18,7 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateCartOrderDto } from './dto/create-cart-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryAdminOrdersDto } from './dto/query-admin-orders.dto';
 
@@ -28,7 +29,7 @@ type LoadedRecommendationResult = NonNullable<
 >;
 
 interface PricedOrderItem {
-  packId: string;
+  packId: string | null;
   productId: string;
   productReferenceId: string;
   productNameSnapshot: string;
@@ -44,6 +45,16 @@ interface PriceSummary {
   deliveryFee: Money;
   totalAmount: Money;
   items: PricedOrderItem[];
+}
+
+interface CartPriceSummary extends PriceSummary {
+  currency: string;
+}
+
+interface CustomerOrderInput {
+  fullName: string;
+  phone: string;
+  whatsappPhone?: string;
 }
 
 @Injectable()
@@ -150,6 +161,91 @@ export class OrdersService {
       customer: created.customer,
       address: created.address,
       pack: recommendationResult.pack,
+      items: priceSummary.items,
+    });
+  }
+
+  async createFromCart(dto: CreateCartOrderDto) {
+    const priceSummary = await this.calculateCartOrderPrice(dto);
+    const orderNumber = this.generateOrderNumber();
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const customer = await this.upsertCustomer(tx, dto);
+
+      await tx.customerAddress.updateMany({
+        where: {
+          customerId: customer.id,
+          isDefault: true,
+        },
+        data: {
+          isDefault: false,
+        },
+      });
+
+      const address = await tx.customerAddress.create({
+        data: {
+          customerId: customer.id,
+          city: dto.city,
+          addressLine: dto.addressLine,
+          extraInfo: dto.extraInfo || null,
+          isDefault: true,
+        },
+      });
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          customerId: customer.id,
+          customerProfileId: null,
+          recommendationResultId: null,
+          selectedPackId: null,
+          customerAddressId: address.id,
+          paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+          paymentStatus: PaymentStatus.UNPAID,
+          orderStatus: OrderStatus.PENDING_CONFIRMATION,
+          subtotalAmount: priceSummary.subtotalAmount,
+          discountAmount: priceSummary.discountAmount,
+          deliveryFee: priceSummary.deliveryFee,
+          totalAmount: priceSummary.totalAmount,
+          currency: priceSummary.currency,
+          notes: dto.notes || null,
+        },
+      });
+
+      await tx.orderItem.createMany({
+        data: priceSummary.items.map((item) => ({
+          orderId: order.id,
+          packId: item.packId,
+          productId: item.productId,
+          productReferenceId: item.productReferenceId,
+          productNameSnapshot: item.productNameSnapshot,
+          referenceNameSnapshot: item.referenceNameSnapshot,
+          unitPriceSnapshot: item.unitPriceSnapshot,
+          quantity: item.quantity,
+          totalPrice: item.totalPrice,
+        })),
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          oldStatus: null,
+          newStatus: OrderStatus.PENDING_CONFIRMATION,
+          comment: 'Order created',
+        },
+      });
+
+      return {
+        order,
+        customer,
+        address,
+      };
+    });
+
+    return this.toCartOrderResponse({
+      order: created.order,
+      customer: created.customer,
+      address: created.address,
       items: priceSummary.items,
     });
   }
@@ -471,7 +567,7 @@ export class OrdersService {
 
   private async upsertCustomer(
     tx: Prisma.TransactionClient,
-    createOrderDto: CreateOrderDto,
+    createOrderDto: CustomerOrderInput,
   ) {
     const existingCustomer = await tx.customer.findUnique({
       where: { phone: createOrderDto.phone },
@@ -495,6 +591,132 @@ export class OrdersService {
         whatsappPhone: createOrderDto.whatsappPhone || null,
       },
     });
+  }
+
+  private async calculateCartOrderPrice(
+    dto: CreateCartOrderDto,
+  ): Promise<CartPriceSummary> {
+    if (!dto.items?.length) {
+      throw new BadRequestException('Cart must contain at least one item.');
+    }
+
+    const requestedQuantityByReference = new Map<string, number>();
+
+    for (const item of dto.items) {
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        throw new BadRequestException('Cart item quantity must be at least 1.');
+      }
+
+      requestedQuantityByReference.set(
+        item.referenceId,
+        (requestedQuantityByReference.get(item.referenceId) ?? 0) +
+          item.quantity,
+      );
+    }
+
+    const zero = this.decimal(0);
+    const pricedItems: PricedOrderItem[] = [];
+    let currency: string | null = null;
+
+    for (const item of dto.items) {
+      const product = await this.prisma.product.findUnique({
+        where: { id: item.productId },
+        select: {
+          id: true,
+          name: true,
+          basePrice: true,
+          currency: true,
+          isActive: true,
+          status: true,
+        },
+      });
+
+      if (!product) {
+        throw new NotFoundException(`Product ${item.productId} was not found.`);
+      }
+
+      if (!product.isActive || product.status !== ProductStatus.ACTIVE) {
+        throw new BadRequestException(
+          `Product ${product.name} is not active or sellable.`,
+        );
+      }
+
+      const reference = await this.prisma.productReference.findUnique({
+        where: { id: item.referenceId },
+        select: {
+          id: true,
+          productId: true,
+          referenceCode: true,
+          referenceName: true,
+          priceOverride: true,
+          priceDelta: true,
+          stockQuantity: true,
+          isActive: true,
+        },
+      });
+
+      if (!reference) {
+        throw new NotFoundException(
+          `Reference ${item.referenceId} was not found.`,
+        );
+      }
+
+      if (reference.productId !== product.id) {
+        throw new BadRequestException(
+          'Selected reference does not belong to the selected product.',
+        );
+      }
+
+      if (!reference.isActive) {
+        throw new BadRequestException(
+          `Selected reference ${this.referenceSnapshotName(reference)} is no longer active.`,
+        );
+      }
+
+      const requestedQuantity =
+        requestedQuantityByReference.get(reference.id) ?? item.quantity;
+
+      if (reference.stockQuantity < requestedQuantity) {
+        throw new BadRequestException(
+          `Selected reference ${this.referenceSnapshotName(reference)} does not have enough stock.`,
+        );
+      }
+
+      if (currency && currency !== product.currency) {
+        throw new BadRequestException('Cart items must use the same currency.');
+      }
+      currency = product.currency;
+
+      const unitPrice = this.effectiveProductReferencePrice(product, reference);
+
+      pricedItems.push({
+        packId: null,
+        productId: product.id,
+        productReferenceId: reference.id,
+        productNameSnapshot: product.name,
+        referenceNameSnapshot: this.referenceSnapshotName(reference),
+        unitPriceSnapshot: unitPrice,
+        quantity: item.quantity,
+        totalPrice: unitPrice.times(item.quantity),
+      });
+    }
+
+    const subtotalAmount = pricedItems.reduce(
+      (sum, item) => sum.plus(item.totalPrice),
+      zero,
+    );
+    const discountAmount = zero;
+    const deliveryFee = this.deliveryFeeForCity(dto.city);
+    const totalAmount = subtotalAmount.plus(deliveryFee).minus(discountAmount);
+
+    return {
+      subtotalAmount,
+      discountAmount,
+      deliveryFee,
+      totalAmount,
+      currency: currency ?? 'MAD',
+      items: pricedItems,
+    };
   }
 
   private calculateOrderPrice(
@@ -590,13 +812,28 @@ export class OrdersService {
   private effectiveReferencePrice(
     item: LoadedRecommendationResult['items'][number],
   ): Money {
-    if (item.selectedProductReference.priceOverride) {
-      return this.decimal(item.selectedProductReference.priceOverride);
+    return this.effectiveProductReferencePrice(
+      item.product,
+      item.selectedProductReference,
+    );
+  }
+
+  private effectiveProductReferencePrice(
+    product: { basePrice: Prisma.Decimal },
+    reference: {
+      priceOverride: Prisma.Decimal | null;
+      priceDelta: Prisma.Decimal;
+    },
+  ): Money {
+    if (reference.priceOverride) {
+      return this.decimal(reference.priceOverride);
     }
 
-    return this.decimal(item.product.basePrice).plus(
-      item.selectedProductReference.priceDelta,
-    );
+    return this.decimal(product.basePrice).plus(reference.priceDelta);
+  }
+
+  private deliveryFeeForCity(_city: string): Money {
+    return this.decimal(0);
   }
 
   private generateOrderNumber(): string {
@@ -665,6 +902,61 @@ export class OrdersService {
         id: input.pack.id,
         name: input.pack.name,
       },
+      items: input.items.map((item) => ({
+        productId: item.productId,
+        productName: item.productNameSnapshot,
+        referenceId: item.productReferenceId,
+        referenceName: item.referenceNameSnapshot,
+        quantity: item.quantity,
+        unitPrice: this.toNumber(item.unitPriceSnapshot),
+        totalPrice: this.toNumber(item.totalPrice),
+      })),
+    };
+  }
+
+  private toCartOrderResponse(input: {
+    order: {
+      id: string;
+      orderNumber: string;
+      orderStatus: OrderStatus;
+      paymentMethod: PaymentMethod;
+      paymentStatus: PaymentStatus;
+      subtotalAmount: Prisma.Decimal;
+      discountAmount: Prisma.Decimal;
+      deliveryFee: Prisma.Decimal;
+      totalAmount: Prisma.Decimal;
+      currency: string;
+    };
+    customer: {
+      fullName: string;
+      phone: string;
+    };
+    address: {
+      city: string;
+      addressLine: string;
+    };
+    items: PricedOrderItem[];
+  }) {
+    return {
+      orderId: input.order.id,
+      orderNumber: input.order.orderNumber,
+      orderStatus: input.order.orderStatus,
+      paymentMethod: input.order.paymentMethod,
+      paymentStatus: input.order.paymentStatus,
+      subtotalAmount: this.toNumber(input.order.subtotalAmount),
+      discountAmount: this.toNumber(input.order.discountAmount),
+      deliveryFee: this.toNumber(input.order.deliveryFee),
+      totalAmount: this.toNumber(input.order.totalAmount),
+      currency: input.order.currency,
+      customer: {
+        fullName: input.customer.fullName,
+        phone: input.customer.phone,
+      },
+      address: {
+        city: input.address.city,
+        addressLine: input.address.addressLine,
+      },
+      pack: null,
       items: input.items.map((item) => ({
         productId: item.productId,
         productName: item.productNameSnapshot,

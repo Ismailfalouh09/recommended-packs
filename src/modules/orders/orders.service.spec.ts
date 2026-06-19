@@ -9,11 +9,29 @@ import {
   ProductStatus,
 } from '@prisma/client';
 import { validate } from 'class-validator';
+import { CreateCartOrderDto } from './dto/create-cart-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersService } from './orders.service';
 
 const baseDto: CreateOrderDto = {
   recommendationResultId: '11111111-1111-4111-8111-111111111111',
+  fullName: 'Sara',
+  phone: '0600000000',
+  whatsappPhone: '0600000000',
+  city: 'Casablanca',
+  addressLine: 'Maarif',
+  extraInfo: 'Near the pharmacy',
+  notes: 'Call before delivery',
+};
+
+const cartDto: CreateCartOrderDto = {
+  items: [
+    {
+      productId: 'product-1',
+      referenceId: 'reference-1',
+      quantity: 1,
+    },
+  ],
   fullName: 'Sara',
   phone: '0600000000',
   whatsappPhone: '0600000000',
@@ -35,6 +53,12 @@ describe('OrdersService', () => {
         findUnique: jest.fn(),
       },
       order: {
+        findUnique: jest.fn(),
+      },
+      product: {
+        findUnique: jest.fn(),
+      },
+      productReference: {
         findUnique: jest.fn(),
       },
       $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
@@ -307,6 +331,144 @@ describe('OrdersService', () => {
     await expect(service.create(baseDto)).rejects.toThrow('database failure');
     expect(tx.recommendationResult.update).not.toHaveBeenCalled();
   });
+
+  it('creates a cart order with one product', async () => {
+    prisma.product.findUnique.mockResolvedValue(cartProductFixture());
+    prisma.productReference.findUnique.mockResolvedValue(
+      cartReferenceFixture(),
+    );
+
+    const result = await service.createFromCart(cartDto);
+
+    expect(result.orderId).toBe('order-1');
+    expect(result.orderStatus).toBe(OrderStatus.PENDING_CONFIRMATION);
+    expect(result.paymentMethod).toBe(PaymentMethod.CASH_ON_DELIVERY);
+    expect(result.paymentStatus).toBe(PaymentStatus.UNPAID);
+    expect(result.subtotalAmount).toBe(125);
+    expect(result.totalAmount).toBe(125);
+    expect(result.pack).toBeNull();
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        productId: 'product-1',
+        productName: 'Foundation X',
+        referenceId: 'reference-1',
+        referenceName: 'RF2 Medium Warm',
+        quantity: 1,
+        unitPrice: 125,
+        totalPrice: 125,
+      }),
+    ]);
+    expect(tx.order.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerProfileId: null,
+        recommendationResultId: null,
+        selectedPackId: null,
+        paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+        paymentStatus: PaymentStatus.UNPAID,
+        orderStatus: OrderStatus.PENDING_CONFIRMATION,
+        currency: 'MAD',
+      }),
+    });
+    expect(tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          orderId: 'order-1',
+          packId: null,
+          productId: 'product-1',
+          productReferenceId: 'reference-1',
+          quantity: 1,
+        }),
+      ],
+    });
+  });
+
+  it('creates a cart order with multiple quantities', async () => {
+    prisma.product.findUnique.mockResolvedValue(
+      cartProductFixture({ basePrice: decimal(100) }),
+    );
+    prisma.productReference.findUnique.mockResolvedValue(
+      cartReferenceFixture({
+        priceOverride: null,
+        priceDelta: decimal(20),
+        stockQuantity: 10,
+      }),
+    );
+
+    const result = await service.createFromCart({
+      ...cartDto,
+      items: [{ ...cartDto.items[0], quantity: 3 }],
+    });
+
+    expect(result.subtotalAmount).toBe(360);
+    expect(result.totalAmount).toBe(360);
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        quantity: 3,
+        unitPrice: 120,
+        totalPrice: 360,
+      }),
+    );
+  });
+
+  it('rejects an empty cart', async () => {
+    await expect(
+      service.createFromCart({ ...cartDto, items: [] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws NotFoundException when cart product is not found', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(service.createFromCart(cartDto)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('rejects cart references that do not belong to the selected product', async () => {
+    prisma.product.findUnique.mockResolvedValue(cartProductFixture());
+    prisma.productReference.findUnique.mockResolvedValue(
+      cartReferenceFixture({ productId: 'other-product' }),
+    );
+
+    await expect(service.createFromCart(cartDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects out-of-stock cart references', async () => {
+    prisma.product.findUnique.mockResolvedValue(cartProductFixture());
+    prisma.productReference.findUnique.mockResolvedValue(
+      cartReferenceFixture({ stockQuantity: 1 }),
+    );
+
+    await expect(
+      service.createFromCart({
+        ...cartDto,
+        items: [{ ...cartDto.items[0], quantity: 2 }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects inactive cart products', async () => {
+    prisma.product.findUnique.mockResolvedValue(
+      cartProductFixture({ isActive: false }),
+    );
+
+    await expect(service.createFromCart(cartDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects inactive cart references', async () => {
+    prisma.product.findUnique.mockResolvedValue(cartProductFixture());
+    prisma.productReference.findUnique.mockResolvedValue(
+      cartReferenceFixture({ isActive: false }),
+    );
+
+    await expect(service.createFromCart(cartDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
 });
 
 function createTransactionMock() {
@@ -332,18 +494,20 @@ function createTransactionMock() {
       }),
     },
     order: {
-      create: jest.fn().mockResolvedValue({
-        id: 'order-1',
-        orderNumber: 'ORD-20260612-ABC123',
-        orderStatus: OrderStatus.PENDING_CONFIRMATION,
-        paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
-        paymentStatus: PaymentStatus.UNPAID,
-        subtotalAmount: decimal(299),
-        discountAmount: decimal(0),
-        deliveryFee: decimal(0),
-        totalAmount: decimal(299),
-        currency: 'MAD',
-      }),
+      create: jest.fn().mockImplementation(({ data }) =>
+        Promise.resolve({
+          id: 'order-1',
+          orderNumber: 'ORD-20260612-ABC123',
+          orderStatus: data.orderStatus,
+          paymentMethod: data.paymentMethod,
+          paymentStatus: data.paymentStatus,
+          subtotalAmount: data.subtotalAmount,
+          discountAmount: data.discountAmount,
+          deliveryFee: data.deliveryFee,
+          totalAmount: data.totalAmount,
+          currency: data.currency,
+        }),
+      ),
     },
     orderItem: {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -440,6 +604,55 @@ function packFixture() {
     discountAmount: null,
     discountPercentage: null,
     currency: 'MAD',
+  };
+}
+
+function cartProductFixture(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    basePrice: Prisma.Decimal;
+    currency: string;
+    isActive: boolean;
+    status: ProductStatus;
+  }> = {},
+) {
+  return {
+    id: overrides.id ?? 'product-1',
+    name: overrides.name ?? 'Foundation X',
+    basePrice: overrides.basePrice ?? decimal(100),
+    currency: overrides.currency ?? 'MAD',
+    isActive: overrides.isActive ?? true,
+    status: overrides.status ?? ProductStatus.ACTIVE,
+  };
+}
+
+function cartReferenceFixture(
+  overrides: Partial<{
+    id: string;
+    productId: string;
+    referenceCode: string;
+    referenceName: string;
+    priceOverride: Prisma.Decimal | null;
+    priceDelta: Prisma.Decimal;
+    stockQuantity: number;
+    isActive: boolean;
+  }> = {},
+) {
+  return {
+    id: overrides.id ?? 'reference-1',
+    productId: overrides.productId ?? 'product-1',
+    referenceCode: overrides.referenceCode ?? 'RF2',
+    referenceName: overrides.referenceName ?? 'Medium Warm',
+    priceOverride: Object.prototype.hasOwnProperty.call(
+      overrides,
+      'priceOverride',
+    )
+      ? (overrides.priceOverride ?? null)
+      : decimal(125),
+    priceDelta: overrides.priceDelta ?? decimal(0),
+    stockQuantity: overrides.stockQuantity ?? 10,
+    isActive: overrides.isActive ?? true,
   };
 }
 
