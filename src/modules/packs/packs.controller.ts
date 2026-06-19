@@ -25,6 +25,23 @@ export class PacksController {
     return this.packsService.findAll();
   }
 
+  @Get('slug/:slug')
+  @ApiOperation({
+    summary: 'Get an active pack by slug',
+    description:
+      'Returns the same public pack detail response shape as GET /packs/:id.',
+  })
+  @ApiParam({
+    name: 'slug',
+    description: 'Pack slug.',
+    example: 'natural-glow-pack',
+  })
+  @ApiOkResponse({ description: 'Pack details.', type: PackResponse })
+  @ApiNotFoundResponse({ description: 'Pack not found.' })
+  findBySlug(@Param('slug') slug: string) {
+    return this.packsService.findBySlug(slug);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Get an active pack by ID',

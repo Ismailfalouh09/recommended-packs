@@ -48,6 +48,23 @@ export class ProductsController {
     return this.productsService.findAll(query);
   }
 
+  @Get('slug/:slug')
+  @ApiOperation({
+    summary: 'Get an active product by slug',
+    description:
+      'Returns the same public product detail response shape as GET /products/:id.',
+  })
+  @ApiParam({
+    name: 'slug',
+    description: 'Product slug.',
+    example: 'foundation-x',
+  })
+  @ApiOkResponse({ description: 'Product details.', type: ProductResponse })
+  @ApiNotFoundResponse({ description: 'Product not found.' })
+  findBySlug(@Param('slug') slug: string) {
+    return this.productsService.findBySlug(slug);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Get an active product by ID',

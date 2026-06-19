@@ -31,6 +31,7 @@ describe('ProductsService admin catalog', () => {
       product: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(productFixture()),
         findUnique: jest.fn(),
         create: jest.fn().mockResolvedValue(productFixture()),
         update: jest
@@ -161,7 +162,7 @@ describe('ProductsService admin catalog', () => {
   });
 
   it('public product endpoint excludes archived or inactive products', async () => {
-    prisma.product.findFirst = jest.fn().mockResolvedValue(null);
+    prisma.product.findFirst.mockResolvedValue(null);
 
     await expect(service.findOne('product-1')).rejects.toBeInstanceOf(
       NotFoundException,
@@ -170,6 +171,67 @@ describe('ProductsService admin catalog', () => {
       expect.objectContaining({
         where: {
           id: 'product-1',
+          isActive: true,
+          status: ProductStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public product endpoint returns active product details by ID', async () => {
+    prisma.product.findFirst.mockResolvedValue(productFixture());
+
+    const result = await service.findOne('product-1');
+
+    expect(result).toMatchObject({
+      id: 'product-1',
+      slug: 'foundation-x',
+      references: [],
+      images: [],
+    });
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'product-1',
+          isActive: true,
+          status: ProductStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public product slug endpoint returns active product details', async () => {
+    prisma.product.findFirst.mockResolvedValue(productFixture());
+
+    const result = await service.findBySlug('foundation-x');
+
+    expect(result).toMatchObject({
+      id: 'product-1',
+      slug: 'foundation-x',
+      references: [],
+      images: [],
+    });
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'foundation-x',
+          isActive: true,
+          status: ProductStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public product slug endpoint returns 404 for unknown slugs', async () => {
+    prisma.product.findFirst.mockResolvedValue(null);
+
+    await expect(service.findBySlug('unknown-product')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'unknown-product',
           isActive: true,
           status: ProductStatus.ACTIVE,
         },

@@ -195,3 +195,49 @@ Frontend notes:
 - Listing sort menus should only send `createdAt`, `name`, or `basePrice`.
 - Availability toggles should send `inStock=true`.
 - Product references remain the source for variant/shade display and stock display.
+
+## Public Product Detail Routes
+
+### `GET /products/:id`
+
+Returns active product details by UUID.
+
+### `GET /products/slug/:slug`
+
+Returns active product details by slug with the same response shape as `GET /products/:id`.
+
+Example request:
+
+```bash
+curl http://localhost:3000/products/slug/sahra-pore-smooth-primer
+```
+
+Frontend notes:
+
+- Prefer `/products/slug/:slug` for SEO-friendly product detail URLs when a product payload includes `slug`.
+- Fall back to `/products/:id` if slug is missing.
+- Unknown or inactive product slugs return `404`.
+- Product media, references, category, and brand fields match the UUID detail endpoint.
+
+## Public Pack Detail Routes
+
+### `GET /packs/:id`
+
+Returns active pack details by UUID.
+
+### `GET /packs/slug/:slug`
+
+Returns active pack details by slug with the same response shape as `GET /packs/:id`.
+
+Example request:
+
+```bash
+curl http://localhost:3000/packs/slug/natural-glow-pack
+```
+
+Frontend notes:
+
+- Prefer `/packs/slug/:slug` for SEO-friendly pack detail URLs when a pack payload includes `slug`.
+- Fall back to `/packs/:id` if slug is missing.
+- Unknown or inactive pack slugs return `404`.
+- Pack items, media, attributes, and product reference fields match the UUID detail endpoint.

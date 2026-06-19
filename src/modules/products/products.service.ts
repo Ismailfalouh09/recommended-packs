@@ -174,6 +174,23 @@ export class ProductsService {
     return this.toPublicProductResponse(product);
   }
 
+  async findBySlug(slug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        slug,
+        isActive: true,
+        status: ProductStatus.ACTIVE,
+      },
+      select: this.productSelect,
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product ${slug} was not found.`);
+    }
+
+    return this.toPublicProductResponse(product);
+  }
+
   async adminFindAll(query: QueryProductsDto) {
     const pagination = paginationParams(query);
     const sortBy = query.sortBy ?? 'createdAt';

@@ -42,6 +42,7 @@ describe('PacksService admin CRUD', () => {
       pack: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(packFixture()),
         findUnique: jest.fn(),
         update: jest.fn().mockResolvedValue(
           packFixture({
@@ -453,7 +454,7 @@ describe('PacksService admin CRUD', () => {
   });
 
   it('public endpoint excludes archived packs', async () => {
-    prisma.pack.findFirst = jest.fn().mockResolvedValue(null);
+    prisma.pack.findFirst.mockResolvedValue(null);
 
     await expect(service.findOne('pack-1')).rejects.toBeInstanceOf(
       NotFoundException,
@@ -462,6 +463,67 @@ describe('PacksService admin CRUD', () => {
       expect.objectContaining({
         where: {
           id: 'pack-1',
+          isActive: true,
+          status: PackStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public pack endpoint returns active pack details by ID', async () => {
+    prisma.pack.findFirst.mockResolvedValue(packFixture());
+
+    const result = await service.findOne('pack-1');
+
+    expect(result).toMatchObject({
+      id: 'pack-1',
+      slug: 'natural-glow-pack',
+      items: [expect.objectContaining({ id: 'pack-item-1' })],
+      images: [],
+    });
+    expect(prisma.pack.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'pack-1',
+          isActive: true,
+          status: PackStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public pack slug endpoint returns active pack details', async () => {
+    prisma.pack.findFirst.mockResolvedValue(packFixture());
+
+    const result = await service.findBySlug('natural-glow-pack');
+
+    expect(result).toMatchObject({
+      id: 'pack-1',
+      slug: 'natural-glow-pack',
+      items: [expect.objectContaining({ id: 'pack-item-1' })],
+      images: [],
+    });
+    expect(prisma.pack.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'natural-glow-pack',
+          isActive: true,
+          status: PackStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public pack slug endpoint returns 404 for unknown slugs', async () => {
+    prisma.pack.findFirst.mockResolvedValue(null);
+
+    await expect(service.findBySlug('unknown-pack')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.pack.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'unknown-pack',
           isActive: true,
           status: PackStatus.ACTIVE,
         },
@@ -607,6 +669,7 @@ function packFixture(overrides: Record<string, unknown> = {}) {
     isActive: true,
     createdAt: new Date('2026-06-12T00:00:00.000Z'),
     updatedAt: new Date('2026-06-12T00:00:00.000Z'),
+    images: [],
     attributes: [
       {
         id: 'pack-attribute-1',

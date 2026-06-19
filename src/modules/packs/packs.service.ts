@@ -236,6 +236,23 @@ export class PacksService {
     return this.toPublicPackResponse(pack);
   }
 
+  async findBySlug(slug: string) {
+    const pack = await this.prisma.pack.findFirst({
+      where: {
+        slug,
+        isActive: true,
+        status: PackStatus.ACTIVE,
+      },
+      select: this.packSelect(true),
+    });
+
+    if (!pack) {
+      throw new NotFoundException(`Pack ${slug} was not found.`);
+    }
+
+    return this.toPublicPackResponse(pack);
+  }
+
   async adminFindAll(query: QueryPacksDto) {
     const pagination = paginationParams(query);
     const sortBy = query.sortBy ?? 'createdAt';
