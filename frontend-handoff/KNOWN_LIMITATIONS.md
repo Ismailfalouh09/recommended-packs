@@ -1,6 +1,6 @@
 # Known Limitations
 
-These are current backend limitations for the admin dashboard frontend.
+These are current backend limitations for the admin dashboard and customer frontend.
 
 ## Not Implemented
 
@@ -12,6 +12,11 @@ These are current backend limitations for the admin dashboard frontend.
 - Admin user management CRUD.
 - Customer authentication.
 - Direct browser-to-Cloudinary signed upload.
+- Customer cart API.
+- Direct regular-store checkout for arbitrary product/reference selections.
+- Public category and brand listing endpoints.
+- Public product/pack search, filters, pagination, sorting, or slug lookup.
+- Customer-selected reference override during recommendation checkout.
 
 ## Media Limitations
 
@@ -42,3 +47,4 @@ Existing `logoUrl`, `imageUrl`, and `displayImageUrl` fields may still be manage
 - No delivery tracking or shipping provider workflow exists.
 - Recommendation logic is rule-based V1, not ML-based.
 - Public order lookup is intentionally a safe summary and does not expose full customer details.
+- Public order creation currently requires a `recommendationResultId`, so checkout is tied to the quiz/recommendation funnel.

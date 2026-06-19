@@ -1,0 +1,184 @@
+================================================================================
+KIMI BACKEND ANALYSIS
+Project: recommended-packs-backend (Beauty E-Commerce Recommendation Engine)
+Generated: 2026-06-18
+Based on: docs/*.md, package.json, src/main.ts, src/app.module.ts
+================================================================================
+
+1. OVERVIEW
+--------------------------------------------------------------------------------
+This is a NestJS backend for a beauty product recommendation and Cash-on-Delivery
+order system. It exposes:
+
+- Public APIs for quiz/profiles, product/pack catalog, recommendations, and orders
+- Protected admin APIs for catalog, packs, quiz/attributes, recommendation rules,
+  order workflow, and media/image management
+- JWT-based admin authentication with role-based authorization (OWNER, ADMIN, STAFF)
+- PostgreSQL persistence via Prisma ORM
+- Cloudinary-backed image storage with metadata kept in PostgreSQL
+
+Current documented stopping point: Task 15.5 "Admin Dashboard Backend Readiness"
+on branch feature/task-14-media-management.
+
+2. TECH STACK & ARCHITECTURE
+--------------------------------------------------------------------------------
+Strengths:
+- Clean modular NestJS structure (modules, controllers, services, DTOs)
+- Prisma as the single database access layer through PrismaService
+- class-validator / class-transformer for input validation
+- Swagger/OpenAPI auto-generated and committed to docs/openapi.{json,yaml}
+- bcrypt for admin password hashing
+- passport-jwt for token validation
+- Soft-delete / archive patterns instead of hard deletes for most entities
+- Transactional writes for nested create/update flows (products, packs, quiz, orders)
+- Media abstraction: Cloudinary SDK isolated in the provider layer; feature services
+  use MediaService rather than calling Cloudinary directly
+- Tests exist at unit/service level and e2e level
+
+Architecture notes:
+- Controllers are intentionally thin; business logic lives in services
+- Prisma 7 with custom prisma.config.ts for datasource URL handling
+- CORS is configurable via ADMIN_DASHBOARD_ORIGIN for the future admin dashboard
+- OpenAPI generator uses ts-node because tsx did not emit DI metadata during bootstrap
+
+3. DOMAIN MODEL MATURITY
+--------------------------------------------------------------------------------
+The Prisma schema is well-rounded for the current scope:
+
+Implemented and fully wired:
+- Attribute groups / options
+- Quiz questions / options
+- Customer profiles / answers
+- Categories, brands, products, product references, reference attributes
+- Packs, pack items, pack attributes
+- Recommendation sessions, results, result items
+- Recommendation rules
+- Customers, addresses, orders, order items, order status history
+- Admin users
+- Media assets and entity image relations (product, pack, category, reference)
+
+Future/internal only:
+- CustomerEvent, MessageLog (no API writes yet)
+
+The model correctly separates public customer identity (Customer) from anonymous
+quiz profile (CustomerProfile), which is good for privacy and attribution.
+
+4. API COVERAGE
+--------------------------------------------------------------------------------
+Public endpoints (no auth):
+- GET /, GET /attributes, GET /attributes/:code/options
+- GET /quiz/questions, POST /quiz/profiles
+- GET /products, GET /products/:id
+- GET /packs, GET /packs/:id
+- POST /recommendations, GET /recommendations/:sessionId
+- POST /orders, GET /orders/:id
+
+Protected admin endpoints:
+- Auth: POST /auth/login, GET /auth/me
+- Catalog: categories, brands, products, product references, stock
+- Packs: full CRUD with nested items/attributes
+- Quiz/attributes/rules: full CRUD plus reorder and preview
+- Orders: list, detail, status workflow
+- Media: upload, list, metadata update, delete, plus entity image attach/reorder/delete
+
+Role model:
+- OWNER/ADMIN: full write access
+- STAFF: read-only on catalog/orders/media; can preview recommendations
+
+5. SECURITY REVIEW
+--------------------------------------------------------------------------------
+Positive:
+- passwordHash, JWT_SECRET, DATABASE_URL are excluded from OpenAPI output
+- Public order lookup returns a safe summary only (no phone, address, notes, history)
+- Admin detail exposes customer PII only to authenticated admins
+- JWT payload is minimal (sub, email, role)
+- Inactive admins are rejected by JwtStrategy
+- ValidationPipe whitelists and forbids non-whitelisted properties
+- Image upload validates MIME type, file signature, and max size
+
+Concerns:
+- No refresh-token flow; a single access token is used for admin sessions
+- No global exception filter adding timestamp/path; error responses use Nest defaults
+- Public order creation accepts customer data with no CAPTCHA/rate-limiting documented
+- No customer authentication; orders are anonymous by design but this can allow
+  brute-force scanning of order IDs if UUIDs were ever guessable
+- Brand logos, attribute option images, and quiz option images still rely on plain
+  URL fields or future extension points rather than the Cloudinary relationship model
+- No documented rate limiting, Helmet headers, or request logging middleware
+
+6. KNOWN LIMITATIONS (from docs)
+--------------------------------------------------------------------------------
+- No stock reservation or deduction during order creation/status updates
+- Cash on Delivery is the only payment method; no payment provider integration
+- No delivery provider integration
+- No WhatsApp/messaging workflow
+- No direct signed browser-to-Cloudinary upload
+- No admin user management CRUD (created via local npm run admin:create script)
+- No customer authentication
+- Recommendation logic is V1 rule-driven, not ML/personalization
+- Some pre-existing lint debt remains
+
+7. TESTING & DOCUMENTATION
+--------------------------------------------------------------------------------
+Strengths:
+- Comprehensive manual test plan in TEST_PLAN_CURRENT_BACKEND.md and
+  MANUAL_API_TEST_PLAN.md
+- API_CURL_TESTS.md provides Windows PowerShell/CMD examples
+- API_CLIENT_IMPORT_GUIDE.md covers Swagger, Postman, and Bruno
+- DOMAIN_MODEL.md documents every model, enum, relation, and lifecycle
+- PROGRESS_LOG.md gives clear task-by-task history
+- frontend-handoff/ contains OpenAPI copies and integration guidance
+- npm scripts for prisma, swagger generation/check, and admin creation
+
+Validation that currently passes (per docs):
+- npx prisma validate / generate
+- npm run build
+- npm test -- --runInBand
+- npm run swagger:generate / swagger:check
+- npm run test:e2e
+
+Note: npm run lint still fails due to broad pre-existing TypeScript lint debt.
+
+8. RECOMMENDATIONS (what to tackle next)
+--------------------------------------------------------------------------------
+High value, low risk:
+1. Add a global exception filter that returns a consistent shape including
+   timestamp, path, and a requestId for traceability.
+2. Add Helmet and a simple rate-limiting guard on public POST endpoints
+   (/quiz/profiles, /recommendations, /orders) and /auth/login.
+3. Clean up lint debt so npm run lint passes in CI.
+4. Add a refresh-token endpoint for admin sessions.
+
+Medium value:
+5. Implement stock reservation/deduction if order fulfillment is the next milestone.
+6. Add brand logo and attribute/quiz option image endpoints to unify all images
+   under the Cloudinary media model.
+7. Add admin user CRUD (with password reset) so OWNER can manage staff accounts.
+
+Strategic / longer term:
+8. Integrate a payment provider and delivery provider only when explicitly requested.
+9. Add WhatsApp/SMS notification plumbing through the existing MessageLog table.
+10. Move from rule-based scoring to a more data-driven recommendation engine
+    once enough order/recommendation history is collected.
+
+9. READINESS SUMMARY
+--------------------------------------------------------------------------------
+For a single-stack NestJS backend at the current milestone:
+- Backend foundation:       STRONG
+- Database model:           STRONG
+- Public customer flow:     COMPLETE (quiz -> recommendation -> COD order)
+- Admin catalog workflow:   COMPLETE
+- Admin order workflow:     COMPLETE
+- Media/image management:   COMPLETE for products, packs, categories, references
+- API documentation:        STRONG
+- Test coverage:            GOOD (unit + e2e + manual plans)
+- Security hygiene:         GOOD with room for rate-limiting/headers
+- Production readiness:     PARTIAL (missing monitoring, rate limiting, payment,
+                            delivery, stock deduction, admin user CRUD)
+
+Overall verdict: The backend is well-structured, well-documented, and correctly
+scoped for its current milestone. The next set of tasks should focus on
+hardening (lint, error handling, rate limiting), then fulfillment features
+(stock, payment, delivery) only when explicitly requested.
+
+================================================================================

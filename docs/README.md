@@ -12,6 +12,12 @@ Task 14 Media Management and Image Upload API is implemented on `feature/task-14
 - [DOMAIN_MODEL.md](./DOMAIN_MODEL.md)  
   Database/domain documentation for every Prisma model and enum, including relations, lifecycle, module usage, and API exposure.
 
+- [ADMIN_RULES_GUIDE.md](./ADMIN_RULES_GUIDE.md)  
+  Practical admin guide: how to set up attributes, products, product references, pack attributes, and recommendation rules so the recommendation engine scores correctly, with concrete request bodies and a preview-and-verify workflow.
+
+- [SEED_DATA_QUIZ_AND_RULES.md](./SEED_DATA_QUIZ_AND_RULES.md)  
+  Clean reference data for the 5 quiz attribute groups (skin color, undertone, skin type, style, budget), their options, quiz questions, and matching recommendation rules, with copy-paste request bodies in creation order.
+
 - [MANUAL_API_TEST_PLAN.md](./MANUAL_API_TEST_PLAN.md)  
   Ordered manual test plan for Swagger, Bruno, or Postman. Includes prerequisites, variables, test suites, expected results, DB checks, and pass/fail fields.
 

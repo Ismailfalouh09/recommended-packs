@@ -1,6 +1,13 @@
 # Frontend Handoff
 
-This folder contains the backend contract needed by a separate admin-dashboard frontend.
+This folder contains backend contracts for separate frontend work.
+
+- `CUSTOMER_FRONTEND_HANDOFF.md`: customer quiz funnel and customer storefront.
+- `CUSTOMER_PAGE_ENDPOINT_MAPPING.md`: mobile customer screen-to-endpoint map.
+- `PAGE_ENDPOINT_MAPPING.md`: admin dashboard screen-to-endpoint map.
+- `ROLE_PERMISSION_MATRIX.md`: admin role and permission notes.
+- `KNOWN_LIMITATIONS.md`: current backend gaps and constraints.
+- `openapi.json` / `openapi.yaml`: generated API contract snapshots.
 
 ## Backend Start
 
@@ -23,13 +30,13 @@ npm run start:dev
 
 ## Environment
 
-Set this in backend `.env` for local dashboard development:
+Set this in backend `.env` for local browser frontend development:
 
 ```env
 ADMIN_DASHBOARD_ORIGIN="http://localhost:5173"
 ```
 
-Do not use unrestricted production CORS. Production should set this to the exact deployed dashboard origin.
+The variable name is admin-oriented, but currently it controls the single allowed CORS origin for browser frontends. Do not use unrestricted production CORS. Production should set this to the exact deployed frontend origin.
 
 ## Login Flow
 
