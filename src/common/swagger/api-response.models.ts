@@ -556,6 +556,92 @@ export class OrderCreateResponse extends PublicOrderResponse {
   items!: OrderItemResponse[];
 }
 
+export class CartOrderCustomerResponse {
+  @ApiProperty({ example: 'Demo Customer' })
+  fullName!: string;
+
+  @ApiProperty({ example: '0600000000' })
+  phone!: string;
+}
+
+export class CartOrderAddressResponse {
+  @ApiProperty({ example: 'Casablanca' })
+  city!: string;
+
+  @ApiProperty({ example: 'Maarif' })
+  addressLine!: string;
+}
+
+export class CartOrderLineResponse {
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  productName!: string;
+
+  @ApiProperty({ example: '00000000-0000-4000-8000-000000000002' })
+  referenceId!: string;
+
+  @ApiProperty({ example: 'RF2 Medium Warm' })
+  referenceName!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  unitPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  totalPrice!: number;
+}
+
+export class CartOrderCreateResponse {
+  @ApiProperty({ example: uuidExample })
+  orderId!: string;
+
+  @ApiProperty({ example: 'ORD-20260612-0001' })
+  orderNumber!: string;
+
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.PENDING_CONFIRMATION })
+  orderStatus!: OrderStatus;
+
+  @ApiProperty({
+    enum: PaymentMethod,
+    example: PaymentMethod.CASH_ON_DELIVERY,
+  })
+  paymentMethod!: PaymentMethod;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ example: 120 })
+  subtotalAmount!: number;
+
+  @ApiProperty({ example: 0 })
+  discountAmount!: number;
+
+  @ApiProperty({ example: 0 })
+  deliveryFee!: number;
+
+  @ApiProperty({ example: 120 })
+  totalAmount!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ type: CartOrderCustomerResponse })
+  customer!: CartOrderCustomerResponse;
+
+  @ApiProperty({ type: CartOrderAddressResponse })
+  address!: CartOrderAddressResponse;
+
+  @ApiProperty({ type: Object, nullable: true, example: null })
+  pack!: null;
+
+  @ApiProperty({ type: [CartOrderLineResponse] })
+  items!: CartOrderLineResponse[];
+}
+
 export class AdminOrderCustomerResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;
