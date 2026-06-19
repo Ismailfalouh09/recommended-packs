@@ -2487,6 +2487,57 @@ paths:
       security: *a57
       summary: Deactivate recommendation rule
       tags: *a58
+  /orders/checkout:
+    post:
+      description: Creates a normal-store Cash on Delivery order from direct cart
+        lines. This route is separate from the quiz/recommendation funnel order
+        endpoint.
+      operationId: OrdersController_createFromCart
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCartOrderDto"
+            examples:
+              checkout:
+                summary: Normal store checkout
+                value:
+                  items:
+                    - productId: 00000000-0000-0000-0000-000000000001
+                      referenceId: 00000000-0000-0000-0000-000000000002
+                      quantity: 1
+                  fullName: Test Customer
+                  phone: "0600000000"
+                  whatsappPhone: "0600000000"
+                  city: Casablanca
+                  addressLine: Test address
+                  extraInfo: Near main street
+                  notes: Call before delivery
+      responses:
+        "201":
+          description: Cart order created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartOrderCreateResponse"
+        "400":
+          description: Invalid cart payload, inactive product/reference, reference
+            mismatch, or insufficient stock.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Product or reference not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: Create a Cash on Delivery order from cart items
+      tags: &a59
+        - Orders
   /orders:
     post:
       description: Creates or reuses a customer, creates a default delivery address,
@@ -2513,8 +2564,7 @@ paths:
         "404":
           description: Recommendation result not found.
       summary: Create a Cash on Delivery order
-      tags: &a59
-        - Orders
+      tags: *a59
   /orders/{id}:
     get:
       description: Returns a limited public order summary. It intentionally excludes
@@ -4556,6 +4606,222 @@ components:
           type: boolean
           example: true
           default: true
+    CartOrderItemDto:
+      type: object
+      properties:
+        productId:
+          type: string
+          description: Product being ordered from the normal store cart.
+          example: 00000000-0000-4000-8000-000000000001
+        referenceId:
+          type: string
+          description: Selected product reference or variant.
+          example: 00000000-0000-4000-8000-000000000002
+        quantity:
+          type: number
+          description: Quantity requested for this cart line.
+          example: 2
+          minimum: 1
+      required:
+        - productId
+        - referenceId
+        - quantity
+    CreateCartOrderDto:
+      type: object
+      properties:
+        items:
+          description: Normal store cart lines selected by the customer.
+          example:
+            - productId: 00000000-0000-4000-8000-000000000001
+              referenceId: 00000000-0000-4000-8000-000000000002
+              quantity: 2
+          type: array
+          items:
+            $ref: "#/components/schemas/CartOrderItemDto"
+        fullName:
+          type: string
+          description: Customer display name for order fulfillment.
+          example: Demo Customer
+        phone:
+          type: string
+          description: Customer phone number used to create or reuse a customer.
+          example: "0600000000"
+        whatsappPhone:
+          type: string
+          description: Optional WhatsApp phone number for future customer contact.
+          example: "0600000000"
+        city:
+          type: string
+          description: Delivery city.
+          example: Casablanca
+        addressLine:
+          type: string
+          description: Delivery street/address line.
+          example: Maarif
+        extraInfo:
+          type: string
+          description: Additional delivery directions.
+          example: Near the pharmacy
+        notes:
+          type: string
+          description: Optional order note for admin fulfillment.
+          example: Call before delivery
+      required:
+        - items
+        - fullName
+        - phone
+        - city
+        - addressLine
+    CartOrderCustomerResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+          example: Demo Customer
+        phone:
+          type: string
+          example: "0600000000"
+      required:
+        - fullName
+        - phone
+    CartOrderAddressResponse:
+      type: object
+      properties:
+        city:
+          type: string
+          example: Casablanca
+        addressLine:
+          type: string
+          example: Maarif
+      required:
+        - city
+        - addressLine
+    CartOrderLineResponse:
+      type: object
+      properties:
+        productId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        productName:
+          type: string
+          example: Foundation X
+        referenceId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000002
+        referenceName:
+          type: string
+          example: RF2 Medium Warm
+        quantity:
+          type: number
+          example: 1
+        unitPrice:
+          type: number
+          example: 120
+        totalPrice:
+          type: number
+          example: 120
+      required:
+        - productId
+        - productName
+        - referenceId
+        - referenceName
+        - quantity
+        - unitPrice
+        - totalPrice
+    CartOrderCreateResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        orderNumber:
+          type: string
+          example: ORD-20260612-0001
+        orderStatus:
+          type: string
+          enum:
+            - PENDING_CONFIRMATION
+            - CONFIRMED
+            - PREPARING
+            - SHIPPED
+            - DELIVERED
+            - CANCELED
+            - RETURNED
+          example: PENDING_CONFIRMATION
+        paymentMethod:
+          type: string
+          enum:
+            - CASH_ON_DELIVERY
+          example: CASH_ON_DELIVERY
+        paymentStatus:
+          type: string
+          enum:
+            - UNPAID
+            - PAID
+            - REFUNDED
+          example: UNPAID
+        subtotalAmount:
+          type: number
+          example: 120
+        discountAmount:
+          type: number
+          example: 0
+        deliveryFee:
+          type: number
+          example: 0
+        totalAmount:
+          type: number
+          example: 120
+        currency:
+          type: string
+          example: MAD
+        customer:
+          $ref: "#/components/schemas/CartOrderCustomerResponse"
+        address:
+          $ref: "#/components/schemas/CartOrderAddressResponse"
+        pack:
+          type: object
+          nullable: true
+          example: null
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartOrderLineResponse"
+      required:
+        - orderId
+        - orderNumber
+        - orderStatus
+        - paymentMethod
+        - paymentStatus
+        - subtotalAmount
+        - discountAmount
+        - deliveryFee
+        - totalAmount
+        - currency
+        - customer
+        - address
+        - pack
+        - items
+    ApiErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: number
+          example: 400
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          example:
+            - attributeGroupCode must not be empty
+        error:
+          type: string
+          example: Bad Request
+      required:
+        - statusCode
+        - message
     CreateOrderDto:
       type: object
       properties:
@@ -4891,23 +5157,3 @@ components:
           example: Customer confirmed by phone
       required:
         - status
-    ApiErrorResponse:
-      type: object
-      properties:
-        statusCode:
-          type: number
-          example: 400
-        message:
-          oneOf:
-            - type: string
-            - type: array
-              items:
-                type: string
-          example:
-            - attributeGroupCode must not be empty
-        error:
-          type: string
-          example: Bad Request
-      required:
-        - statusCode
-        - message
