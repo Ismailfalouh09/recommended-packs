@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProductStatus } from '@prisma/client';
 import {
   paginatedResponse,
   paginationParams,
@@ -20,6 +20,18 @@ export class CategoriesService {
     private readonly prisma: PrismaService,
     private readonly mediaUrlService?: MediaUrlService,
   ) {}
+
+  async publicFindAll() {
+    const categories = await this.prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: this.publicListSelect(),
+    });
+
+    return categories.map((category) =>
+      this.toPublicCategoryResponse(category),
+    );
+  }
 
   async findAll(query: QueryCategoriesDto) {
     const pagination = paginationParams(query);
@@ -192,6 +204,41 @@ export class CategoriesService {
     } satisfies Prisma.CategorySelect;
   }
 
+  private publicListSelect() {
+    return {
+      id: true,
+      code: true,
+      name: true,
+      description: true,
+      sortOrder: true,
+      _count: {
+        select: {
+          products: {
+            where: {
+              isActive: true,
+              status: ProductStatus.ACTIVE,
+            },
+          },
+          children: {
+            where: {
+              isActive: true,
+            },
+          },
+        },
+      },
+      image: {
+        select: {
+          id: true,
+          mediaId: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
+    } satisfies Prisma.CategorySelect;
+  }
+
   private toListResponse(category: any) {
     return {
       id: category.id,
@@ -215,6 +262,35 @@ export class CategoriesService {
     return {
       ...this.toListResponse(category),
       children: category.children,
+    };
+  }
+
+  private toPublicCategoryResponse(category: any) {
+    return {
+      id: category.id,
+      code: category.code,
+      name: category.name,
+      description: category.description,
+      image: this.toPublicCategoryImageResponse(category.image),
+      sortOrder: category.sortOrder,
+      productCount: category._count.products,
+      childCategoryCount: category._count.children,
+    };
+  }
+
+  private toPublicCategoryImageResponse(image: any) {
+    if (!image) {
+      return null;
+    }
+
+    return {
+      urls: this.mediaUrlService?.buildUrls(image.media) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+      },
+      altText: image.altText,
     };
   }
 

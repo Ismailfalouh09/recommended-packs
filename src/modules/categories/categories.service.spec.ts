@@ -1,6 +1,8 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { AdminRole } from '@prisma/client';
 import { validateRoleAccess } from '../../test-utils/role-test.util';
+import { AdminCategoriesController } from './admin-categories.controller';
 import { CategoriesService } from './categories.service';
 
 describe('CategoriesService', () => {
@@ -48,6 +50,38 @@ describe('CategoriesService', () => {
           name: 'Foundation',
           isActive: true,
         }),
+      }),
+    );
+  });
+
+  it('returns active public categories only', async () => {
+    prisma.category.findMany.mockResolvedValue([
+      categoryFixture({
+        description: 'Complexion basics',
+        sortOrder: 1,
+        image: null,
+        _count: { products: 2, children: 1 },
+      }),
+    ]);
+
+    const result = await service.publicFindAll();
+
+    expect(result).toEqual([
+      {
+        id: 'category-1',
+        code: 'FOUNDATION',
+        name: 'Foundation',
+        description: 'Complexion basics',
+        image: null,
+        sortOrder: 1,
+        productCount: 2,
+        childCategoryCount: 1,
+      },
+    ]);
+    expect(prisma.category.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       }),
     );
   });
@@ -110,6 +144,16 @@ describe('CategoriesService', () => {
     expect(
       validateRoleAccess([AdminRole.OWNER, AdminRole.ADMIN], AdminRole.STAFF),
     ).toBe(false);
+  });
+
+  it('keeps admin categories guarded', () => {
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      AdminCategoriesController,
+    );
+
+    expect(guards).toEqual(expect.arrayContaining([expect.any(Function)]));
+    expect(guards).toHaveLength(2);
   });
 });
 

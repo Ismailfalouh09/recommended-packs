@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { MediaUrlService } from '../media/media-url.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { QueryPublicProductsDto } from './dto/query-public-products.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -118,17 +119,42 @@ export class ProductsService {
     },
   } satisfies Prisma.ProductSelect;
 
-  async findAll() {
-    const products = await this.prisma.product.findMany({
-      where: {
-        isActive: true,
-        status: 'ACTIVE',
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      select: this.productSelect,
+  async findAll(query: QueryPublicProductsDto = {}) {
+    const where = this.publicProductWhere(query);
+    const orderBy = [
+      { [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc' },
+    ];
+
+    if (!this.hasPublicPagination(query)) {
+      const products = await this.prisma.product.findMany({
+        where,
+        orderBy,
+        select: this.productSelect,
+      });
+
+      return products.map((product) => this.toPublicProductResponse(product));
+    }
+
+    const pagination = paginationParams({
+      page: query.page,
+      pageSize: query.size,
     });
 
-    return products.map((product) => this.toPublicProductResponse(product));
+    const [products, totalItems] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        where,
+        skip: pagination.skip,
+        take: pagination.take,
+        orderBy,
+        select: this.productSelect,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return paginatedResponse(
+      products.map((product) => this.toPublicProductResponse(product)),
+      { ...pagination, totalItems },
+    );
   }
 
   async findOne(id: string) {
@@ -307,6 +333,78 @@ export class ProductsService {
     });
 
     return this.toAdminDetailResponse(product);
+  }
+
+  private publicProductWhere(query: QueryPublicProductsDto) {
+    return {
+      isActive: true,
+      status: ProductStatus.ACTIVE,
+      ...(query.categoryId !== undefined
+        ? { categoryId: query.categoryId }
+        : {}),
+      ...(query.categoryCode !== undefined
+        ? { category: { code: query.categoryCode } }
+        : {}),
+      ...(query.brandId !== undefined ? { brandId: query.brandId } : {}),
+      ...(query.inStock === true
+        ? {
+            references: {
+              some: {
+                isActive: true,
+                stockQuantity: { gt: 0 },
+              },
+            },
+          }
+        : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { slug: { contains: query.search, mode: 'insensitive' } },
+              {
+                description: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                category: {
+                  is: {
+                    OR: [
+                      {
+                        code: {
+                          contains: query.search,
+                          mode: 'insensitive',
+                        },
+                      },
+                      {
+                        name: {
+                          contains: query.search,
+                          mode: 'insensitive',
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                brand: {
+                  is: {
+                    name: {
+                      contains: query.search,
+                      mode: 'insensitive',
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    } satisfies Prisma.ProductWhereInput;
+  }
+
+  private hasPublicPagination(query: QueryPublicProductsDto) {
+    return query.page !== undefined || query.size !== undefined;
   }
 
   private adminListSelect() {

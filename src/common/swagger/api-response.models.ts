@@ -203,6 +203,46 @@ export class CategorySummaryResponse {
   image?: MediaImageResponse | null;
 }
 
+export class PublicCategoryImageResponse {
+  @ApiProperty({ type: () => MediaUrlVariantsResponse })
+  urls!: Record<string, string>;
+
+  @ApiPropertyOptional({ example: 'Foundation category tile', nullable: true })
+  altText?: string | null;
+}
+
+export class PublicCategoryResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'FOUNDATION' })
+  code!: string;
+
+  @ApiProperty({ example: 'Foundation' })
+  name!: string;
+
+  @ApiPropertyOptional({
+    example: 'Complexion products for a smooth base.',
+    nullable: true,
+  })
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    type: () => PublicCategoryImageResponse,
+    nullable: true,
+  })
+  image?: PublicCategoryImageResponse | null;
+
+  @ApiPropertyOptional({ example: 1, nullable: true })
+  sortOrder?: number | null;
+
+  @ApiPropertyOptional({ example: 12 })
+  productCount?: number;
+
+  @ApiPropertyOptional({ example: 3 })
+  childCategoryCount?: number;
+}
+
 export class BrandSummaryResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;

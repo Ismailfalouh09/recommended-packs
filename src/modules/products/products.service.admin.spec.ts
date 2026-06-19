@@ -176,6 +176,109 @@ describe('ProductsService admin catalog', () => {
       }),
     );
   });
+
+  it('public product listing keeps the plain array response without params', async () => {
+    prisma.product.findMany.mockResolvedValue([productFixture()]);
+
+    const result = await service.findAll();
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          isActive: true,
+          status: ProductStatus.ACTIVE,
+        },
+        orderBy: [{ createdAt: 'desc' }],
+      }),
+    );
+  });
+
+  it('public product listing supports search', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ search: 'primer' });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { name: { contains: 'primer', mode: 'insensitive' } },
+            { slug: { contains: 'primer', mode: 'insensitive' } },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('public product listing supports category code filters', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ categoryCode: 'FACE' });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          category: { code: 'FACE' },
+        }),
+      }),
+    );
+  });
+
+  it('public product listing supports price sorting', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ sortBy: 'basePrice', sortOrder: 'asc' });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ basePrice: 'asc' }],
+      }),
+    );
+  });
+
+  it('public product listing supports in-stock filtering', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ inStock: true });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          references: {
+            some: {
+              isActive: true,
+              stockQuantity: { gt: 0 },
+            },
+          },
+        }),
+      }),
+    );
+  });
+
+  it('public product listing returns a paginated response when requested', async () => {
+    prisma.product.findMany.mockResolvedValue([productFixture()]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.findAll({ page: 1, size: 1 });
+
+    expect(result).toMatchObject({
+      data: [expect.objectContaining({ id: 'product-1' })],
+      pagination: {
+        page: 1,
+        pageSize: 1,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 0,
+        take: 1,
+      }),
+    );
+    expect(prisma.product.count).toHaveBeenCalled();
+  });
 });
 
 function productFixture(overrides: Record<string, unknown> = {}) {
@@ -197,6 +300,7 @@ function productFixture(overrides: Record<string, unknown> = {}) {
     category: { id: 'category-1', code: 'FOUNDATION', name: 'Foundation' },
     brand: { id: 'brand-1', name: 'Demo Beauty' },
     references: [],
+    images: [],
     _count: { packItems: 0 },
     ...overrides,
   };

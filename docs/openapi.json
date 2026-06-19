@@ -705,6 +705,32 @@
         ]
       }
     },
+    "/categories": {
+      "get": {
+        "description": "Returns active store categories ordered for public navigation and category tiles.",
+        "operationId": "CategoriesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Active public categories.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicCategoryResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List active public categories",
+        "tags": [
+          "Categories"
+        ]
+      }
+    },
     "/admin/categories": {
       "get": {
         "description": "OWNER, ADMIN, and STAFF can read paginated categories.",
@@ -2743,9 +2769,99 @@
     },
     "/products": {
       "get": {
-        "description": "Returns active products ordered by creation date with category, brand, references, and compatibility attributes.",
+        "description": "Returns active products with optional public search, filters, sorting, and pagination.",
         "operationId": "ProductsController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "foundation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryCode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "FOUNDATION",
+              "type": "string"
+            }
+          },
+          {
+            "name": "brandId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000002",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "createdAt",
+                "name",
+                "basePrice"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "inStock",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Active products.",
@@ -4673,6 +4789,10 @@
       "description": "Public quiz questions and customer profile creation."
     },
     {
+      "name": "Categories",
+      "description": "Public active category catalog reads."
+    },
+    {
       "name": "Products",
       "description": "Public active product catalog reads."
     },
@@ -5089,6 +5209,71 @@
           "thumbnail",
           "card",
           "detail"
+        ]
+      },
+      "PublicCategoryImageResponse": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "$ref": "#/components/schemas/MediaUrlVariantsResponse"
+          },
+          "altText": {
+            "type": "object",
+            "example": "Foundation category tile",
+            "nullable": true
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      },
+      "PublicCategoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "code": {
+            "type": "string",
+            "example": "FOUNDATION"
+          },
+          "name": {
+            "type": "string",
+            "example": "Foundation"
+          },
+          "description": {
+            "type": "object",
+            "example": "Complexion products for a smooth base.",
+            "nullable": true
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicCategoryImageResponse"
+              }
+            ]
+          },
+          "sortOrder": {
+            "type": "object",
+            "example": 1,
+            "nullable": true
+          },
+          "productCount": {
+            "type": "number",
+            "example": 12
+          },
+          "childCategoryCount": {
+            "type": "number",
+            "example": 3
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name"
         ]
       },
       "MediaImageResponse": {
