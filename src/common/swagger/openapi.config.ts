@@ -30,6 +30,7 @@ export function buildOpenApiConfig() {
     .addTag('Attributes', 'Public active attribute groups and options.')
     .addTag('Quiz', 'Public quiz questions and customer profile creation.')
     .addTag('Categories', 'Public active category catalog reads.')
+    .addTag('Brands', 'Public active brand catalog reads.')
     .addTag('Products', 'Public active product catalog reads.')
     .addTag(
       'Product References',

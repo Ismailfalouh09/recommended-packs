@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProductStatus } from '@prisma/client';
 import {
   paginatedResponse,
   paginationParams,
@@ -16,6 +16,16 @@ import { UpdateBrandDto } from './dto/update-brand.dto';
 @Injectable()
 export class BrandsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async publicFindAll() {
+    const brands = await this.prisma.brand.findMany({
+      where: { isActive: true },
+      orderBy: [{ name: 'asc' }],
+      select: this.publicListSelect(),
+    });
+
+    return brands.map((brand) => this.toPublicBrandResponse(brand));
+  }
 
   async findAll(query: QueryBrandsDto) {
     const pagination = paginationParams(query);
@@ -124,6 +134,25 @@ export class BrandsService {
     } satisfies Prisma.BrandSelect;
   }
 
+  private publicListSelect() {
+    return {
+      id: true,
+      name: true,
+      description: true,
+      logoUrl: true,
+      _count: {
+        select: {
+          products: {
+            where: {
+              isActive: true,
+              status: ProductStatus.ACTIVE,
+            },
+          },
+        },
+      },
+    } satisfies Prisma.BrandSelect;
+  }
+
   private toResponse(brand: any) {
     return {
       id: brand.id,
@@ -133,6 +162,16 @@ export class BrandsService {
       isActive: brand.isActive,
       createdAt: brand.createdAt,
       updatedAt: brand.updatedAt,
+      productCount: brand._count.products,
+    };
+  }
+
+  private toPublicBrandResponse(brand: any) {
+    return {
+      id: brand.id,
+      name: brand.name,
+      description: brand.description,
+      logoUrl: brand.logoUrl,
       productCount: brand._count.products,
     };
   }

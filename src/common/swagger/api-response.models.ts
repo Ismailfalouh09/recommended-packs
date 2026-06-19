@@ -251,6 +251,31 @@ export class BrandSummaryResponse {
   name!: string;
 }
 
+export class PublicBrandResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Demo Beauty' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'Clean beauty essentials.', nullable: true })
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://example.com/demo-beauty-logo.png',
+    nullable: true,
+    description:
+      'Returned only when the existing brand logoUrl field has a value.',
+  })
+  logoUrl?: string | null;
+
+  @ApiPropertyOptional({
+    example: 8,
+    description: 'Count of active products with status ACTIVE for this brand.',
+  })
+  productCount?: number;
+}
+
 export class AttributeMatchResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;

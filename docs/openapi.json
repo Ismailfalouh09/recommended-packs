@@ -2123,6 +2123,32 @@
         ]
       }
     },
+    "/brands": {
+      "get": {
+        "description": "Returns active store brands for public brand filters, brand lists, and optional brand strips. Brand logo URLs are returned only from the existing brand logoUrl field.",
+        "operationId": "BrandsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Active public brands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicBrandResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "List active public brands",
+        "tags": [
+          "Brands"
+        ]
+      }
+    },
     "/admin/brands": {
       "get": {
         "description": "OWNER, ADMIN, and STAFF can read paginated brands.",
@@ -4793,6 +4819,10 @@
       "description": "Public active category catalog reads."
     },
     {
+      "name": "Brands",
+      "description": "Public active brand catalog reads."
+    },
+    {
       "name": "Products",
       "description": "Public active product catalog reads."
     },
@@ -5692,6 +5722,39 @@
             "minimum": 0
           }
         }
+      },
+      "PublicBrandResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "name": {
+            "type": "string",
+            "example": "Demo Beauty"
+          },
+          "description": {
+            "type": "object",
+            "example": "Clean beauty essentials.",
+            "nullable": true
+          },
+          "logoUrl": {
+            "type": "object",
+            "example": "https://example.com/demo-beauty-logo.png",
+            "nullable": true,
+            "description": "Returned only when the existing brand logoUrl field has a value."
+          },
+          "productCount": {
+            "type": "number",
+            "example": 8,
+            "description": "Count of active products with status ACTIVE for this brand."
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
       },
       "AdminBrandResponse": {
         "type": "object",

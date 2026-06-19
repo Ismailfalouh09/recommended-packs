@@ -55,6 +55,40 @@ Frontend notes:
 - Only active categories are returned.
 - `productCount` counts active products with status `ACTIVE`.
 
+## Public Brands
+
+### `GET /brands`
+
+Returns active brands for brand filters, brand list UI, and optional brand strips.
+
+Example request:
+
+```bash
+curl http://localhost:3000/brands
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000020",
+    "name": "Sahra",
+    "description": "Moroccan-inspired beauty essentials.",
+    "logoUrl": "https://example.com/sahra-logo.png",
+    "productCount": 6
+  }
+]
+```
+
+Frontend notes:
+
+- Use brand `id` with `/products?brandId=<id>` for product listing filters.
+- Use `logoUrl` only when present; fall back to brand text when it is `null`.
+- The Brand model does not have a public `code` field.
+- `productCount` counts active products with status `ACTIVE`.
+- Only active brands are returned.
+
 ## Public Products
 
 ### `GET /products`

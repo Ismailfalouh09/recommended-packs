@@ -1,4 +1,9 @@
 import { ConflictException } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { AdminRole } from '@prisma/client';
+import { validateRoleAccess } from '../../test-utils/role-test.util';
+import { AdminBrandsController } from './admin-brands.controller';
+import { BrandsController } from './brands.controller';
 import { BrandsService } from './brands.service';
 
 describe('BrandsService', () => {
@@ -39,6 +44,57 @@ describe('BrandsService', () => {
     expect(prisma.brand.create).toHaveBeenCalled();
   });
 
+  it('returns active public brands only', async () => {
+    prisma.brand.findMany.mockResolvedValue([
+      brandFixture({
+        description: 'Clean beauty essentials',
+        logoUrl: 'https://example.com/demo-beauty-logo.png',
+        _count: { products: 3 },
+      }),
+    ]);
+
+    const result = await service.publicFindAll();
+
+    expect(result).toEqual([
+      {
+        id: 'brand-1',
+        name: 'Demo Beauty',
+        description: 'Clean beauty essentials',
+        logoUrl: 'https://example.com/demo-beauty-logo.png',
+        productCount: 3,
+      },
+    ]);
+    expect(prisma.brand.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isActive: true },
+        orderBy: [{ name: 'asc' }],
+      }),
+    );
+  });
+
+  it('exposes only store-safe fields in public brand responses', async () => {
+    prisma.brand.findMany.mockResolvedValue([
+      brandFixture({
+        description: 'Clean beauty essentials',
+        logoUrl: null,
+        _count: { products: 1 },
+      }),
+    ]);
+
+    const [brand] = await service.publicFindAll();
+
+    expect(brand).toEqual({
+      id: 'brand-1',
+      name: 'Demo Beauty',
+      description: 'Clean beauty essentials',
+      logoUrl: null,
+      productCount: 1,
+    });
+    expect(brand).not.toHaveProperty('isActive');
+    expect(brand).not.toHaveProperty('createdAt');
+    expect(brand).not.toHaveProperty('updatedAt');
+  });
+
   it('rejects duplicate brand names case-insensitively', async () => {
     prisma.brand.findFirst.mockResolvedValue({ id: 'brand-1' });
 
@@ -66,6 +122,25 @@ describe('BrandsService', () => {
         data: { isActive: false },
       }),
     );
+  });
+
+  it('keeps public brands route unguarded', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, BrandsController);
+
+    expect(guards).toBeUndefined();
+  });
+
+  it('keeps admin brands guarded', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, AdminBrandsController);
+
+    expect(guards).toEqual(expect.arrayContaining([expect.any(Function)]));
+    expect(guards).toHaveLength(2);
+  });
+
+  it('keeps STAFF read-only through role policy', () => {
+    expect(
+      validateRoleAccess([AdminRole.OWNER, AdminRole.ADMIN], AdminRole.STAFF),
+    ).toBe(false);
   });
 });
 
