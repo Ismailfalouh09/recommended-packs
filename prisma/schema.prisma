@@ -625,7 +625,7 @@ model Order {
   customerId             String        @map("customer_id") @db.Uuid
   customerProfileId      String?       @map("customer_profile_id") @db.Uuid
   recommendationResultId String?       @map("recommendation_result_id") @db.Uuid
-  selectedPackId         String        @map("selected_pack_id") @db.Uuid
+  selectedPackId         String?       @map("selected_pack_id") @db.Uuid
   customerAddressId      String        @map("customer_address_id") @db.Uuid
   paymentMethod          PaymentMethod @default(CASH_ON_DELIVERY) @map("payment_method")
   paymentStatus          PaymentStatus @default(UNPAID) @map("payment_status")
@@ -642,7 +642,7 @@ model Order {
   customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   customerProfile      CustomerProfile?      @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   recommendationResult RecommendationResult? @relation(fields: [recommendationResultId], references: [id], onDelete: SetNull)
-  selectedPack         Pack                  @relation("SelectedPackOrders", fields: [selectedPackId], references: [id], onDelete: Restrict)
+  selectedPack         Pack?                 @relation("SelectedPackOrders", fields: [selectedPackId], references: [id], onDelete: Restrict)
   customerAddress      CustomerAddress       @relation(fields: [customerAddressId], references: [id], onDelete: Restrict)
 
   items         OrderItem[]

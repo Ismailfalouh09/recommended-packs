@@ -185,7 +185,7 @@ export class OrdersService {
       paymentStatus: order.paymentStatus,
       totalAmount: this.toNumber(order.totalAmount),
       currency: order.currency,
-      packName: order.selectedPack.name,
+      packName: order.selectedPack?.name ?? null,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };
