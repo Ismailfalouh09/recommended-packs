@@ -10,11 +10,17 @@ import {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const adminDashboardOrigin = process.env.ADMIN_DASHBOARD_ORIGIN;
+  const allowedOrigins = [
+    process.env.ADMIN_DASHBOARD_ORIGIN,
+    process.env.STORE_FRONTEND_ORIGIN,
+  ]
+    .flatMap((value) => value?.split(',') ?? [])
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 
-  if (adminDashboardOrigin) {
+  if (allowedOrigins.length > 0) {
     app.enableCors({
-      origin: adminDashboardOrigin,
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Authorization', 'Content-Type'],

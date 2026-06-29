@@ -19,13 +19,14 @@ npm run start:dev
 - Swagger UI: `http://localhost:3000/api/docs`
 - OpenAPI JSON endpoint: `http://localhost:3000/api/docs-json`
 
-For local browser development, set the backend CORS origin to the frontend dev server origin:
+For local browser development, set the backend CORS origins to the frontend dev server origins. `ADMIN_DASHBOARD_ORIGIN` and `STORE_FRONTEND_ORIGIN` are both read and combined into the allowed-origins list (each also accepts a comma-separated list of origins):
 
 ```env
 ADMIN_DASHBOARD_ORIGIN="http://localhost:5173"
+STORE_FRONTEND_ORIGIN="http://localhost:5000"
 ```
 
-The variable name is admin-oriented, but currently it is the single CORS origin used by the backend. Use the exact deployed customer frontend origin in production.
+Use the exact deployed customer frontend origin in production.
 
 ## Public Customer Endpoints
 
