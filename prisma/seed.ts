@@ -45,6 +45,9 @@ const ids = {
   dailyMascara: '00000000-0000-4000-8000-000000000401',
   dailyLipstick: '00000000-0000-4000-8000-000000000402',
   dailyPowder: '00000000-0000-4000-8000-000000000403',
+  autoTestFoundation: '00000000-0000-4000-8000-000000000501',
+  autoTestMascara: '00000000-0000-4000-8000-000000000502',
+  autoTestPowder: '00000000-0000-4000-8000-000000000503',
 };
 
 type AttributeGroupCode =
@@ -768,6 +771,24 @@ async function seedPacks(
         [ids.dailyMascara, 'mascara-z', 'mascara-z.DEFAULT', SelectionMode.FIXED_REFERENCE],
         [ids.dailyLipstick, 'lipstick-y', undefined, SelectionMode.CUSTOMER_CHOICE],
         [ids.dailyPowder, 'setting-powder-b', 'setting-powder-b.DEFAULT', SelectionMode.FIXED_REFERENCE],
+      ],
+    },
+    {
+      name: 'Automatic Recommendation Test Pack',
+      slug: 'automatic-recommendation-test-pack',
+      description: 'Manual testing pack with only automatic and fixed selections.',
+      fixedPrice: '299.00',
+      minBudget: '200.00',
+      maxBudget: '350.00',
+      priority: 6,
+      attributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      items: [
+        [ids.autoTestFoundation, 'foundation-x', undefined, SelectionMode.AUTO_BEST_REFERENCE],
+        [ids.autoTestMascara, 'mascara-z', 'mascara-z.DEFAULT', SelectionMode.FIXED_REFERENCE],
+        [ids.autoTestPowder, 'setting-powder-b', 'setting-powder-b.DEFAULT', SelectionMode.FIXED_REFERENCE],
       ],
     },
   ] satisfies Array<{

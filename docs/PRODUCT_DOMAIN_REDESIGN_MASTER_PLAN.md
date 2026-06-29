@@ -263,6 +263,12 @@ Continuation note: the previous agent had completed Phase 5 only through `5.7 Pr
 - `src/modules/*/*.spec.ts` - existing test coverage patterns for products, product references, media, packs, recommendations, and orders.
 - `prisma/schema.prisma` - models, constraints, indexes, relations, and generated-client dependency.
 
+**Phase 9 verification note (2026-06-29)**
+- Focused product-domain regression tests, full unit tests, e2e smoke test, build, Prisma schema validation, and Swagger contract check passed.
+- Static migration review found additive product-domain schema changes and no table drops, column drops, deletes, or truncates. The pack reference FK was intentionally tightened from `SET NULL` to `RESTRICT`.
+- Local database integrity checks found no duplicate ProductReference SKUs, no invalid ProductReference -> Product rows, no invalid pack/recommendation selected-reference ownership, and no broken order item product/reference links.
+- Local migration status still has pending migrations: `20260629180500_product_domain_backfill` and `20260629210000_order_original_price_snapshot`. Apply them with the normal deployment path before release.
+
 ---
 
 ## 6. Dependency Graph
