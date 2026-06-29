@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MediaRole, Prisma, ProductStatus } from '@prisma/client';
+import {
+  MatchType,
+  MediaRole,
+  Prisma,
+  ProductStatus,
+} from '@prisma/client';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
   paginatedResponse,
@@ -13,9 +18,18 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { MediaUrlService } from '../media/media-url.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductAttributeInputDto } from './dto/product-attribute-input.dto';
 import { QueryPublicProductsDto } from './dto/query-public-products.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+
+interface ResolvedProductAttribute {
+  attributeGroupId: string;
+  attributeOptionId: string;
+  matchType: MatchType;
+  scoreValue: number;
+  isHardFilter: boolean;
+}
 
 /**
  * Allowed pricing currencies (single-currency MVP — MAD). Centralised so a
@@ -120,6 +134,29 @@ export class ProductsService {
                 label: true,
               },
             },
+          },
+        },
+      },
+    },
+    attributes: {
+      orderBy: [{ attributeGroup: { sortOrder: 'asc' } }],
+      select: {
+        id: true,
+        matchType: true,
+        scoreValue: true,
+        isHardFilter: true,
+        attributeGroup: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+        attributeOption: {
+          select: {
+            id: true,
+            code: true,
+            label: true,
           },
         },
       },
@@ -270,6 +307,7 @@ export class ProductsService {
       compareAtPrice: dto.compareAtPrice ?? null,
       currency: dto.currency,
     });
+    const attributes = await this.resolveProductAttributes(dto.attributes ?? []);
 
     const product = await this.prisma.product.create({
       data: {
@@ -291,6 +329,11 @@ export class ProductsService {
         mainImageUrl: dto.mainImageUrl ?? null,
         status: dto.status ?? ProductStatus.DRAFT,
         isActive: dto.isActive ?? true,
+        attributes: {
+          createMany: {
+            data: attributes,
+          },
+        },
       },
       select: this.adminDetailSelect(),
     });
@@ -344,9 +387,22 @@ export class ProductsService {
       currency: dto.currency ?? existing.currency,
     });
 
-    const product = await this.prisma.product.update({
-      where: { id },
-      data: {
+    const attributesIncluded = Object.prototype.hasOwnProperty.call(
+      dto,
+      'attributes',
+    );
+    const attributes = attributesIncluded
+      ? await this.resolveProductAttributes(dto.attributes ?? [])
+      : [];
+
+    const product = await this.prisma.$transaction(async (tx) => {
+      if (attributesIncluded) {
+        await tx.productAttribute.deleteMany({ where: { productId: id } });
+      }
+
+      return tx.product.update({
+        where: { id },
+        data: {
         ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
         ...(Object.prototype.hasOwnProperty.call(dto, 'brandId')
           ? { brandId: dto.brandId ?? null }
@@ -385,10 +441,20 @@ export class ProductsService {
         ...(dto.mainImageUrl !== undefined
           ? { mainImageUrl: dto.mainImageUrl ?? null }
           : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-      },
-      select: this.adminDetailSelect(),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+          ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+          ...(attributesIncluded
+            ? {
+                attributes: {
+                  createMany: {
+                    data: attributes,
+                  },
+                },
+              }
+            : {}),
+        },
+        select: this.adminDetailSelect(),
+      });
     });
 
     return this.toAdminDetailResponse(product);
@@ -431,7 +497,16 @@ export class ProductsService {
       ...(query.categoryCode !== undefined
         ? { category: { code: query.categoryCode } }
         : {}),
+      ...(query.productType !== undefined
+        ? { productType: query.productType }
+        : {}),
       ...(query.brandId !== undefined ? { brandId: query.brandId } : {}),
+      ...(this.priceRangeWhere(query.minPrice, query.maxPrice)
+        ? { basePrice: this.priceRangeWhere(query.minPrice, query.maxPrice) }
+        : {}),
+      ...(this.facetWhere(query.attributeOptions)
+        ? { AND: this.facetWhere(query.attributeOptions) }
+        : {}),
       ...(query.inStock === true
         ? {
             references: {
@@ -577,6 +652,29 @@ export class ProductsService {
   private adminDetailSelect() {
     return {
       ...this.adminListSelect(),
+      attributes: {
+        orderBy: [{ attributeGroup: { sortOrder: 'asc' } }],
+        select: {
+          id: true,
+          matchType: true,
+          scoreValue: true,
+          isHardFilter: true,
+          attributeGroup: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+            },
+          },
+          attributeOption: {
+            select: {
+              id: true,
+              code: true,
+              label: true,
+            },
+          },
+        },
+      },
       references: {
         orderBy: [{ isDefault: 'desc' }, { referenceCode: 'asc' }],
         select: {
@@ -701,6 +799,7 @@ export class ProductsService {
     return {
       ...this.toAdminListResponse(product),
       packUsageCount: product._count?.packItems ?? 0,
+      attributes: product.attributes ?? [],
       references: product.references.map((reference: any) => ({
         id: reference.id,
         referenceCode: reference.referenceCode,
@@ -738,9 +837,13 @@ export class ProductsService {
   private toPublicProductResponse(product: any) {
     const basePrice = toMoneyNumber(product.basePrice) ?? 0;
     const pricing = this.derivePublicPricing(product);
+    // Product-level raw suitability never reaches the public payload; it is
+    // curated into labels-only facets below (Phase 2 §7 / 5.7).
+    const { attributes: productAttributes, ...publicProduct } = product;
+    const coverImage = this.coverImage(product.images);
 
     return {
-      ...product,
+      ...publicProduct,
       basePrice,
       compareAtPrice: pricing.compareAtPrice,
       priceFrom: pricing.priceFrom,
@@ -756,11 +859,13 @@ export class ProductsService {
           }
         : null,
       references: product.references.map((reference: any) => {
-        // Strip raw derivation inputs from the public projection (R9);
-        // expose only the derived stock signal.
+        // Strip raw derivation inputs and raw scoring from the public
+        // projection (R9); expose only the derived stock signal + curated
+        // shade suitability labels.
         const {
           reservedQuantity: _reservedQuantity,
           lowStockThreshold: _lowStockThreshold,
+          attributes: referenceAttributes,
           priceOverride,
           priceDelta,
           ...publicReference
@@ -774,10 +879,17 @@ export class ProductsService {
           effectivePrice: this.effectiveReferencePrice(reference, basePrice),
           inStock: stock.inStock,
           lowStock: stock.lowStock,
+          suitability: this.curateSuitability(referenceAttributes),
           image: this.toReferenceImageResponse(reference.image),
         };
       }),
-      coverImage: this.coverImage(product.images),
+      // General (product-level) suitability facets; shade facets ride on each
+      // reference above (Phase 2 §6.2).
+      suitability: {
+        general: this.curateSuitability(productAttributes),
+      },
+      coverImage,
+      coverImageUrl: coverImage?.urls?.detail ?? product.mainImageUrl ?? null,
       images: product.images.map((image: any) => this.toImageResponse(image)),
     };
   }
@@ -1014,5 +1126,91 @@ export class ProductsService {
       inStock: available > 0,
       lowStock: available > 0 && available <= reference.lowStockThreshold,
     };
+  }
+
+  /**
+   * Resolve product-level suitability assignments (Phase 5.3/5.5). Mirrors the
+   * reference-level resolver but enforces the ownership split: only attribute
+   * groups flagged `isProductAttribute = true` (general suitability — skin
+   * type / concern / finish) may be assigned at the product layer. The split is
+   * a service policy guard, not a DB constraint (Phase 2 §1.3).
+   */
+  private async resolveProductAttributes(
+    attributes: ProductAttributeInputDto[],
+  ): Promise<ResolvedProductAttribute[]> {
+    const seen = new Set<string>();
+    const resolved: ResolvedProductAttribute[] = [];
+
+    for (const input of attributes) {
+      const group = await this.prisma.attributeGroup.findFirst({
+        where: { code: input.attributeGroupCode, isActive: true },
+        select: { id: true, code: true, isProductAttribute: true },
+      });
+
+      if (!group) {
+        throw new BadRequestException(
+          `Attribute group ${input.attributeGroupCode} was not found or is inactive.`,
+        );
+      }
+
+      if (!group.isProductAttribute) {
+        throw new BadRequestException(
+          `Attribute group ${input.attributeGroupCode} is a reference-level group and cannot be assigned at the product level.`,
+        );
+      }
+
+      const option = await this.prisma.attributeOption.findFirst({
+        where: {
+          code: input.attributeOptionCode,
+          attributeGroupId: group.id,
+          isActive: true,
+        },
+        select: { id: true, code: true },
+      });
+
+      if (!option) {
+        throw new BadRequestException(
+          `Attribute option ${input.attributeOptionCode} was not found, inactive, or does not belong to ${input.attributeGroupCode}.`,
+        );
+      }
+
+      const key = `${group.id}:${option.id}`;
+      if (seen.has(key)) {
+        throw new BadRequestException(
+          `Duplicate suitability attribute ${input.attributeGroupCode}/${input.attributeOptionCode}.`,
+        );
+      }
+
+      seen.add(key);
+      resolved.push({
+        attributeGroupId: group.id,
+        attributeOptionId: option.id,
+        matchType: input.matchType,
+        scoreValue: input.scoreValue,
+        isHardFilter: input.isHardFilter ?? false,
+      });
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Curate raw suitability rows into public, labels-only facets (Phase 2 §7 /
+   * 5.7): group + option labels with no scoreValue / isHardFilter / matchType.
+   * NOT_COMPATIBLE rows are excluded so the list reads as "suitable for".
+   */
+  private curateSuitability(attributes: any[] = []) {
+    return attributes
+      .filter((attribute) => attribute.matchType !== MatchType.NOT_COMPATIBLE)
+      .map((attribute) => ({
+        group: {
+          code: attribute.attributeGroup.code,
+          name: attribute.attributeGroup.name,
+        },
+        option: {
+          code: attribute.attributeOption.code,
+          label: attribute.attributeOption.label,
+        },
+      }));
   }
 }

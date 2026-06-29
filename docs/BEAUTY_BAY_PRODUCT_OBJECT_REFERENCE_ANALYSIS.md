@@ -3,6 +3,11 @@
 > Analysis-only document. No schema, migration, seed, DTO, endpoint, or configuration was modified while producing it.
 > The Beauty Bay JSON is an **observed frontend Product Detail Page (PDP) response object**, not proof of Beauty Bay's internal database structure.
 > Every finding is tagged as **Confirmed** (directly visible in the sample), **Inferred** (reasonable architectural inference), or **Target decision** (recommendation for our backend).
+>
+> Label convention used below:
+> - **Confirmed from Beauty Bay response** = directly visible in `docs/reference/beauty-bay-product-object-sample.json`.
+> - **Reasonable architectural inference** = a logical backend/read-model implication, not proof of Beauty Bay internals.
+> - **Our target design decision** = how this project should adapt the pattern, validated against the local NestJS/Prisma backend.
 
 **Primary evidence file**
 - `docs/reference/beauty-bay-product-object-sample.json` — single observed PDP response for `sku: BFBB0426F` ("Renew + Smooth Serum", `parentProductId: 6r3KBSErcZMMAKFLv6BNNN`).
@@ -209,5 +214,12 @@ The clearest, lowest-risk lessons to carry into our redesign:
 - **Split content** into `description` / `ingredients` / `directions` and add **`productType`** and **SEO** fields. **(Confirmed gaps vs our schema.)**
 - **Beauty facets** (concern, skin type, formulation, finish/coverage, tone, undertone) belong in our relational attribute model — some at **Product** level (general suitability), some at **ProductReference** level (shade-specific tone/undertone). **(Confirmed need; ownership is our Target decision — see Deliverable 2.)**
 - **Defer** multi-currency, reviews, promotions engine, loyalty, enhanced media, delivery countdowns — but reserve extension points. **(Confirmed deferrable.)**
+
+**Evidence**
+- `docs/reference/beauty-bay-product-object-sample.json` - `parentProductId`, root `sku`, `variants.inStock[]`, `variants.outOfStock[]`, `variants[].price`, `variants[].measurement`, `variants[].swatch`, `variants[].imageUrl`, `media.images[]`, `attraqt.facets[]`, `seoData`, `reviewSummary`, `promoText[]`, `deliveryCountdown`.
+- `prisma/schema.prisma` - `model Product`, `model ProductReference`, `model ProductImage`, `model ProductReferenceImage`, `model ProductAttribute`, `model ProductReferenceAttribute`, `model OrderItem`.
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - parent/reference split, media duplication, stock risk, order snapshot risk, packs, and recommendations.
+- `src/modules/products/products.service.ts` - public product aggregation, image projection, suitability projection, and public stock signal.
+- `src/modules/recommendations/recommendation-engine.service.ts` - selected reference scoring and availability check.
 
 The detailed adaptation, ownership matrix, and lifecycle are specified in `docs/PRODUCT_DOMAIN_TARGET_CONCEPTION.md`; the safe rollout is in `docs/PRODUCT_DOMAIN_REDESIGN_MASTER_PLAN.md`.

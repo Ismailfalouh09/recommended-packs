@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNotEmpty,
@@ -12,12 +13,14 @@ import {
   IsUUID,
   Matches,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import {
   optionalLowercase,
   optionalTrimmedString,
   optionalUppercase,
 } from '../../../common/transforms/query.transforms';
+import { ProductAttributeInputDto } from './product-attribute-input.dto';
 
 export class CreateProductDto {
   @ApiProperty({ example: '9f72caaa-f55b-4423-b805-911e3e7f61bb' })
@@ -132,4 +135,15 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    type: [ProductAttributeInputDto],
+    description:
+      'Product-level general suitability (skin type / concern / finish). Only groups flagged isProductAttribute may be assigned here.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductAttributeInputDto)
+  attributes?: ProductAttributeInputDto[];
 }

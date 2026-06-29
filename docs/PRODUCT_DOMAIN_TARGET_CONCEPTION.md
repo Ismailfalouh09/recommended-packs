@@ -16,7 +16,7 @@ Our backbone is already correct and validated by the Beauty Bay PDP: a **parent 
 - `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` — §1, §3
 - `docs/reference/beauty-bay-product-object-sample.json` — `parentProductId`, `variants.inStock[]`
 
-The redesign therefore is **evolutionary, not a rewrite**. It (a) fills product-master gaps (content split, `productType`, SEO, merchandising, compare-at price, a single clear visibility contract); (b) adds **product-level beauty suitability** alongside the existing reference-level attributes so the engine can score general fitness *and* shade fitness; (c) strengthens **order snapshots** and **stock integrity** (the two highest current risks); and (d) reserves clean extension points for promotions, reviews, multi-currency, and rich content — all deferred.
+The redesign therefore is **evolutionary, not a rewrite**. The live schema already contains several target foundations (`productType`, structured content, `compareAtPrice`, `VariationType`, `ProductAttribute`, and richer `OrderItem` snapshot columns), so the remaining plan must distinguish **schema present** from **fully wired, validated, and adopted by services/contracts**. The work completes product/reference behavior, uses product-level suitability alongside reference-level shade attributes, finishes stock integrity, verifies order snapshots, and reserves clean extension points for promotions, reviews, multi-currency, and rich content - all deferred.
 
 The most important target rule: **the database stays normalized; richness lives in the response layer.** One PDP response is *assembled* from Product + selected ProductReference + all references + price + stock + media + taxonomy + suitability — never flattened into a giant Product table.
 
@@ -26,14 +26,14 @@ The most important target rule: **the database stays normalized; richness lives 
 
 1. **Product ≠ sellable SKU.** `Product` is catalog identity; `ProductReference` is the purchasable unit. Cart, pack items, recommendation results, and order items resolve to a `ProductReference`. *(Confirmed alignment — `prisma/schema.prisma` `OrderItem.productReferenceId` required.)*
 2. **Stock and commercial state are reference-level.** A product stays visible while individual references are out of stock. *(Confirmed — current-state §3.2; Beauty Bay `variants.outOfStock[]`.)*
-3. **Suitability is two-tiered.** General suitability (skin type, concern, finish, coverage) can live at **Product** level; shade-specific suitability (skin tone, undertone, shade family) lives at **ProductReference** level. *(New target decision — today suitability is reference-only.)*
+3. **Suitability is two-tiered.** General suitability (skin type, concern, finish, coverage) can live at **Product** level; shade-specific suitability (skin tone, undertone, shade family) lives at **ProductReference** level. *(Live schema now has `ProductAttribute` and `ProductReferenceAttribute`; the remaining decision is which groups are mandatory by product type and how the engine consumes both layers.)*
 4. **Price is numeric MAD, never formatted text.** Display strings, `onSale`, and `% saving` are derived. *(Beauty Bay confirms numeric `itemPrice` + derived `amount`.)*
 5. **One currency now, multi-currency-ready later.** Keep `currency` columns; do not block a future price table.
 6. **Normalized DB, rich response.** Catalog data is separated across Product, ProductReference, media, attributes, stock, packs; the storefront aggregates.
 7. **Catalog is separate from promotions.** No promo engine inside Product; a future promotions domain references products/references.
 8. **Orders are historically immutable.** Snapshot enough at purchase time (name, SKU, shade/size, unit price, image, brand) that later catalog edits never corrupt history.
 9. **Archive over delete.** Products/references referenced by orders, packs, or recommendations are archived/hidden, never hard-deleted. *(Confirmed — `onDelete: Restrict` from orders/packs/recommendations.)*
-10. **One visibility contract.** Replace the ambiguous `status` + `isActive` pair with a single documented lifecycle. *(Confirmed risk — current-state §8 Medium.)*
+10. **One visibility contract.** `ProductStatus` already includes `DRAFT/ACTIVE/HIDDEN/ARCHIVED`, but the backend still has both `status` and `isActive`; the target is one documented source of truth for public visibility. *(Confirmed risk — current-state §8 Medium; live schema confirms `HIDDEN` exists.)*
 11. **Recommendation can select a reference where shades matter.** Engine filters/score references and returns a `selectedProductReferenceId`. *(Confirmed — `recommendation-engine.service.ts`.)*
 12. **Packs hold a fixed reference *or* a dynamically chosen compatible reference**, with the MVP behaviour explicitly chosen (see §6.8). *(Confirmed — `SelectionMode` enum.)*
 
@@ -57,7 +57,7 @@ The most important target rule: **the database stays normalized; richness lives 
                          │  SEO?, merchandising flags,        │
                          │  recommendationPriority?           │
                          └───┬───────┬────────┬───────┬──────┘
-                  1..* │           │ 1..*   │ 0..*  │ 0..* (suitability — NEW, product-level)
+                  1..* │           │ 1..*   │ 0..*  │ 0..* (suitability - product-level)
                        ▼           ▼        ▼       ▼
         ┌───────────────────┐  ┌─────────┐ ┌──────────────┐  ┌────────────────────────┐
         │ PRODUCT REFERENCE │  │ Product │ │ ProductAttr  │  │  (future) Promotion,   │
@@ -93,7 +93,7 @@ The most important target rule: **the database stays normalized; richness lives 
                                                                  └───────┘
 ```
 
-All relations above except the four marked **NEW** (product-level suitability, Product slug-on-Brand/Category, shade structured fields, richer order snapshots) already exist in `prisma/schema.prisma`.
+Live-schema note: several items originally described as target additions are now present in `prisma/schema.prisma` (`ProductAttribute`, structured Product content, `VariationType`, structured reference fields, `ProductStatus.HIDDEN`, and richer `OrderItem` snapshot columns). The remaining target work is to verify migrations/backfill, ensure DTO/service behavior, update public/admin contracts, and decide unresolved business rules such as brand/category slug strategy and mandatory attributes by product type.
 
 ---
 
@@ -115,24 +115,26 @@ All relations above except the four marked **NEW** (product-level suitability, P
 - **Recommendation:** optional product-level `recommendationPriority` *(new)*.
 
 ### 4.3 Product Lifecycle and Visibility States
-**Target decision:** collapse the ambiguous `status` (`DRAFT/ACTIVE/ARCHIVED`) + `isActive` pair into **one** documented contract. Target states:
+**Target decision:** use the live `ProductStatus` enum (`DRAFT/ACTIVE/HIDDEN/ARCHIVED`) as the documented lifecycle and decide whether `isActive` remains only as a transitional compatibility flag. Target states:
 - `DRAFT` — being authored, never store-visible.
 - `ACTIVE` — store-visible (requires at least one active, optionally in-stock reference).
-- `HIDDEN` — intentionally not listed but not archived (fills today's missing "hidden" state). *(Beauty Bay has no equivalent; this resolves current-state §10 Q4.)*
+- `HIDDEN` — intentionally not listed but not archived. *(Beauty Bay has no equivalent; this state is now present in `prisma/schema.prisma` and must be wired consistently.)*
 - `ARCHIVED` — retired; retained for order/pack/recommendation history, never hard-deleted.
 
 **Evidence**
 - `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` — §8 ("Dual lifecycle flags … no DB-level coupling")
+- `prisma/schema.prisma` — `enum ProductStatus` includes `HIDDEN`; `model Product` still has `status` and `isActive`
 - `src/modules/products/products.service.ts` — `publicProductWhere` (requires both `status=ACTIVE` and `isActive=true`)
 
 **Migration nuance:** the redesign may keep `isActive` physically during transition and treat `status` as the source of truth, or merge into one enum — decided in the Master Plan Phase 2/3, not here.
 
 ### 4.4 Product-Level Beauty Suitability
-**Target decision (NEW):** introduce general, non-shade suitability at Product level — skin type, concern, finish, coverage, formulation — so a serum can declare "suits oily/combination, targets hyperpigmentation" once, rather than repeating it on every reference. Reuse the existing `AttributeGroup`/`AttributeOption` foundation via a new product-level assignment concept mirroring `ProductReferenceAttribute`.
+**Target decision:** use the live `ProductAttribute` layer for general, non-shade suitability at Product level — skin type, concern, finish, coverage, formulation — so a serum can declare "suits oily/combination, targets hyperpigmentation" once, rather than repeating it on every reference. The remaining work is to validate DTO/service coverage, public projection, and recommendation-engine consumption alongside `ProductReferenceAttribute`.
 
 **Evidence**
 - `docs/reference/beauty-bay-product-object-sample.json` — `attraqt.facets[]` (`skinType`, `concern`, `formulation` are clearly product-general, not per-size)
-- `prisma/schema.prisma` — `ProductReferenceAttribute` (today the only suitability owner); `AttributeGroup.isProductAttribute` flag **already exists** and is currently unused at product level
+- `prisma/schema.prisma` — `ProductAttribute`, `ProductReferenceAttribute`, and `AttributeGroup.isProductAttribute`
+- `src/modules/products/products.service.ts` — resolves product attributes and curates public general suitability
 - `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` — §10 Q1 (suitability ownership unresolved)
 
 *Assumption requiring business validation:* exact split of which attribute groups are product-general vs reference-specific.
@@ -159,16 +161,18 @@ A `ProductReference` is the **purchasable SKU**: one shade, one size, or one bun
 - `docs/reference/...json` — `variants.inStock[]` (each variant has own `sku`, `measurement`, `price`, `imageUrl`)
 
 ### 5.2 Variation Types
-Mirror Beauty Bay's `variationType` concept: a reference participates in a **size**, **shade**, or **bundle** axis. *Assumption requiring business validation:* whether one Product may mix axes (e.g. shade × size) — see §12. Today the model does not declare an axis; adding an explicit `variationType` (or per-reference descriptor) clarifies storefront rendering (`showSwatch` analogue).
+Mirror Beauty Bay's `variationType` concept: a reference participates in a **size**, **shade**, or **bundle** axis. The live schema already has `VariationType`; *Assumption requiring business validation:* whether one Product may mix axes (e.g. shade x size) — see §12. Storefront rendering still needs a clear selector contract (`showSwatch` analogue).
 
 **Evidence**
 - `docs/reference/...json` — `variationType: "size"`, `variants.showSwatch`
+- `prisma/schema.prisma` — `enum VariationType`, `ProductReference.variationType`
 
 ### 5.3 Shade, Swatch, Size, and Measurement Handling
-**Target decision (NEW fields):** add structured shade identity — `shadeName` (today only free-text `referenceName`), optional `shadeCode`/`shadeFamily`, optional `swatchHex` for swatch UI — and a `measurement` field for sizes (`45ml`). Keep the 1:1 `ProductReferenceImage` swatch; a multi-image shade gallery is deferred.
+**Target decision:** use the live structured reference fields — `shadeName`, optional `shadeCode`, optional `swatchHex`, `measurement`, and `variationType` — alongside the legacy display name `referenceName`. Keep the 1:1 `ProductReferenceImage` swatch; a multi-image shade gallery is deferred.
 
 **Evidence**
-- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` — §9.2 ("shade identity is just `referenceName`"), §5 (no hex/family)
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` — §9.2 ("shade identity is just `referenceName`"), now superseded by live schema fields that need service/contract verification
+- `prisma/schema.prisma` — `ProductReference.shadeName`, `shadeCode`, `swatchHex`, `measurement`, `variationType`
 - `docs/reference/...json` — `swatch`, `shadeDescription`, `measurement`
 
 ### 5.4 SKU and Commercial Identity
@@ -213,9 +217,9 @@ Required `categoryId` with self-referential hierarchy (`parentId`). **Target:** 
 
 ### 6.5 Product Attribute Assignments
 Two assignment layers using the shared `AttributeGroup`/`AttributeOption`:
-- **NEW** product-level assignments (general suitability) — leveraging the unused `AttributeGroup.isProductAttribute` flag.
+- Product-level assignments (`ProductAttribute`) for general suitability — leveraging `AttributeGroup.isProductAttribute`.
 - Existing `ProductReferenceAttribute` (shade-specific).
-**Evidence:** `prisma/schema.prisma` — `AttributeGroup.isProductAttribute`, `ProductReferenceAttribute`.
+**Evidence:** `prisma/schema.prisma` — `ProductAttribute`, `AttributeGroup.isProductAttribute`, `ProductReferenceAttribute`.
 
 ### 6.6 Stock and Reservation
 Reference-level `stockQuantity`, `reservedQuantity`, `lowStockThreshold`. **Target (critical fix):** order placement must atomically decrement stock / write `reservedQuantity` under a conditional guard (today neither happens — overselling risk).
@@ -231,7 +235,7 @@ Numeric MAD `basePrice` (Product) + reference `priceOverride`/`priceDelta`. **Ta
 **Evidence:** `prisma/schema.prisma` — `PackItem`, `SelectionMode`; `recommendation-engine.service.ts` — `FIXED_REFERENCE`/`AUTO_BEST_REFERENCE` handling; `frontend-handoff/KNOWN_LIMITATIONS.md` — "Customer-selected reference override during recommendation checkout" not implemented.
 
 ### 6.9 Recommendation Eligibility and Rules
-Engine scores packs/references from `ProductReferenceAttribute` + `PackAttribute` + `RecommendationRule`; hard filters exclude incompatible references; `AUTO_BEST_REFERENCE` picks best **available** reference; `RecommendationResultItem` stores the chosen `selectedProductReferenceId`. **Target:** add product-level suitability + optional product/reference `recommendationPriority`; define fallback when no reference matches.
+Engine currently scores packs/references from `ProductReferenceAttribute` + `PackAttribute` + `RecommendationRule`; hard filters exclude incompatible references; `AUTO_BEST_REFERENCE` picks best **available** reference; `RecommendationResultItem` stores the chosen `selectedProductReferenceId`. **Target:** include product-level suitability from `ProductAttribute`, add optional product/reference `recommendationPriority` only if approved, and define fallback when no reference matches.
 **Evidence:** `recommendation-engine.service.ts` — `scoreReference`, `isReferenceAvailable`, pack `priority`; `prisma/schema.prisma` — `RecommendationResultItem`.
 
 ### 6.10 Order Items and Historical Snapshots
@@ -260,40 +264,61 @@ CMS-style rich PDP blocks + product video. **Deferred** (`MediaAssetType` IMAGE-
 | Slug | Product | One canonical URL per product | MVP | Exists (`@unique`) |
 | Brand | Product → Brand | Brand owns many products | MVP | Optional FK exists |
 | Category | Product → Category | Required taxonomy | MVP | Required FK exists |
-| Product type | Product | Sub-classification under category | Later | NEW field |
-| Short description | Product | PDP teaser | Later | NEW optional |
+| Product type | Product | Sub-classification under category | MVP/verify | Present in live schema |
+| Short description | Product | PDP teaser | Later/verify | Present in live schema |
 | Full description | Product | Marketing body | MVP | Exists (`description`) |
-| Ingredients | Product | Shared across all variants | MVP (skincare) | NEW field |
-| Directions | Product | Shared usage/warnings | MVP (skincare) | NEW field |
+| Ingredients | Product | Shared across all variants | MVP (skincare) | Present in live schema |
+| Directions | Product | Shared usage/warnings | MVP (skincare) | Present in live schema |
 | SKU | ProductReference | Sellable unit identity | MVP | Exists (unique) |
-| Size / measurement | ProductReference | Varies per sellable unit | MVP | NEW structured field |
+| Size / measurement | ProductReference | Varies per sellable unit | MVP | Present in live schema |
 | Shade name | ProductReference | Per-shade identity | MVP (makeup) | Today free-text `referenceName` |
-| Shade code | ProductReference | Stable shade key | Later | NEW optional |
-| Swatch (image/hex) | ProductReference (image 1:1) / `swatchHex` field | Per-shade visual | MVP image / Later hex | Image exists; hex NEW |
+| Shade code | ProductReference | Stable shade key | Later/verify | Present in live schema |
+| Swatch (image/hex) | ProductReference (image 1:1) / `swatchHex` field | Per-shade visual | MVP image / Later hex | Image and hex field exist; UI rules need approval |
 | Product gallery | ProductImage → MediaAsset | Shared visuals | MVP | Exists |
 | Reference image | ProductReferenceImage (1:1) | Per-variant visual | MVP | Exists |
-| Current price | Product `basePrice` (+ ref delta/override) | Numeric MAD baseline | MVP | Exists |
-| Original price | Product `compareAtPrice` (opt ref override) | Drives onSale/% saving | Later | NEW optional |
+| Current price and original sale price | ProductReference for MVP, resolved from `priceOverride`/`priceDelta` plus Product `basePrice`/`compareAtPrice` | The selected SKU is what is sold; the PDP/order should show effective reference-level selling price | MVP | Live schema has Product `compareAtPrice`; reference-level compare-at override remains a business decision |
 | Stock quantity | ProductReference | Availability is per-SKU | MVP | Exists |
 | Reserved stock quantity | ProductReference | Concurrency/holds | MVP (fix needed) | Exists but never written |
 | Stock status | Derived from reference | `active && stock>reserved` | MVP | Computed |
 | Active / hidden / archived state | Product (single contract) + reference active flag | One visibility source of truth | MVP | Collapse `status`+`isActive` |
-| Product-level skin-type suitability | Product attribute assignment (NEW) | General, not per-shade | MVP/Phase-two | Uses `isProductAttribute` |
-| Product-level concern suitability | Product attribute assignment (NEW) | General | MVP/Phase-two | NEW |
+| Product-level skin-type suitability | ProductAttribute assignment | General, not per-shade | MVP/Phase-two | Live schema exists; engine adoption must be verified |
+| Product-level concern suitability | ProductAttribute assignment | General | MVP/Phase-two | Live schema exists; mandatory-by-type rules need approval |
 | ProductReference skin-tone matching | ProductReferenceAttribute | Shade-specific | MVP | Exists |
 | ProductReference undertone matching | ProductReferenceAttribute | Shade-specific | MVP | Exists |
 | Product recommendation priority | Product (NEW) | Tie-break/boost at product level | Later | Today only `Pack.priority` |
 | ProductReference recommendation priority | ProductReference (NEW) | Prefer a shade | Later | NEW optional |
 | Pack quantity | PackItem | Per bundle line | MVP | Exists |
 | Pack fixed vs dynamic compatible reference | PackItem `selectionMode` | Bundle behaviour | MVP (fixed+auto) / Later (customer choice) | Exists |
-| Product order snapshot | OrderItem (NEW fields) | History immutability | MVP | Extend snapshot |
-| Reference order snapshot | OrderItem (NEW fields) | History immutability | MVP | Extend snapshot |
+| Product order snapshot | OrderItem snapshot | History immutability | MVP | Live schema has richer columns; service population/regression tests must prove completeness |
+| Reference order snapshot | OrderItem snapshot | History immutability | MVP | Include SKU, shade/size/measurement, image, and brand where useful |
 | Maximum quantity per customer | Product or ProductReference | Purchase cap | Later | NEW (`maxPerCustomer`) — *business validation* |
-| SEO metadata | Product | Distinct from slug | Later | NEW optional |
+| SEO metadata | Product | Distinct from slug | Later/verify | Present in live schema |
 | Reviews | Future Reviews domain | Separate concern | Future | Reserve relation |
 | Promotion data | Future Promotion domain | Keep catalog clean | Future | Except simple `compareAtPrice` |
 | Back-in-stock alerts | Future (subscription) | Notification concern | Future | Defer |
 | Rich PDP content zones | Future content domain | CMS concern | Future | Defer |
+
+### 7.1 Required Ownership Commitments
+
+| Information | Target Owner |
+|---|---|
+| Name, slug, description, ingredients, directions | Product |
+| SKU, size, measurement, shade, swatch | ProductReference |
+| Main gallery | ProductMedia / `ProductImage` |
+| Shade image / variation-specific image | ProductReferenceMedia / `ProductReferenceImage` |
+| Current price and original sale price | ProductReference for MVP, resolved from reference price fields plus Product baseline/compare-at fields |
+| Stock and reserved stock | ProductReference / Stock |
+| Skin type, concern, formulation, finish, coverage | Product or ProductAttribute assignment |
+| Skin tone and undertone | ProductReference or ProductReferenceAttribute assignment |
+| Pack quantity | PackItem |
+| Fixed reference or dynamic compatibility behavior | PackItem / recommendation flow decision |
+| Historic product and reference details | OrderItem snapshot |
+
+**Evidence**
+- `prisma/schema.prisma` - `Product`, `ProductReference`, `ProductImage`, `ProductReferenceImage`, `ProductAttribute`, `ProductReferenceAttribute`, `PackItem`, `OrderItem`.
+- `src/modules/products/products.service.ts` - product/reference pricing projection, product and reference suitability projection, cover/gallery response.
+- `src/modules/recommendations/recommendation-engine.service.ts` - dynamic reference selection for non-fixed pack items.
+- `src/modules/orders/orders.service.ts` - current order item snapshot mapping must be verified against the richer snapshot columns.
 
 ---
 
@@ -375,16 +400,16 @@ The admin dashboard must eventually let an administrator manage:
 | Target Capability | Current State | Gap Type | Required Decision | Expected Implementation Phase |
 |---|---|---|---|---|
 | Parent/SKU split | Present (`Product`/`ProductReference`) | None | — | n/a (validated) |
-| Content split (ingredients/directions) | Single `description` | Schema add | Required per category? | Phase 4 |
-| Product type | Missing | Schema add | Taxonomy depth | Phase 4/5 |
+| Content split (ingredients/directions) | Present in live schema and product service; older current-state doc is stale | Contract/test verification | Required per category? | Phase 4 |
+| Product type | Present in live schema and query DTOs | Contract/test verification | Taxonomy depth | Phase 4/5 |
 | Single visibility contract | `status` + `isActive` ambiguity | Refactor | Collapse vs document both | Phase 2–4 |
 | Product-level suitability | Reference-only | Schema + engine | Which groups are product-level | Phase 5–6 |
-| Structured shade (code/family/hex) | Free-text `referenceName` | Schema add | Need hex/family for swatch UI? | Phase 4–5 |
-| Compare-at / sale price | None at product level | Schema add | Simple sale price now? | Phase 4 |
+| Structured shade (code/family/hex) | Present in live schema; service/contract must be verified | Contract/test verification | Need hex/family for swatch UI? | Phase 4–5 |
+| Compare-at / sale price | Present on Product; reference-level override unresolved | Contract/test verification + business rule | Simple sale price now? | Phase 4 |
 | Stock decrement on order | **Not implemented** | Critical logic | Decrement vs reserve, which step | Phase 7 |
 | Atomic stock guard | Read-then-write (TOCTOU) | Concurrency fix | Locking strategy | Phase 7 |
 | Richer order snapshot | name/refName/price only | Schema + logic | Which fields to freeze | Phase 7 |
-| SEO metadata | None | Schema add | Needed for MVP? | Phase 5 |
+| SEO metadata | Present in live schema; public/admin usage needs verification | Contract/test verification | Needed for MVP? | Phase 5 |
 | Brand/category slug parity | Brand/category by name/code | Schema add | URL strategy | Phase 5 |
 | Recommendation priority (product/ref) | Pack-level only | Schema + engine | Need product boost? | Phase 6 |
 | Fallback when no shade matches | Required item disqualifies pack | Policy + logic | Drop/substitute/flag | Phase 6 |
@@ -440,11 +465,11 @@ Confirmed deferrable (reserve extension points, do not build for MVP):
 The smallest target that is coherent, safe, and beauty-credible:
 
 - **Keep** `Product` → `ProductReference` parent/SKU split (unchanged backbone).
-- **Add to Product:** `productType`, `ingredients`, `directions`, optional `shortDescription`, optional `compareAtPrice`, optional SEO meta — additive, nullable.
+- **Verify and complete Product fields already in schema:** `productType`, `ingredients`, `directions`, optional `shortDescription`, optional `compareAtPrice`, optional SEO meta — keep additive/nullable and confirm DTOs, services, tests, and storefront/admin projections.
 - **Resolve visibility** into one documented lifecycle (DRAFT/ACTIVE/HIDDEN/ARCHIVED).
-- **Add to ProductReference:** structured `measurement` + `shadeName` (+ optional `shadeCode`/`swatchHex`/variation axis) — additive.
-- **Add product-level suitability** assignments (reuse `AttributeGroup.isProductAttribute`); keep reference-level attributes for shades.
-- **Fix the two critical risks:** atomic stock decrement/reservation on order, and richer `OrderItem` snapshot (sku, shade/size, image, brand).
+- **Verify and complete ProductReference fields already in schema:** structured `measurement` + `shadeName` (+ optional `shadeCode`/`swatchHex`/variation axis).
+- **Use product-level suitability** assignments (`ProductAttribute` + `AttributeGroup.isProductAttribute`); keep reference-level attributes for shades.
+- **Fix the critical stock risk** with atomic stock decrement/reservation on order, and verify richer `OrderItem` snapshot columns are populated for both cart and recommendation order paths.
 - **Packs:** ship `FIXED_REFERENCE` + `AUTO_BEST_REFERENCE`; defer `CUSTOMER_CHOICE` override.
 - **Keep** price numeric MAD; derive display/onSale; reserve multi-currency, promotions, reviews, video, enhanced content for later.
 - **Archive over delete** everywhere referenced by orders/packs/recommendations.

@@ -122,68 +122,149 @@ Evolve the current thin-`Product` catalog into a Beauty-Bay-grade product experi
 
 ### Phase 5 — Media, Attributes, and Catalog Discovery Implementation
 
+Continuation note: the previous agent had completed Phase 5 only through `5.7 Product detail aggregation requirements`. This continuation preserves those completed steps, expands missing Phase 5 exit work, and then completes Phases 6-9.
+
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |
 |---|---|---|---|---|---|---|---|
-| 5.1 | Product media handling | Cover/gallery via join; retire scalar URL | Media, products | 4.1 | Media flow + `mainImageUrl` retirement plan | Cover from `role=COVER`; legacy field deprecated | Image source ambiguity |
-| 5.2 | ProductReference media & swatches | Keep 1:1 swatch + swatchHex | Media, references | 4.2 | Swatch handling | Swatch image + optional hex surfaced | Shade visual gaps |
-| 5.3 | Attribute/facet assignments | Add product-level assignment layer | Attributes, products | 4.1,1.3 | Product-attribute capability | `isProductAttribute` groups assignable to Product | Wrong-layer attributes |
-| 5.4 | Category/product-type behaviour | productType + category slug | Taxonomy | 4.1 | Taxonomy update | productType filterable; category slug available | Broken browse |
-| 5.5 | Suitability assignments (type/concern/finish/coverage/tone/undertone) | Full beauty facet coverage | Attributes, references, products | 5.3 | Suitability mapping | General at product, shade at reference | Engine input gaps |
-| 5.6 | Storefront search/filter requirements | Filter by facet/brand/category/price/stock | Storefront | 5.3,5.4 | Search/filter spec + index plan | Filters defined; ILIKE→index path identified | Slow/limited search |
-| 5.7 | Product detail aggregation requirements | Assemble PDP response | Storefront | 5.1–5.5 | PDP aggregation spec (= conception §9) | One response = product+refs+price+stock+media+facets | N+1 / heavy response |
+| 5.1 | Product media ownership and ordered gallery | Make `ProductImage` + `MediaAsset` the source for cover/gallery ordering while planning retirement of scalar `mainImageUrl` | Media, products, public catalog | 4.1 | Product media ownership plan, ordered gallery contract, scalar URL compatibility rule | Cover is selected from `role=COVER`; gallery sorted by `position`; old `mainImageUrl` is fallback-only during migration | Image source ambiguity, stale scalar URLs |
+| 5.2 | ProductReference media, swatches, and variation images | Use reference-level media for shade image/swatch while keeping `swatchHex` as optional UI support | Media, references, PDP variants | 4.2 | Reference-media response contract for shade/size selector | Reference response includes swatch image/URLs and optional hex; missing swatch has deterministic fallback | Shade selector gaps |
+| 5.3 | Media roles and future video boundary | Define supported roles now and reserve video without implementing it | Media, DTOs, Swagger | 5.1,5.2 | Role matrix: COVER, GALLERY, SWATCH, DETAIL/THUMBNAIL policy, video deferred | Existing `MediaRole` values mapped; `MediaAssetType=IMAGE` respected; no fake video support claimed | Over-promising media capability |
+| 5.4 | Media cleanup and orphan prevention | Preserve provider cleanup and prevent unreferenced or double-deleted assets | Media service, Cloudinary provider, products, references | 5.1,5.2 | Cleanup/orphan-prevention checklist | Delete flows remove join first, delete provider asset only if unreferenced, and never let feature services call Cloudinary directly | Orphaned Cloudinary assets or broken shared media |
+| 5.5 | Product-level beauty attribute assignments | Confirm `ProductAttribute` behavior for general suitability | Products, attributes, admin DTOs | 4.1,1.3 | Product-level attribute create/update/list contract | Only product-level groups are assignable to Product; duplicate assignments rejected; public projection is curated | Wrong-layer suitability |
+| 5.6 | ProductReference-level shade matching attributes | Keep tone/undertone/shade-family attributes at SKU level | References, attributes, recommendation input | 4.2,5.5 | Reference attribute ownership and validation rules | Skin tone/undertone hard filters remain reference-level; reference CRUD preserves attributes | Wrong shade chosen |
+| 5.7 | Category and product-type behavior | Clarify category vs product type for browse/search | Categories, products, catalog API | 4.1,1.3 | Taxonomy contract for category, productType, and future slug parity | Category filters and `productType` filters are defined; brand/category slug gaps logged for Phase 8 handoff | Broken browse taxonomy |
+| 5.8 | Required attributes by product type | Decide which suitability fields are mandatory for foundation, serum, cleanser, lipstick, etc. | Attributes, admin validation, recommendations | 1.3,5.5,5.6 | Required-by-product-type matrix | Missing mandatory attributes fail admin validation or are clearly marked incomplete before publish | Under-specified products entering recommendations |
+| 5.9 | Storefront filtering requirements | Define public filters over category, productType, brand, price, stock, sale, and suitability | Products, catalog endpoints, indexes | 5.5-5.8 | Filter contract and index plan | Filters are expressible without exposing admin-only fields; exact stock exposure decision is documented | Slow or leaky filters |
+| 5.10 | Search and catalog discovery requirements | Improve search semantics while avoiding premature search-engine work | Products, categories, brands | 5.7,5.9 | Search behavior spec: fields searched, sort order, empty states, pagination | Current `contains`/ILIKE risk is documented; index/full-text path is planned before growth | Catalog scans degrade |
+| 5.11 | Product detail aggregation requirements | Assemble rich PDP response from normalized tables | Storefront, products, references, media, attributes | 5.1-5.10 | PDP aggregation spec aligned with conception section 9 | One response contains product master data, selected reference, all variants, price, stock signal, media, taxonomy, and suitability | Heavy response or missing variant data |
+| 5.12 | Prevent N+1 query issues | Keep listings and PDP loading batched and explicitly selected | Products service, Prisma selects, media URLs | 5.9-5.11 | Query-shape review and select/include plan | Listing and detail paths use bounded includes/selects; tests or query logging prove no per-reference media/attribute loops | Mobile storefront latency |
+| 5.13 | Public storefront vs admin-only fields | Separate safe public projection from admin detail payloads | Products, references, Swagger, handoff | 5.9-5.12 | Field exposure matrix | Public payload hides `costPrice`, `barcode`, `reservedQuantity`, raw scoring, provider IDs, and internal media IDs unless approved | Inventory/security leakage |
+| 5.14 | Phase 5 tests and validation gate | Prove media, attributes, filtering, and PDP aggregation before packs/recs | Tests, Swagger, handoff | 5.1-5.13 | Phase 5 test checklist and contract examples | Media role tests, attribute assignment tests, catalog filter tests, PDP aggregation tests, and N+1 review are complete | Recommendation phase starts with bad inputs |
+
+**Evidence**
+- `prisma/schema.prisma` - `MediaAsset`, `ProductImage`, `ProductReferenceImage`, `MediaRole`, `MediaAssetType`, `ProductAttribute`, `ProductReferenceAttribute`, `Product.productType`.
+- `src/modules/media/media.service.ts` - cover demotion, reorder, reference image replacement, delete-if-unreferenced provider cleanup.
+- `src/modules/products/products.service.ts` - public projection, curated suitability, cover/gallery response, derived public stock signal.
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - media duplication risk, product/reference attributes, search performance risk, public exposure risk.
+- `docs/reference/beauty-bay-product-object-sample.json` - `media.images[]`, `variants[].swatch`, `variants[].imageUrl`, `attraqt.facets[]`, `productType`.
 
 ### Phase 6 — Packs and Recommendation Engine Adaptation
 
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |
 |---|---|---|---|---|---|---|---|
-| 6.1 | Update pack item model usage | Align PackItem with new reference fields | Packs | 4.2 | Pack item review | Fixed/auto modes still resolve references | Pack breakage |
-| 6.2 | Decide fixed vs dynamic compatible reference | Implement MVP selection modes | Packs, recs | 1.4 | Selection-mode behaviour | FIXED+AUTO_BEST shipped; CUSTOMER_CHOICE gated | Wrong bundle behaviour |
-| 6.3 | Adapt recommendation candidate filtering | Use product + reference suitability | Engine | 5.5 | Filtering update | Hard filters honor both layers | Mis-recommendation |
-| 6.4 | Adapt shade selection rules | Pick best available shade per profile | Engine | 6.3 | Shade scoring | Tone/undertone drive reference choice | Wrong shade chosen |
-| 6.5 | Define fallback for unavailable compatible references | Policy when no shade matches | Engine, packs | 1.4 | Fallback rule (drop/substitute/flag) | Behaviour deterministic + tested | Empty/blocked pack |
-| 6.6 | Define product/reference recommendation priorities | Tie-breaking/boost | Engine | 5.5 | Priority handling | Priority influences ranking predictably | Unstable ranking |
-| 6.7 | Test recommendation outcomes (realistic beauty cases) | Validate end-to-end | Engine, tests | 6.3–6.6 | Scenario test suite | Tone/undertone/skin-type/concern cases pass | Hidden scoring bugs |
+| 6.1 | PackItem relationship review | Confirm `PackItem.productId` is required and `productReferenceId` is optional only for fixed items | Packs, Prisma, admin DTOs | 4.2 | Pack item ownership note and validation matrix | Fixed items require a reference; dynamic items do not accept a reference; quantity remains on `PackItem` | Pack items point at invalid reference/product pairs |
+| 6.2 | Fixed ProductReference behavior | Preserve packs that contain an exact sellable SKU | Packs, recommendations, order snapshots | 6.1 | Fixed-reference behavior spec | Out-of-stock or inactive fixed references disqualify or flag the pack per approved policy | Fixed kits sell unavailable SKU |
+| 6.3 | Dynamic compatible reference behavior | Define product-level pack items that require later reference selection | Packs, recommendation engine | 6.1,5.14 | Dynamic-selection spec for `AUTO_BEST_REFERENCE`; `CUSTOMER_CHOICE` remains gated unless approved | Engine selects one compatible reference per dynamic item and records it | UX promises customer choice that backend cannot accept |
+| 6.4 | MVP pack behavior decision | Lock which selection modes ship in MVP | Packs, frontend handoff | 1.4,6.2,6.3 | Signed MVP decision: fixed + auto; customer override later unless approved | Handoff states exactly what cart/order can submit | Business/UX mismatch |
+| 6.5 | Candidate filtering by product and reference suitability | Combine product-level general suitability and reference-level shade suitability | Recommendations, products, references, attributes | 5.5,5.6 | Candidate filter design | Product-level hard filters exclude unsuitable products; reference-level filters choose suitable SKU | Mis-recommendation |
+| 6.6 | Tone and undertone matching at reference level | Keep shade-specific match rules on ProductReference | Recommendation engine, attributes | 6.5 | Shade scoring matrix | Tone/undertone answers affect reference choice, not only product ranking | Wrong foundation/concealer shade |
+| 6.7 | General matching at product level | Score skin type, concern, makeup style, finish, coverage, formulation where appropriate | Recommendation engine, ProductAttribute | 6.5 | Product-level scoring adapter | General suitability boosts/filters products before or alongside reference scoring | Repeated attributes on every SKU or missed skincare fit |
+| 6.8 | Priority and scoring ownership | Decide whether priority belongs to pack, product, or reference | Packs, recommendations | 6.5-6.7 | Priority ownership policy | Existing `Pack.priority` behavior remains stable; any product/reference priority is explicitly approved | Unstable ranking |
+| 6.9 | Out-of-stock compatible reference behavior | Define behavior when best or fixed reference is unavailable | Recommendations, stock, packs | 6.2,6.3 | OOS fallback policy | Engine skips unavailable dynamic references; fixed required OOS items fail/flag deterministically | Recommended pack cannot be ordered |
+| 6.10 | No matching shade fallback | Define behavior when no tone/undertone-compatible reference exists | Recommendations, admin data quality | 6.6,6.9 | Fallback policy: drop, substitute, mark incomplete, or fail pack | Required items and optional items have distinct approved outcomes | Silent bad shade recommendations |
+| 6.11 | Mixed fixed and dynamic pack behavior | Ensure packs can contain both exact SKUs and dynamic selections | Packs, recommendation result items, orders | 6.2-6.10 | Mixed-pack resolution spec | Recommendation result records the actual selected reference for every item | Pack snapshot ambiguity |
+| 6.12 | Regression scenarios and backward compatibility | Protect existing packs/recommendations while adapting engine | Tests, packs, recommendations, handoff | 6.1-6.11 | Scenario test suite using realistic beauty examples | Foundation shade, serum concern, lipstick finish, OOS fixed SKU, mixed pack, and legacy pack cases pass | Existing recommendation behavior breaks |
+
+**Evidence**
+- `prisma/schema.prisma` - `PackItem.productId`, `PackItem.productReferenceId`, `SelectionMode`, `Pack.priority`, `RecommendationResultItem.selectedProductReferenceId`.
+- `src/modules/packs/packs.service.ts` - validation around `FIXED_REFERENCE`, `AUTO_BEST_REFERENCE`, and `CUSTOMER_CHOICE`.
+- `src/modules/recommendations/recommendation-engine.service.ts` - `selectReference`, `scoreReference`, `isReferenceAvailable`.
+- `frontend-handoff/CUSTOMER_FRONTEND_HANDOFF.md` - `CUSTOMER_CHOICE` override not supported in order flow.
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - pack and recommendation lifecycle notes and fallback gap.
 
 ### Phase 7 — Orders, Stock Safety, and Historical Snapshot Adaptation
 
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |
 |---|---|---|---|---|---|---|---|
-| 7.1 | Order item snapshot rules | Freeze required fields at purchase | Orders | 1.5,4.2 | Snapshot rule | Snapshot written on both order paths | History drift |
-| 7.2 | Reference-level pricing snapshot | Freeze effective unit price | Orders, price | 7.1 | Price snapshot | `unitPriceSnapshot` = effective price at order time | Wrong historical price |
-| 7.3 | Product/name/image/shade/SKU snapshots | Extend snapshot columns | Orders | 7.1,3.3 | Extended snapshot | name+sku+shade/size+image+brand frozen | Receipts degrade |
-| 7.4 | Stock reservation/release interaction | Atomic decrement/reserve + release on cancel | Stock, orders | 4.7 | Stock-write logic | Conditional guarded decrement; no oversell under concurrency | Overselling / TOCTOU |
-| 7.5 | Archive behaviour for ordered products | Safe archive when referenced | Products, orders | 2.4 | Archive guard | Archived product still resolvable in past orders | Broken history |
-| 7.6 | Validate historical orders readable after catalog changes | Regression guarantee | Orders | 7.1–7.5 | History regression test | Edit/archive product → old orders unchanged | Silent corruption |
+| 7.1 | Selected ProductReference linkage | Ensure each order item points to the actual selected reference | Orders, recommendations, cart | 6.11 | Linkage verification for cart and recommendation paths | `OrderItem.productReferenceId` is always the SKU selected by customer/engine | Parent product ordered without SKU |
+| 7.2 | Immutable order-time snapshot field set | Freeze product, brand, reference, SKU, variation, image, unit price, original price if approved | Orders, products, references | 1.5,7.1 | Snapshot field policy | Both order paths populate all approved snapshot fields; missing optional fields are deliberate | History depends on mutable catalog |
+| 7.3 | Catalog-change safety | Keep receipts/admin history stable after product/reference edits | Orders, admin products, archive | 7.2 | Edit-after-order regression plan | Rename product/reference, change price/image, archive product, then old order still reads original snapshot | Customer history corruption |
+| 7.4 | Archive behavior for previously ordered items | Prefer archive/hidden over hard delete where order/packs/recs reference data | Products, references, orders | 2.4,7.3 | Archive policy and guards | Ordered products/references can be hidden/archived without breaking order reads | Restrict relation blocks admin operations |
+| 7.5 | Reference-level stock reservation/decrement design | Define whether COD order creation decrements `stockQuantity`, increments `reservedQuantity`, or both | Orders, stock, references | 1.2,4.7 | Stock lifecycle design | Approved state transition for COD create, confirm, cancel/reject, complete, return | Overselling or trapped stock |
+| 7.6 | COD order state stock transitions | Map stock behavior to `PENDING_CONFIRMATION`, `CONFIRMED`, `CANCELED`, `DELIVERED`, `RETURNED` | Orders, stock | 7.5 | COD stock transition table | Cancel/reject releases or restores stock; completed orders do not double-decrement | Inconsistent stock after manual admin actions |
+| 7.7 | Pack order snapshots | Store the actual selected references for fixed and dynamic pack items | Orders, packs, recommendations | 6.11,7.2 | Pack item snapshot plan | Mixed fixed/dynamic pack orders show exact selected SKUs and quantities | Bundle history ambiguity |
+| 7.8 | Data consistency and transaction boundaries | Make stock writes and order creation atomic | Orders, Prisma transactions | 7.5,7.6 | Transaction design with guarded conditional update | Concurrent orders cannot oversell; failure rolls back order and stock changes together | TOCTOU race |
+| 7.9 | Original price and sale snapshot decision | Decide whether to freeze compare-at/original sale price | Orders, price | 1.5,7.2 | Snapshot price rule | `unitPriceSnapshot` is always effective price; original/compare-at snapshot included only if approved | Misleading historical discounts |
+| 7.10 | Historical order regression suite | Prove old orders remain readable after catalog changes | Tests, orders, products, references | 7.1-7.9 | Regression tests for cart and recommendation orders | Legacy/thin orders and new rich-snapshot orders both render | Migration breaks order history |
+
+**Evidence**
+- `prisma/schema.prisma` - `OrderItem.productId`, `productReferenceId`, snapshot columns, `PaymentMethod.CASH_ON_DELIVERY`, order statuses, `onDelete: Restrict`.
+- `src/modules/orders/orders.service.ts` - availability checks, current snapshot mapping, transaction usage, no confirmed stock write safety.
+- `frontend-handoff/KNOWN_LIMITATIONS.md` - stock reservation and automatic stock deduction not implemented.
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - critical stock decrement risk, TOCTOU risk, order snapshot risk.
 
 ### Phase 8 — Admin Dashboard and Storefront Contract Integration
 
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |
 |---|---|---|---|---|---|---|---|
-| 8.1 | Identify impacted admin pages | Scope FE admin changes | Admin dashboard | 4–7 | Admin impact list | Each affected page + endpoint mapped | Missed admin page |
-| 8.2 | Identify storefront catalog & PDP endpoints | Scope FE storefront changes | Storefront | 5.7,7.* | Endpoint list | List/detail/slug/filter endpoints defined | Missing endpoint |
-| 8.3 | Define pagination/filter/sort/search behaviour | Lock list semantics | Storefront, admin | 5.6 | List behaviour spec | Params + envelopes documented | Inconsistent lists |
-| 8.4 | Define product detail response | Final PDP contract | Storefront | 5.7 | PDP contract | Matches conception §9 | PDP gaps |
-| 8.5 | Define loading/error/empty-state API behaviour | Predictable FE states | Storefront, admin | 8.2 | State/error spec | Error shape consistent (Nest default) | FE state bugs |
-| 8.6 | Confirm frontend-handoff changes | Keep handoff docs accurate | `frontend-handoff/*` | 8.1–8.5 | Updated handoff docs | KNOWN_LIMITATIONS/PAGE_ENDPOINT/ROLE matrices updated | Stale handoff |
-| 8.7 | Prepare frontend integration tasks separately | Decouple FE work | FE backlog | 8.6 | FE task list | Tasks scoped + handed off | Coupled releases |
+| 8.1 | Admin screens impacted | Inventory every admin product-domain screen affected by redesign | Admin dashboard, handoff docs | 4-7 | Admin screen impact map | Product list/detail, reference manager, stock, media, attributes, packs, recommendations, and orders are mapped | Missed admin workflow |
+| 8.2 | Product create/edit lifecycle | Define admin authoring from draft through active/hidden/archive | Products, DTOs, validation | 4.1,5.8,7.4 | Product lifecycle API contract | Admin can create draft, add refs/media/attributes/stock, then publish only when requirements pass | Incomplete products published |
+| 8.3 | Reference/shade/size/SKU management | Define SKU manager behavior | References, stock, admin UI handoff | 4.2,5.6 | Reference create/edit contract | Admin can manage SKU, measurement, shade, swatch, active state, default reference, uniqueness errors | Duplicate or ambiguous variants |
+| 8.4 | Product and reference media management | Define media upload/reorder/replace/delete UI contracts | Media, products, references | 5.1-5.4 | Media handoff and endpoint matrix | Cover/gallery and swatch flows match backend endpoints and cleanup rules | Broken image management |
+| 8.5 | Attribute and suitability management | Define product-level and reference-level attribute UI/contract | Attributes, quiz, recommendations | 5.5-5.8 | Attribute assignment contract | Admin sees required attributes by product type and cannot assign wrong-layer groups | Bad recommendation inputs |
+| 8.6 | Price, sale-price, stock, visibility management | Define admin controls and public effects | Products, references, stock, orders | 4.5-4.7,7.5 | Commercial/admin field contract | Price, compare-at, stock, reserved read, low stock, and visibility rules documented | Admin changes have surprising public effects |
+| 8.7 | Pack compatibility configuration | Define fixed/dynamic item authoring | Packs, recommendations | 6.1-6.4 | Pack configuration contract | Admin understands when a reference is fixed vs dynamically selected later | Pack setup cannot be ordered/recommended |
+| 8.8 | Storefront category listing API requirements | Lock category browse/list API shape | Storefront, products, categories | 5.7,5.9 | Listing response contract | Category listing includes safe product cards, price-from, stock signal, cover image, pagination | Storefront cannot browse |
+| 8.9 | Storefront search/filter/sort/pagination | Lock query params and response envelope | Storefront, products | 5.9,5.10 | Search/filter/sort/pagination spec | Filters/sorts are documented with empty-state and invalid-param behavior | Inconsistent client behavior |
+| 8.10 | Rich PDP response requirements | Finalize Beauty-Bay-inspired PDP response | Storefront, products, references, media | 5.11,7.2 | PDP contract examples | Response has product content, selected reference, variants, price, stock, media, suitability, brand/category | PDP requires extra unplanned calls |
+| 8.11 | Variant selector response requirements | Define shade/size selector payload | Storefront, references, media | 5.2,5.6,8.10 | Variant selector contract | Each variant has id, label, sku, measurement/shade, price, stock signal, swatch/image | Wrong variant added to cart |
+| 8.12 | Add-to-cart validation contract | Define what cart/order accepts and rejects | Storefront, orders, stock | 7.1,7.5 | Add-to-cart/order validation spec | Invalid/inactive/OOS reference returns predictable error; parent-only add is rejected | Checkout accepts unsellable item |
+| 8.13 | API error/loading/empty-state expectations | Standardize frontend-facing states | Storefront, admin, Swagger | 8.8-8.12 | Error and empty-state contract | 400/404/409/503 cases documented; empty filters return empty envelope, not error | Poor frontend resilience |
+| 8.14 | Frontend handoff documentation updates | Update handoff without implementing frontend | `frontend-handoff/*`, Swagger | 8.1-8.13 | Updated handoff task list and known limitations | Handoff docs reflect product domain redesign and remaining unsupported items | Stale FE guidance |
+| 8.15 | Admin-only vs public catalog separation | Prevent internal data leakage | Products, references, media, Swagger | 5.13,8.6 | Public/admin field matrix | Public excludes cost, barcode, exact reserved stock, raw scoring, provider IDs, admin audit details | Inventory/commercial leakage |
+
+**Evidence**
+- `frontend-handoff/PAGE_ENDPOINT_MAPPING.md`, `CUSTOMER_FRONTEND_HANDOFF.md`, `STORE_CATALOG_HANDOFF.md`, `KNOWN_LIMITATIONS.md`, `ROLE_PERMISSION_MATRIX.md`.
+- `src/modules/products/admin-products.controller.ts`, `src/modules/products/products.controller.ts`, `src/modules/product-references/admin-product-references.controller.ts`, `src/modules/media/controllers/*`.
+- `src/modules/orders/orders.controller.ts` - existing cart/recommendation order validation errors.
+- `prisma/schema.prisma` - public/admin field candidates and relations.
 
 ### Phase 9 — Test, Migration, Documentation, and Release Readiness
 
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |
 |---|---|---|---|---|---|---|---|
-| 9.1 | Database migration test plan | Verify migrations on prod-like data | DB | 3.* | Migration test plan | Forward+rollback rehearsed on snapshot | Migration failure in prod |
-| 9.2 | API regression test plan | Catch contract regressions | All endpoints | 4–8 | Regression suite | Public+admin contracts green | Broken API |
-| 9.3 | Recommendation regression scenarios | Protect engine | Engine | 6.* | Rec scenario suite | Beauty cases stable vs baseline | Scoring regression |
-| 9.4 | Pack regression scenarios | Protect bundles | Packs | 6.* | Pack scenario suite | Fixed/auto packs resolve correctly | Pack regression |
-| 9.5 | Order safety regression scenarios | Protect checkout/history | Orders, stock | 7.* | Order scenario suite | No oversell; snapshots intact | Order regression |
-| 9.6 | Role & authorization test plan | Protect access control | Auth | 4.9 | Authz test suite | OWNER/ADMIN/STAFF matrix enforced | Privilege leak |
-| 9.7 | Performance & N+1 review | Protect mobile perf | Storefront, orders | 5.7,7.4 | Perf report | PDP/list queries batched; no hot N+1 | Slow storefront |
-| 9.8 | Documentation updates | Keep docs truthful | docs/, handoff | 8.6 | Updated docs | Analysis/conception/handoff aligned | Doc drift |
-| 9.9 | Deployment & rollback checklist | Safe release | Ops | 9.1–9.8 | Release runbook | Go/no-go + rollback steps defined | Unsafe deploy |
+| 9.1 | Prisma migration test strategy | Rehearse every migration against realistic data | Prisma, DB, CI | 3.* | Migration rehearsal plan | Forward and rollback tested on snapshot; generated client verified after schema changes | Prod migration failure |
+| 9.2 | Legacy/backfill data validation | Prove old products/references/orders remain valid | DB, products, orders | 3.3,9.1 | Pre/post validation query set | Counts, null checks, duplicate checks, snapshot completeness, and FK integrity pass | Silent data corruption |
+| 9.3 | Database rollback approach | Define rollback or compensating path per migration | DB, ops | 3.5,9.1 | Rollback runbook | Each migration has tested down/compensating action and restore point | Stuck deployment |
+| 9.4 | API regression test plan | Catch contract regressions across public/admin endpoints | Products, references, media, packs, orders | 4-8 | API regression suite | Existing documented endpoints remain compatible or intentionally versioned | Broken clients |
+| 9.5 | Product CRUD tests | Cover product fields, lifecycle, price, public/admin projections | Products | 4.1,8.2 | Product CRUD suite | Create/update/list/detail/archive and publish guards pass | Bad catalog authoring |
+| 9.6 | ProductReference and SKU uniqueness tests | Protect sellable SKU identity | References | 4.2,8.3 | Reference identity test suite | Duplicate `sku`, `barcode`, or product/reference code returns friendly conflict | Duplicate SKUs |
+| 9.7 | Price and sale-price tests | Verify effective price, compare-at, sale derivation, MAD currency | Products, references, orders | 4.6,7.2 | Price test suite | Effective price and snapshots are correct; invalid compare-at rejected | Financial errors |
+| 9.8 | Stock and reservation tests | Prove no oversell and correct COD state transitions | Orders, stock, references | 7.5-7.8 | Stock concurrency and lifecycle tests | Concurrent checkout guarded; cancel/reject/release behavior passes | Overselling |
+| 9.9 | Product/reference media tests | Verify cover/gallery/swatch and cleanup | Media, products, references | 5.1-5.4 | Media regression tests | Cover demotion, reorder, swatch replace/delete, orphan cleanup pass | Broken media or orphan assets |
+| 9.10 | Catalog filtering and pagination tests | Protect storefront discovery | Products, search, filters | 5.9,5.10,8.8,8.9 | Catalog list test suite | Filters combine correctly; pagination stable; empty state deterministic | Storefront browse regressions |
+| 9.11 | Pack regression scenarios | Protect fixed/dynamic/mixed bundle behavior | Packs, recommendations | 6.1-6.12 | Pack scenario suite | Fixed, auto, mixed, OOS, optional/required cases pass | Bundle regression |
+| 9.12 | Recommendation regression scenarios | Protect rule-based quiz outcomes | Recommendations, attributes, quiz | 6.5-6.12 | Recommendation scenario suite | Skin tone, undertone, skin type, concern, style, finish, coverage cases stable | Mis-recommendation |
+| 9.13 | Order snapshot regression scenarios | Prove catalog edits do not change history | Orders, products, references | 7.1-7.10 | Snapshot regression suite | Rename/price/image/archive after order does not alter historical order display | History corruption |
+| 9.14 | Role and authorization tests | Preserve OWNER/ADMIN/STAFF permissions | Auth, admin endpoints | 8.1-8.7 | Authz test suite | Write/read permissions match role matrix; storefront remains public where intended | Privilege leak |
+| 9.15 | Performance and N+1 query review | Keep catalog and PDP performant | Products, Prisma, media URL generation | 5.12,8.10 | Query/performance report | List/PDP query counts bounded; indexes reviewed for filters/search | Slow mobile storefront |
+| 9.16 | Swagger/OpenAPI review | Keep generated contracts truthful | Swagger, docs, frontend handoff | 8.8-8.15 | OpenAPI review checklist | Public/admin DTOs, errors, examples, and field visibility are documented | Contract drift |
+| 9.17 | Admin and storefront contract verification | Verify backend matches handoff docs | Backend, handoff docs | 8.14,9.16 | Contract verification matrix | Every documented page/API has matching endpoint, DTO, and role/error behavior | Frontend integration failure |
+| 9.18 | Documentation and release checklist | Tie analysis, migration, tests, and deployment together | docs, ops, release | 9.1-9.17 | Release readiness checklist | Go/no-go approved; docs updated; known limitations accurate; rollback owner named | Unsafe release |
+
+**Evidence**
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - known high-risk areas and current gaps.
+- `frontend-handoff/*` - current contract and known limitation documents that must be updated.
+- `src/modules/*/*.spec.ts` - existing test coverage patterns for products, product references, media, packs, recommendations, and orders.
+- `prisma/schema.prisma` - models, constraints, indexes, relations, and generated-client dependency.
 
 ---
 
 ## 6. Dependency Graph
+
+Current dependency graph, superseding the encoded legacy sketch below:
+
+```
+Phase 0 -> Phase 1 -> Phase 2 -> Phase 3 -> Phase 4
+  -> Phase 5 -> Phase 6 -> Phase 7 -> Phase 8 -> Phase 9
+```
+
+Current critical path: **0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9**. Phase 5 is required before Phase 6 because the recommendation engine needs product/reference suitability, and before Phase 8 because storefront/admin contracts need media and facet behavior.
+
+**Evidence**
+- `src/modules/recommendations/recommendation-engine.service.ts` - recommendations depend on selected references and attributes.
+- `src/modules/products/products.service.ts` - public product responses aggregate media, stock, price, and suitability.
+- `frontend-handoff/*` - frontend integration depends on stable backend contracts.
 
 ```
 Phase 0 (Evidence & Guardrails)
@@ -204,6 +285,24 @@ Critical path: **0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 9**. Phase 5 ru
 
 ## 7. Backward Compatibility and Migration Strategy
 
+Current strategy, superseding the older bullets below:
+
+- Use **expand -> backfill -> verify -> contract** for every risky change.
+- Treat fields already present in live schema as still requiring contract verification if DTO/service/test coverage is incomplete.
+- Keep `status` + `isActive` during a compatibility window; choose one source of truth for public visibility before removing or ignoring the other.
+- Keep legacy scalar image fields as fallback-only until all public/admin responses prefer media joins.
+- Backfill/verify `shadeName`, `measurement`, `variationType`, snapshot columns, and product attributes before making any required.
+- Preserve `onDelete: Restrict` paths for orders, packs, and recommendation results; archive/hidden states are the compatibility path.
+- Introduce stock writes with guarded conditional updates inside the order transaction; do not retroactively mutate historical orders.
+- Keep API responses additive-first and update `frontend-handoff/*` before any breaking public/admin shape change.
+- Every migration needs a tested rollback or compensating migration plus a database snapshot restore point.
+
+**Evidence**
+- `prisma/schema.prisma` - `Product.status`, `isActive`, `ProductReference.isActive`, `OrderItem` snapshot columns, `onDelete: Restrict` relations.
+- `src/modules/products/products.service.ts` - public visibility requires both `status=ACTIVE` and `isActive=true`.
+- `src/modules/media/media.service.ts` - media joins and cleanup are already the structured path.
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - duplicate image systems, stock risk, snapshot risk.
+
 - **Expand → migrate → contract** for every risky change. New fields land **nullable/additive** first; backfill (`referenceName`→`shadeName`, snapshot enrichment); only then tighten constraints.
 - **Visibility contract:** keep `status` + `isActive` physically during a compat window; switch reads to the single source of truth; remove redundancy only after all consumers migrated. *(`products.service.ts` `publicProductWhere`.)*
 - **Stock decrement:** introduce guarded conditional decrement behind validation; never retro-apply to historical orders.
@@ -215,6 +314,21 @@ Critical path: **0 → 1 → 2 → 3 → 4 → 6 → 7 → 8 → 9**. Phase 5 ru
 ---
 
 ## 8. Test Strategy by Phase
+
+Current strategy, superseding the older bullets below:
+
+| Phase | Required Test Focus |
+|---|---|
+| 0 | Golden current-state behavior and consumer map validation |
+| 1 | Decision checklist completeness; no code tests |
+| 2 | Contract/model review tests where generated schemas/examples exist |
+| 3 | Migration dry runs, backfill validation, rollback rehearsals |
+| 4 | Product/reference CRUD, slug/SKU uniqueness, lifecycle, price, stock projection |
+| 5 | Product/reference media, cleanup, product and reference attributes, filters, PDP aggregation, N+1 review |
+| 6 | Fixed/dynamic/mixed packs, tone/undertone shade selection, product-level suitability, fallback/OOS scenarios |
+| 7 | COD stock transitions, concurrency, snapshots, archive-then-read-history |
+| 8 | Admin/storefront contract tests, pagination/filter/sort, variant selector, add-to-cart errors |
+| 9 | Full regression, authorization, OpenAPI, performance, deployment/rollback checklist |
 
 - **0–3 (design):** validation queries + dry-run migrations on a production-like snapshot; no behavioural tests yet.
 - **4:** unit + integration for CRUD, SKU/slug uniqueness, visibility transitions, pricing guards, stock projection.
@@ -229,6 +343,26 @@ Baseline: capture current behaviour as golden tests in Phase 0 so every later ph
 ---
 
 ## 9. Risks and Mitigations
+
+Current risk register, superseding the older table below:
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| Overselling because order flow validates stock without a safe write | Critical | Phase 7.5-7.8 atomic guarded stock design; Phase 9.8 concurrency tests |
+| Order history corruption after catalog edit/archive | High | Phase 7.2-7.4 snapshot verification; Phase 9.13 regression tests |
+| Visibility drift between `status` and `isActive` | High | Phase 2.3 source-of-truth decision; Phase 4.5 transitions; compatibility window |
+| Suitability scored at wrong layer | High | Phase 5.5-5.8 ownership matrix; Phase 6.5-6.7 engine adaptation |
+| Dynamic pack behavior promises unsupported customer choice | High | Phase 6.4 MVP decision; Phase 8.7/8.12 handoff clarity |
+| Media asset orphaning or stale scalar URLs | Medium | Phase 5.1-5.4 cleanup and fallback plan; Phase 9.9 tests |
+| Breaking `Restrict` relations during migration | High | Phase 3.6 FK checklist; Phase 9.1-9.3 migration rehearsal |
+| Public catalog leaks admin-only fields | Medium | Phase 5.13 and 8.15 field matrix; OpenAPI review |
+| Search/catalog performance degrades | Medium | Phase 5.10/5.12 index and N+1 review; Phase 9.15 |
+| Scope creep into reviews, promotions, multi-currency, frontend implementation | Medium | Phase 1 scope lock; Phase 8 handoff only; explicit deferrals retained |
+
+**Evidence**
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - critical/high/medium risk register.
+- `frontend-handoff/KNOWN_LIMITATIONS.md` - unsupported stock deduction and customer-choice override.
+- `prisma/schema.prisma` - relations and current schema surface.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
@@ -247,6 +381,15 @@ Baseline: capture current behaviour as golden tests in Phase 0 so every later ph
 
 ## 10. Checkpoints Requiring Human Approval
 
+Current checkpoints, superseding the older list below:
+
+1. **After Phase 1.7** - signed-off capability matrix and business decisions, especially variation axes, price ownership, pack selection modes, stock timing, and public field exposure.
+2. **After Phase 2.8** - approved data model, lifecycle source of truth, public/admin field matrix, and migration/compatibility strategy.
+3. **After Phase 3.5/3.6** - migration order, backfill plan, rollback plan, and FK-safety sign-off before any migration is written.
+4. **Before Phase 6 implementation** - approval of fixed vs dynamic pack behavior and fallback when no compatible reference exists.
+5. **Before Phase 7 deploy** - approval of COD stock decrement/reservation timing and final order snapshot field set.
+6. **After Phase 8.14 / before Phase 9 release** - frontend-handoff acceptance, OpenAPI review, and deployment/rollback go/no-go.
+
 1. **After Phase 1.7** — signed-off capability matrix + the 12 business decisions (no schema work begins without this).
 2. **After Phase 2.8** — approved data model, lifecycle, public/admin field visibility, and migration strategy.
 3. **After Phase 3.5/3.6** — migration order, backfill, rollback, and FK-safety sign-off before any migration is written.
@@ -257,8 +400,19 @@ Baseline: capture current behaviour as golden tests in Phase 0 so every later ph
 
 ## 11. Suggested First Implementation Task
 
-**Phase 0, Step 0.2 — "Build the verified Product/ProductReference consumer map."**
+Current recommendation. Exactly one first implementation task is recommended; any older doc-only note below this paragraph is superseded and is not part of the implementation sequence:
 
-A documentation-only task: enumerate every backend reader and writer of `Product` and `ProductReference` (products, product-references, packs, recommendations, orders, media, storefront controllers/services) and every public/admin contract field that depends on them, cross-checked against `prisma/schema.prisma` relations and `frontend-handoff/PAGE_ENDPOINT_MAPPING.md`.
+**Add a safe ProductReference commercial identity baseline: introduce an explicit ProductReference lifecycle/status policy while preserving the existing unique SKU.**
 
-**Why this first:** it is small, safe, touches no code or schema, and produces the single artifact every later phase depends on (the backward-compatibility risk register). It directly de-risks the two critical fixes (stock decrement, order snapshots) by proving exactly who consumes the data before anything changes. It also validates whether `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` is still accurate, satisfying Phase 0's exit criteria.
+This is one small, foundational backend task: add or design the minimal reference status source of truth (for example `DRAFT/ACTIVE/HIDDEN/ARCHIVED` or a documented replacement for `isActive`) around the already-global-unique `ProductReference.sku`, then update DTO validation, service guards, and tests for reference create/update/public visibility. It should not change recommendation scoring, packs, orders, media, or stock writes yet.
+
+**Justification from current-state evidence**
+- `prisma/schema.prisma` - `ProductReference.sku` is already `@unique`, but references have only `isActive`; `Product` has a richer `ProductStatus`.
+- `src/modules/recommendations/recommendation-engine.service.ts` - availability currently depends on reference `isActive` plus stock.
+- `src/modules/orders/orders.service.ts` - order validation rejects inactive selected references.
+- `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - public visibility and lifecycle ambiguity are documented risks.
+
+**Exit criteria**
+- One documented reference lifecycle/status rule exists and is enforced consistently in reference admin writes, public catalog reads, recommendation availability, and order validation.
+- Existing unique SKU behavior remains intact with friendly duplicate handling.
+- No pack behavior, recommendation scoring, order stock mutation, or media schema is changed in this first task.

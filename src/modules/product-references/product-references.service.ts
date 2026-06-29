@@ -616,12 +616,21 @@ export class ProductReferencesService {
         select: {
           id: true,
           code: true,
+          isProductAttribute: true,
         },
       });
 
       if (!group) {
         throw new BadRequestException(
           `Attribute group ${input.attributeGroupCode} was not found or is inactive.`,
+        );
+      }
+
+      // Ownership split (Phase 2 §1.3 / 5.5): product-level groups (skin type /
+      // concern / finish) belong on the product, not on individual references.
+      if (group.isProductAttribute) {
+        throw new BadRequestException(
+          `Attribute group ${input.attributeGroupCode} is a product-level group and cannot be assigned at the reference level.`,
         );
       }
 

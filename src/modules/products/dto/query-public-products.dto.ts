@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -12,7 +13,9 @@ import {
 } from 'class-validator';
 import {
   optionalBoolean,
+  optionalLowercase,
   optionalTrimmedString,
+  optionalUppercase,
 } from '../../../common/transforms/query.transforms';
 
 export class QueryPublicProductsDto {
@@ -33,10 +36,49 @@ export class QueryPublicProductsDto {
   @IsString()
   categoryCode?: string;
 
+  @ApiPropertyOptional({
+    example: 'face-serum',
+    description: 'Filter by the stable product-type code (kebab-case).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalLowercase(value))
+  @IsString()
+  productType?: string;
+
   @ApiPropertyOptional({ example: '9f72caaa-f55b-4423-b805-911e3e7f61bb' })
   @IsOptional()
   @IsUUID()
   brandId?: string;
+
+  @ApiPropertyOptional({
+    example: 50,
+    description: 'Minimum base price (inclusive).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minPrice?: number;
+
+  @ApiPropertyOptional({
+    example: 300,
+    description: 'Maximum base price (inclusive).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice?: number;
+
+  @ApiPropertyOptional({
+    example: 'DRY,MEDIUM',
+    description:
+      'Comma-separated attribute-option codes. A product matches when each code is present at the product or reference suitability layer (AND across codes).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalUppercase(value))
+  @IsString()
+  attributeOptions?: string;
 
   @ApiPropertyOptional({ enum: ['createdAt', 'name', 'basePrice'] })
   @IsOptional()
