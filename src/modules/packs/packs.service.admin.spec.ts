@@ -216,6 +216,54 @@ describe('PacksService admin CRUD', () => {
     expect(tx.pack.create).toHaveBeenCalled();
   });
 
+  it('rejects an inactive fixed reference when activating a pack', async () => {
+    prisma.pack.findUnique.mockResolvedValue(null);
+    prisma.product.findUnique.mockResolvedValue(
+      productFixture({
+        references: [
+          {
+            id: 'reference-1',
+            productId: 'product-1',
+            stockQuantity: 10,
+            reservedQuantity: 0,
+            isActive: false,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      service.adminCreate({
+        ...baseCreateDto(),
+        items: [fixedItem({ productReferenceId: 'reference-1' })],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects an out-of-stock fixed reference when activating a pack', async () => {
+    prisma.pack.findUnique.mockResolvedValue(null);
+    prisma.product.findUnique.mockResolvedValue(
+      productFixture({
+        references: [
+          {
+            id: 'reference-1',
+            productId: 'product-1',
+            stockQuantity: 5,
+            reservedQuantity: 5,
+            isActive: true,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      service.adminCreate({
+        ...baseCreateDto(),
+        items: [fixedItem({ productReferenceId: 'reference-1' })],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects FIXED_REFERENCE without reference ID', async () => {
     prisma.pack.findUnique.mockResolvedValue(null);
 
@@ -259,6 +307,21 @@ describe('PacksService admin CRUD', () => {
           autoItem({
             selectionMode: SelectionMode.CUSTOMER_CHOICE,
             productReferenceId: 'reference-1',
+          }),
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects CUSTOMER_CHOICE while the mode is deferred', async () => {
+    prisma.pack.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        ...baseCreateDto(),
+        items: [
+          autoItem({
+            selectionMode: SelectionMode.CUSTOMER_CHOICE,
           }),
         ],
       }),
@@ -603,6 +666,8 @@ function productFixture(overrides: Record<string, unknown> = {}) {
       {
         id: 'reference-1',
         productId: 'product-1',
+        stockQuantity: 10,
+        reservedQuantity: 0,
         isActive: true,
       },
     ],

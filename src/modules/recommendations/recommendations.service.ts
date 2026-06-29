@@ -430,6 +430,23 @@ export class RecommendationsService {
                     },
                   },
                 },
+                attributes: {
+                  select: {
+                    matchType: true,
+                    scoreValue: true,
+                    isHardFilter: true,
+                    attributeGroup: {
+                      select: {
+                        code: true,
+                      },
+                    },
+                    attributeOption: {
+                      select: {
+                        code: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -475,6 +492,7 @@ export class RecommendationsService {
       matchPercentage: recommendation.matchPercentage,
       reason: recommendation.reason,
       selectedItems: recommendation.selectedItems.map((item) => ({
+        packItemId: item.packItemId,
         productId: item.productId,
         productName: item.productName,
         productCoverImage: this.coverImage(item.productImages ?? []),

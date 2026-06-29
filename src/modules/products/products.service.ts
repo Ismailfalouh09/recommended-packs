@@ -568,6 +568,58 @@ export class ProductsService {
     return query.page !== undefined || query.size !== undefined;
   }
 
+  private priceRangeWhere(minPrice?: number, maxPrice?: number) {
+    if (minPrice === undefined && maxPrice === undefined) {
+      return undefined;
+    }
+
+    return {
+      ...(minPrice !== undefined ? { gte: minPrice } : {}),
+      ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+    } satisfies Prisma.DecimalFilter;
+  }
+
+  private facetWhere(attributeOptions?: string) {
+    const optionCodes = attributeOptions
+      ?.split(',')
+      .map((code) => code.trim())
+      .filter(Boolean);
+
+    if (!optionCodes?.length) {
+      return undefined;
+    }
+
+    return optionCodes.map(
+      (code) =>
+        ({
+          OR: [
+            {
+              attributes: {
+                some: {
+                  attributeOption: {
+                    code,
+                  },
+                },
+              },
+            },
+            {
+              references: {
+                some: {
+                  attributes: {
+                    some: {
+                      attributeOption: {
+                        code,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        }) satisfies Prisma.ProductWhereInput,
+    );
+  }
+
   private adminListSelect() {
     return {
       id: true,

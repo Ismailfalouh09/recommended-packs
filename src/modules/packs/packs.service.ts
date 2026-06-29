@@ -940,6 +940,8 @@ export class PacksService {
             select: {
               id: true,
               productId: true,
+              stockQuantity: true,
+              reservedQuantity: true,
               isActive: true,
             },
           },
@@ -961,6 +963,12 @@ export class PacksService {
         );
       }
 
+      if (item.selectionMode === SelectionMode.CUSTOMER_CHOICE) {
+        throw new BadRequestException(
+          'CUSTOMER_CHOICE pack items are not supported yet. Use FIXED_REFERENCE or AUTO_BEST_REFERENCE.',
+        );
+      }
+
       if (item.selectionMode === SelectionMode.FIXED_REFERENCE) {
         if (!item.productReferenceId) {
           throw new BadRequestException(
@@ -978,9 +986,14 @@ export class PacksService {
           );
         }
 
-        if (activating && (!product.isActive || !reference.isActive)) {
+        if (
+          activating &&
+          (!product.isActive ||
+            !reference.isActive ||
+            this.availableReferenceStock(reference) <= 0)
+        ) {
           throw new BadRequestException(
-            `Fixed reference for product ${product.name} must be active before activating the pack.`,
+            `Fixed reference for product ${product.name} must be active and in stock before activating the pack.`,
           );
         }
       } else {
@@ -998,10 +1011,14 @@ export class PacksService {
 
         if (
           activating &&
-          product.references.every((reference) => !reference.isActive)
+          product.references.every(
+            (reference) =>
+              !reference.isActive ||
+              this.availableReferenceStock(reference) <= 0,
+          )
         ) {
           throw new BadRequestException(
-            `Product ${product.name} must have at least one active reference before activating the pack.`,
+            `Product ${product.name} must have at least one active in-stock reference before activating the pack.`,
           );
         }
       }
@@ -1137,23 +1154,37 @@ export class PacksService {
 
       if (
         item.selectionMode === SelectionMode.FIXED_REFERENCE &&
-        !item.productReference?.isActive
+        (!item.productReference?.isActive ||
+          this.availableReferenceStock(item.productReference) <= 0)
       ) {
         validationIssues.push(
-          `Fixed reference for product ${item.product.name} is not active.`,
+          `Fixed reference for product ${item.product.name} is not active or in stock.`,
         );
       }
 
       if (
         item.selectionMode !== SelectionMode.FIXED_REFERENCE &&
-        item.product.references.every((reference: any) => !reference.isActive)
+        item.product.references.every(
+          (reference: any) =>
+            !reference.isActive || this.availableReferenceStock(reference) <= 0,
+        )
       ) {
         validationIssues.push(
-          `Product ${item.product.name} has no active reference.`,
+          `Product ${item.product.name} has no active in-stock reference.`,
         );
       }
     }
 
     return { validationIssues };
+  }
+
+  private availableReferenceStock(reference: {
+    stockQuantity: number;
+    reservedQuantity?: number | null;
+  }) {
+    return Math.max(
+      reference.stockQuantity - (reference.reservedQuantity ?? 0),
+      0,
+    );
   }
 }

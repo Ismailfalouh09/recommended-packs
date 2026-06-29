@@ -34,6 +34,7 @@ export interface EngineProduct {
   isActive: boolean;
   status: ProductStatus;
   images?: unknown[];
+  attributes?: EngineAttribute[];
   references: EngineReference[];
 }
 
@@ -101,8 +102,17 @@ export interface EngineRecommendation {
   selectedItems: SelectedRecommendationItem[];
 }
 
+interface AttributeScore {
+  score: number;
+  maxScore: number;
+  matched: boolean;
+  matches: Array<Record<string, unknown>>;
+}
+
 @Injectable()
 export class RecommendationEngineService {
+  private readonly referenceFilterGroups = new Set(['SKIN_COLOR', 'UNDERTONE']);
+
   private readonly fallbackScores: RuleScores = {
     SKIN_COLOR_MATCH: 40,
     UNDERTONE_MATCH: 25,
@@ -296,6 +306,20 @@ export class RecommendationEngineService {
     answers: AnswerMap,
     ruleScores: RuleScores,
   ): SelectedRecommendationItem | null {
+    if (item.selectionMode === SelectionMode.CUSTOMER_CHOICE) {
+      return null;
+    }
+
+    const productScore = this.scoreAttributes(
+      item.product.attributes ?? [],
+      answers,
+      ruleScores,
+    );
+
+    if (!productScore) {
+      return null;
+    }
+
     if (item.selectionMode === SelectionMode.FIXED_REFERENCE) {
       const fixedReference = item.product.references.find(
         (reference) => reference.id === item.productReferenceId,
@@ -308,6 +332,7 @@ export class RecommendationEngineService {
       return this.scoreReference(
         item,
         fixedReference,
+        productScore,
         answers,
         ruleScores,
         'FIXED_REFERENCE',
@@ -316,14 +341,22 @@ export class RecommendationEngineService {
 
     const bestReference = item.product.references
       .filter((reference) => this.isReferenceAvailable(reference))
+      .filter((reference) =>
+        this.isReferenceCompatibleWithAnswers(item.product, reference, answers),
+      )
       .map((reference) =>
         this.scoreReference(
           item,
           reference,
+          productScore,
           answers,
           ruleScores,
           item.selectionMode,
         ),
+      )
+      .filter(
+        (selectedReference): selectedReference is SelectedRecommendationItem =>
+          selectedReference !== null,
       )
       .sort((left, right) => {
         if (right.itemScore !== left.itemScore) {
@@ -339,50 +372,24 @@ export class RecommendationEngineService {
   private scoreReference(
     item: EnginePackItem,
     reference: EngineReference,
+    productScore: AttributeScore,
     answers: AnswerMap,
     ruleScores: RuleScores,
     selectionReason: string,
-  ): SelectedRecommendationItem {
-    let itemScore = 0;
-    const maxScoreByGroup = new Map<string, number>();
-    const matches: Array<Record<string, unknown>> = [];
+  ): SelectedRecommendationItem | null {
+    const referenceScore = this.scoreAttributes(
+      reference.attributes,
+      answers,
+      ruleScores,
+    );
 
-    for (const attribute of reference.attributes) {
-      const groupCode = attribute.attributeGroup.code;
-      const answerOptionCode = answers[groupCode];
-      const score = this.scoreForGroup(groupCode, ruleScores);
-      const attributeBonus = this.safePositiveScore(attribute.scoreValue);
-      const totalAttributeScore = score + attributeBonus;
-
-      if (answerOptionCode && totalAttributeScore > 0) {
-        const currentMax = maxScoreByGroup.get(groupCode) ?? 0;
-        maxScoreByGroup.set(
-          groupCode,
-          Math.max(currentMax, totalAttributeScore),
-        );
-      }
-
-      const matchesCustomerAnswer =
-        answerOptionCode === attribute.attributeOption.code;
-
-      if (!matchesCustomerAnswer) {
-        continue;
-      }
-
-      itemScore += totalAttributeScore;
-      matches.push({
-        groupCode,
-        optionCode: attribute.attributeOption.code,
-        score,
-        attributeBonus,
-      });
+    if (!referenceScore) {
+      return null;
     }
 
-    const itemMaxScore = [...maxScoreByGroup.values()].reduce(
-      (sum, score) => sum + score,
-      0,
-    );
-    const scoredForAverage = matches.length > 0;
+    const itemScore = productScore.score + referenceScore.score;
+    const itemMaxScore = productScore.maxScore + referenceScore.maxScore;
+    const scoredForAverage = productScore.matched || referenceScore.matched;
 
     return {
       packItemId: item.id,
@@ -400,9 +407,124 @@ export class RecommendationEngineService {
         selectionMode: selectionReason,
         itemMaxScore,
         scoredForAverage,
-        matches,
+        productMatches: productScore.matches,
+        referenceMatches: referenceScore.matches,
       },
     };
+  }
+
+  private scoreAttributes(
+    attributes: EngineAttribute[],
+    answers: AnswerMap,
+    ruleScores: RuleScores,
+  ): AttributeScore | null {
+    let scoreTotal = 0;
+    const maxScoreByGroup = new Map<string, number>();
+    const matches: Array<Record<string, unknown>> = [];
+
+    for (const attribute of attributes) {
+      const groupCode = attribute.attributeGroup.code;
+      const answerOptionCode = answers[groupCode];
+      const baseScore = this.scoreForGroup(groupCode, ruleScores);
+      const attributeBonus = this.safePositiveScore(attribute.scoreValue);
+      const totalAttributeScore = baseScore + attributeBonus;
+      const matchesCustomerAnswer =
+        answerOptionCode === attribute.attributeOption.code;
+
+      if (
+        answerOptionCode &&
+        totalAttributeScore > 0 &&
+        attribute.matchType !== MatchType.NOT_COMPATIBLE
+      ) {
+        const currentMax = maxScoreByGroup.get(groupCode) ?? 0;
+        maxScoreByGroup.set(
+          groupCode,
+          Math.max(currentMax, totalAttributeScore),
+        );
+      }
+
+      if (
+        matchesCustomerAnswer &&
+        attribute.matchType === MatchType.NOT_COMPATIBLE
+      ) {
+        if (attribute.isHardFilter) {
+          return null;
+        }
+
+        continue;
+      }
+
+      if (
+        answerOptionCode &&
+        !matchesCustomerAnswer &&
+        attribute.isHardFilter &&
+        attribute.matchType !== MatchType.NOT_COMPATIBLE
+      ) {
+        return null;
+      }
+
+      if (
+        matchesCustomerAnswer &&
+        (attribute.matchType === MatchType.COMPATIBLE ||
+          attribute.matchType === MatchType.BOOST)
+      ) {
+        scoreTotal += totalAttributeScore;
+        matches.push({
+          groupCode,
+          optionCode: attribute.attributeOption.code,
+          score: baseScore,
+          attributeBonus,
+        });
+      }
+    }
+
+    return {
+      score: scoreTotal,
+      maxScore: [...maxScoreByGroup.values()].reduce(
+        (sum, score) => sum + score,
+        0,
+      ),
+      matched: matches.length > 0,
+      matches,
+    };
+  }
+
+  private isReferenceCompatibleWithAnswers(
+    product: EngineProduct,
+    reference: EngineReference,
+    answers: AnswerMap,
+  ): boolean {
+    for (const groupCode of this.referenceFilterGroups) {
+      const answerOptionCode = answers[groupCode];
+
+      if (!answerOptionCode) {
+        continue;
+      }
+
+      const productUsesGroup = product.references.some((candidate) =>
+        candidate.attributes.some(
+          (attribute) => attribute.attributeGroup.code === groupCode,
+        ),
+      );
+
+      if (!productUsesGroup) {
+        continue;
+      }
+
+      const matchesCompatibleAnswer = reference.attributes.some(
+        (attribute) =>
+          attribute.attributeGroup.code === groupCode &&
+          attribute.attributeOption.code === answerOptionCode &&
+          (attribute.matchType === MatchType.COMPATIBLE ||
+            attribute.matchType === MatchType.BOOST),
+      );
+
+      if (!matchesCompatibleAnswer) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private scoreForGroup(groupCode: string, ruleScores: RuleScores): number {
