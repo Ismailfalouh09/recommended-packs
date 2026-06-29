@@ -7,7 +7,11 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { ProductResponse } from '../../common/swagger/api-response.models';
+import {
+  PublicProductCardResponse,
+  PublicProductDetailResponse,
+} from '../../common/swagger/api-response.models';
+import { QueryPublicProductDetailDto } from './dto/query-public-product-detail.dto';
 import { QueryPublicProductsDto } from './dto/query-public-products.dto';
 import { ProductsService } from './products.service';
 
@@ -41,9 +45,13 @@ export class ProductsController {
   })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   @ApiQuery({ name: 'inStock', required: false, type: Boolean })
+  @ApiQuery({ name: 'onSale', required: false, type: Boolean })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'size', required: false, type: Number })
-  @ApiOkResponse({ description: 'Active products.', type: [ProductResponse] })
+  @ApiOkResponse({
+    description: 'Active product cards.',
+    type: [PublicProductCardResponse],
+  })
   findAll(@Query() query: QueryPublicProductsDto) {
     return this.productsService.findAll(query);
   }
@@ -59,10 +67,21 @@ export class ProductsController {
     description: 'Product slug.',
     example: 'foundation-x',
   })
-  @ApiOkResponse({ description: 'Product details.', type: ProductResponse })
+  @ApiOkResponse({
+    description: 'Aggregated public product detail.',
+    type: PublicProductDetailResponse,
+  })
   @ApiNotFoundResponse({ description: 'Product not found.' })
-  findBySlug(@Param('slug') slug: string) {
-    return this.productsService.findBySlug(slug);
+  @ApiQuery({
+    name: 'selectedReferenceId',
+    required: false,
+    description: 'Preferred active reference for the selected variant.',
+  })
+  findBySlug(
+    @Param('slug') slug: string,
+    @Query() query: QueryPublicProductDetailDto,
+  ) {
+    return this.productsService.findBySlug(slug, query);
   }
 
   @Get(':id')
@@ -76,9 +95,20 @@ export class ProductsController {
     description: 'Product ID.',
     example: '00000000-0000-4000-8000-000000000001',
   })
-  @ApiOkResponse({ description: 'Product details.', type: ProductResponse })
+  @ApiOkResponse({
+    description: 'Aggregated public product detail.',
+    type: PublicProductDetailResponse,
+  })
   @ApiNotFoundResponse({ description: 'Product not found.' })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  @ApiQuery({
+    name: 'selectedReferenceId',
+    required: false,
+    description: 'Preferred active reference for the selected variant.',
+  })
+  findOne(
+    @Param('id') id: string,
+    @Query() query: QueryPublicProductDetailDto,
+  ) {
+    return this.productsService.findOne(id, query);
   }
 }

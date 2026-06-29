@@ -27,6 +27,9 @@ Use `Authorization: Bearer <accessToken>` for all admin endpoints.
 
 ## Products
 
+- `GET /products`
+- `GET /products/:id`
+- `GET /products/slug/:slug`
 - `GET /admin/products`
 - `GET /admin/products/:id`
 - `POST /admin/products`

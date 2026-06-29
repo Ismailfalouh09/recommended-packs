@@ -227,6 +227,13 @@ Continuation note: the previous agent had completed Phase 5 only through `5.7 Pr
 - `src/modules/orders/orders.controller.ts` - existing cart/recommendation order validation errors.
 - `prisma/schema.prisma` - public/admin field candidates and relations.
 
+**Phase 8 implementation note (2026-06-29)**
+- Public `GET /products` now returns safe catalog cards only, with price-from/current/original price, cover image, brand/category, sale and availability signals, and no reference internals.
+- Public `GET /products/:id` and `GET /products/slug/:slug` now return an aggregated PDP payload with `selectedReference`, `selectableReferences`, product media/content, suitability, and add-to-cart constraints.
+- Public product responses omit admin-only/internal fields including cost price, barcode, reserved stock, raw scoring, provider IDs, internal media IDs, status/audit fields, and exact stock counts.
+- Storefront filters are documented for category, brand, product type, price range, stock, sale, suitability attributes, search, sort, and pagination.
+- Cart/order validation remains in the existing checkout flow and rejects missing, inactive, wrong-product, or unavailable references.
+
 ### Phase 9 — Test, Migration, Documentation, and Release Readiness
 
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |

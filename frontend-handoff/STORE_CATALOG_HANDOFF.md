@@ -97,17 +97,22 @@ Returns active public products. With no query params, the response remains the e
 
 Supported query params:
 
-| Param          | Example                                                     | Notes                                                            |
-| -------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| `search`       | `/products?search=primer`                                   | Searches product text plus category and brand names.             |
-| `categoryId`   | `/products?categoryId=00000000-0000-4000-8000-000000000001` | Filters by category UUID.                                        |
-| `categoryCode` | `/products?categoryCode=CHEEKS`                             | Filters by category code.                                        |
-| `brandId`      | `/products?brandId=00000000-0000-4000-8000-000000000002`    | Filters by brand UUID.                                           |
-| `sortBy`       | `/products?sortBy=basePrice`                                | Allowed values: `createdAt`, `name`, `basePrice`.                |
-| `sortOrder`    | `/products?sortOrder=asc`                                   | Allowed values: `asc`, `desc`.                                   |
-| `inStock`      | `/products?inStock=true`                                    | Requires at least one active reference with `stockQuantity > 0`. |
-| `page`         | `/products?page=1`                                          | Enables paginated response.                                      |
-| `size`         | `/products?page=1&size=12`                                  | Page size, max 100; enables paginated response.                  |
+| Param              | Example                                                     | Notes                                                            |
+| ------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| `search`           | `/products?search=primer`                                   | Searches product text plus category and brand names.             |
+| `categoryId`       | `/products?categoryId=00000000-0000-4000-8000-000000000001` | Filters by category UUID.                                        |
+| `categoryCode`     | `/products?categoryCode=CHEEKS`                             | Filters by category code.                                        |
+| `brandId`          | `/products?brandId=00000000-0000-4000-8000-000000000002`    | Filters by brand UUID.                                           |
+| `productType`      | `/products?productType=face-serum`                          | Filters by stable product-type code.                             |
+| `minPrice`         | `/products?minPrice=50`                                     | Filters by base price lower bound.                               |
+| `maxPrice`         | `/products?maxPrice=300`                                    | Filters by base price upper bound.                               |
+| `attributeOptions` | `/products?attributeOptions=DRY,MEDIUM`                     | AND filter across product/reference suitability option codes.    |
+| `sortBy`           | `/products?sortBy=basePrice`                                | Allowed values: `createdAt`, `name`, `basePrice`.                |
+| `sortOrder`        | `/products?sortOrder=asc`                                   | Allowed values: `asc`, `desc`.                                   |
+| `inStock`          | `/products?inStock=true`                                    | Requires at least one active reference with `stockQuantity > 0`. |
+| `onSale`           | `/products?onSale=true`                                     | Filters products with an original/compare-at price.              |
+| `page`             | `/products?page=1`                                          | Enables paginated response.                                      |
+| `size`             | `/products?page=1&size=12`                                  | Page size, max 100; enables paginated response.                  |
 
 Example requests:
 
@@ -117,6 +122,7 @@ curl "http://localhost:3000/products?search=test"
 curl "http://localhost:3000/products?categoryCode=CHEEKS"
 curl "http://localhost:3000/products?sortBy=basePrice&sortOrder=asc"
 curl "http://localhost:3000/products?inStock=true"
+curl "http://localhost:3000/products?onSale=true"
 curl "http://localhost:3000/products?page=1&size=12"
 ```
 
@@ -126,26 +132,32 @@ Example response without pagination:
 [
   {
     "id": "00000000-0000-4000-8000-000000000001",
-    "name": "Sahra Pore Smooth Primer",
     "slug": "sahra-pore-smooth-primer",
-    "description": "Lightweight smoothing primer.",
-    "basePrice": "109",
-    "currency": "MAD",
-    "mainImageUrl": null,
-    "status": "ACTIVE",
-    "category": {
-      "id": "00000000-0000-4000-8000-000000000010",
-      "code": "FACE",
-      "name": "Face",
-      "image": null
-    },
+    "name": "Sahra Pore Smooth Primer",
     "brand": {
       "id": "00000000-0000-4000-8000-000000000020",
       "name": "Sahra"
     },
-    "references": [],
+    "category": {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "code": "FACE",
+      "name": "Face"
+    },
+    "productType": "primer",
     "coverImage": null,
-    "images": []
+    "coverImageUrl": null,
+    "priceFrom": 109,
+    "currentPrice": 109,
+    "originalPrice": null,
+    "compareAtPrice": null,
+    "onSale": false,
+    "percentageSaving": 0,
+    "currency": "MAD",
+    "inStock": true,
+    "availability": {
+      "inStock": true,
+      "label": "IN_STOCK"
+    }
   }
 ]
 ```
@@ -157,24 +169,28 @@ Example response with pagination:
   "data": [
     {
       "id": "00000000-0000-4000-8000-000000000001",
-      "name": "Sahra Pore Smooth Primer",
       "slug": "sahra-pore-smooth-primer",
-      "basePrice": "109",
-      "currency": "MAD",
-      "status": "ACTIVE",
+      "name": "Sahra Pore Smooth Primer",
       "category": {
         "id": "00000000-0000-4000-8000-000000000010",
         "code": "FACE",
-        "name": "Face",
-        "image": null
+        "name": "Face"
       },
       "brand": {
         "id": "00000000-0000-4000-8000-000000000020",
         "name": "Sahra"
       },
-      "references": [],
+      "productType": "primer",
       "coverImage": null,
-      "images": []
+      "currentPrice": 109,
+      "priceFrom": 109,
+      "originalPrice": null,
+      "onSale": false,
+      "currency": "MAD",
+      "availability": {
+        "inStock": true,
+        "label": "IN_STOCK"
+      }
     }
   ],
   "pagination": {
@@ -188,13 +204,13 @@ Example response with pagination:
 
 Frontend notes:
 
-- Existing product adapters can keep using the same product item fields.
+- Product listing returns safe cards only. It does not include references, raw stock, internal media IDs, provider IDs, status, cost price, barcode, or admin audit fields.
 - Do not expect pagination metadata unless `page` or `size` is sent.
 - Category pages can call `/products?categoryCode=<code>` or `/products?categoryId=<id>`.
 - Search pages can call `/products?search=<term>`.
 - Listing sort menus should only send `createdAt`, `name`, or `basePrice`.
 - Availability toggles should send `inStock=true`.
-- Product references remain the source for variant/shade display and stock display.
+- Product references are returned by the product detail route, not by listing cards.
 
 ## Public Product Detail Routes
 
@@ -205,6 +221,8 @@ Returns active product details by UUID.
 ### `GET /products/slug/:slug`
 
 Returns active product details by slug with the same response shape as `GET /products/:id`.
+
+Both detail routes accept optional `selectedReferenceId=<uuid>` to preselect an active reference. If omitted, the backend selects the default in-stock reference, then the first in-stock reference, then the default/first active reference.
 
 Example request:
 
@@ -217,7 +235,9 @@ Frontend notes:
 - Prefer `/products/slug/:slug` for SEO-friendly product detail URLs when a product payload includes `slug`.
 - Fall back to `/products/:id` if slug is missing.
 - Unknown or inactive product slugs return `404`.
-- Product media, references, category, and brand fields match the UUID detail endpoint.
+- The response is one aggregated PDP payload containing product content, brand/category, product media, selected reference, selectable references, suitability, and add-to-cart constraints.
+- `selectableReferences[]` includes `id`, `label`, `sku`, shade/measurement/swatch, image, current/original price, availability, and `disabledReason`.
+- Public images omit internal media IDs/provider IDs. Reference availability exposes booleans and reasons, not exact reserved stock.
 
 ## Public Pack Detail Routes
 

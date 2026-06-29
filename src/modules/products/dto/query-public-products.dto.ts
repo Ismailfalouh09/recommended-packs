@@ -96,6 +96,15 @@ export class QueryPublicProductsDto {
   @IsBoolean()
   inStock?: boolean;
 
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Filter products with a valid compare-at/original price.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalBoolean(value))
+  @IsBoolean()
+  onSale?: boolean;
+
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @Type(() => Number)

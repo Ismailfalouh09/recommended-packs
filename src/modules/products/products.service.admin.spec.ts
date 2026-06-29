@@ -126,11 +126,12 @@ describe('ProductsService admin catalog', () => {
       compareAtPrice: null,
       currency: 'MAD',
     });
+    tx.product.update.mockResolvedValue(productFixture({ name: 'Updated' }));
 
     const result = await service.adminUpdate('product-1', { name: 'Updated' });
 
     expect(result.name).toBe('Updated');
-    expect(prisma.product.update).toHaveBeenCalled();
+    expect(tx.product.update).toHaveBeenCalled();
   });
 
   it('rejects active products on inactive categories', async () => {
@@ -218,7 +219,7 @@ describe('ProductsService admin catalog', () => {
     expect(result.percentageSaving).toBe(20);
   });
 
-  it('exposes a derived stock signal (not raw reserved/threshold) on public references', async () => {
+  it('exposes a derived stock signal (not raw reserved/threshold) on public variants', async () => {
     prisma.product.findFirst.mockResolvedValue(
       productFixture({
         references: [
@@ -250,10 +251,133 @@ describe('ProductsService admin catalog', () => {
 
     expect(reference.inStock).toBe(true);
     expect(reference.lowStock).toBe(true);
-    expect(reference.effectivePrice).toBe(130);
+    expect(reference.currentPrice).toBe(130);
+    expect(reference.price.current).toBe(130);
     expect(reference).not.toHaveProperty('reservedQuantity');
     expect(reference).not.toHaveProperty('lowStockThreshold');
+    expect(reference).not.toHaveProperty('stockQuantity');
     expect(result.priceFrom).toBe(130);
+  });
+
+  it('returns safe public catalog cards without admin-only fields', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      productFixture({
+        mainImageUrl: 'https://cdn.example/legacy.jpg',
+        compareAtPrice: new Prisma.Decimal(150),
+        references: [
+          {
+            id: 'ref-1',
+            referenceCode: 'RF1',
+            referenceName: 'Medium Warm',
+            shadeName: 'Medium Warm',
+            shadeCode: 'N20',
+            swatchHex: '#E8B98C',
+            measurement: null,
+            variationType: 'SHADE',
+            priceOverride: null,
+            priceDelta: new Prisma.Decimal(10),
+            imageUrl: null,
+            image: null,
+            stockQuantity: 4,
+            reservedQuantity: 1,
+            lowStockThreshold: 5,
+            isDefault: true,
+            attributes: [],
+          },
+        ],
+        images: [imageFixture()],
+      }),
+    ]);
+
+    const result: any = await service.findAll();
+    const card = result[0];
+
+    expect(card).toMatchObject({
+      id: 'product-1',
+      slug: 'foundation-x',
+      name: 'Foundation X',
+      priceFrom: 130,
+      currentPrice: 130,
+      originalPrice: 150,
+      onSale: true,
+      inStock: true,
+    });
+    expect(card).not.toHaveProperty('references');
+    expect(card).not.toHaveProperty('status');
+    expect(card).not.toHaveProperty('isActive');
+    expect(card).not.toHaveProperty('costPrice');
+    expect(card.coverImage).not.toHaveProperty('id');
+    expect(card.coverImage).not.toHaveProperty('mediaAssetId');
+  });
+
+  it('returns a PDP response with selected and selectable references', async () => {
+    prisma.product.findFirst.mockResolvedValue(
+      productFixture({
+        compareAtPrice: new Prisma.Decimal(150),
+        references: [
+          {
+            id: 'ref-1',
+            referenceCode: 'RF1',
+            referenceName: 'Medium Warm',
+            shadeName: 'Medium Warm',
+            shadeCode: 'N20',
+            swatchHex: '#E8B98C',
+            measurement: '30ml',
+            variationType: 'SHADE',
+            sku: 'SKU-RF1',
+            priceOverride: null,
+            priceDelta: new Prisma.Decimal(10),
+            imageUrl: 'https://cdn.example/ref-legacy.jpg',
+            image: imageFixture({ role: 'SWATCH', mediaId: 'media-ref' }),
+            stockQuantity: 3,
+            reservedQuantity: 1,
+            lowStockThreshold: 5,
+            isDefault: true,
+            attributes: [],
+          },
+        ],
+        images: [imageFixture()],
+      }),
+    );
+
+    const result: any = await service.findOne('product-1', {
+      selectedReferenceId: 'ref-1',
+    });
+
+    expect(result.selectedReference).toMatchObject({
+      id: 'ref-1',
+      label: 'Medium Warm',
+      sku: 'SKU-RF1',
+      currentPrice: 130,
+      originalPrice: 150,
+      inStock: true,
+      disabledReason: null,
+      shade: {
+        name: 'Medium Warm',
+        code: 'N20',
+      },
+      swatch: {
+        hex: '#E8B98C',
+      },
+    });
+    expect(result.selectableReferences).toHaveLength(1);
+    expect(result.addToCart).toMatchObject({
+      requiresReference: true,
+      selectedReferenceId: 'ref-1',
+      canAdd: true,
+      disabledReason: null,
+    });
+    expect(result.selectedReference.image).not.toHaveProperty('mediaAssetId');
+    expect(result.selectedReference).not.toHaveProperty('barcode');
+    expect(result.selectedReference).not.toHaveProperty('stockQuantity');
+  });
+
+  it('rejects selecting a reference that is not active on the public PDP', async () => {
+    prisma.product.findFirst.mockResolvedValue(productFixture());
+
+    await expect(
+      service.findOne('product-1', { selectedReferenceId: 'missing-ref' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('archives a product and deactivates its references', async () => {
@@ -421,6 +545,20 @@ describe('ProductsService admin catalog', () => {
     );
   });
 
+  it('public product listing supports on-sale filtering', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ onSale: true });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          compareAtPrice: { not: null },
+        }),
+      }),
+    );
+  });
+
   it('public product listing returns a paginated response when requested', async () => {
     prisma.product.findMany.mockResolvedValue([productFixture()]);
     prisma.product.count.mockResolvedValue(1);
@@ -474,6 +612,27 @@ function productFixture(overrides: Record<string, unknown> = {}) {
     references: [],
     images: [],
     _count: { packItems: 0 },
+    ...overrides,
+  };
+}
+
+function imageFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'image-1',
+    mediaId: 'media-1',
+    role: 'COVER',
+    position: 0,
+    altText: 'Foundation bottle',
+    createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-12T00:00:00.000Z'),
+    media: {
+      format: 'webp',
+      mimeType: 'image/webp',
+      width: 1200,
+      height: 1200,
+      bytes: 120000,
+      secureUrl: 'https://cdn.example/product-cover.webp',
+    },
     ...overrides,
   };
 }

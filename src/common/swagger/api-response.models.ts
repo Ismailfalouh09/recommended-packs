@@ -373,6 +373,136 @@ export class MediaImageResponse {
   updatedAt!: string;
 }
 
+export class PublicMediaImageResponse {
+  @ApiProperty({ enum: MediaRole, example: MediaRole.COVER })
+  role!: MediaRole;
+
+  @ApiProperty({ example: 0 })
+  position!: number;
+
+  @ApiPropertyOptional({
+    example: 'Foundation bottle shade medium warm',
+    nullable: true,
+  })
+  altText?: string | null;
+
+  @ApiPropertyOptional({ example: 'webp', nullable: true })
+  format?: string | null;
+
+  @ApiPropertyOptional({ example: 'image/webp', nullable: true })
+  mimeType?: string | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  height?: number | null;
+
+  @ApiProperty({ type: MediaUrlVariantsResponse })
+  urls!: MediaUrlVariantsResponse;
+}
+
+export class PublicProductAvailabilityResponse {
+  @ApiProperty({ example: true })
+  inStock!: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  lowStock?: boolean;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  disabledReason?: string | null;
+}
+
+export class PublicProductPriceResponse {
+  @ApiProperty({ example: 120 })
+  current!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  original?: number | null;
+
+  @ApiProperty({ example: true })
+  onSale!: boolean;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+}
+
+export class PublicProductVariantResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Medium Warm' })
+  label!: string;
+
+  @ApiProperty({ example: 'Medium Warm' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
+  sku?: string | null;
+
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'N20', nullable: true })
+  shadeCode?: string | null;
+
+  @ApiPropertyOptional({ example: '30ml', nullable: true })
+  measurement?: string | null;
+
+  @ApiPropertyOptional({ example: '#E8B98C', nullable: true })
+  swatchHex?: string | null;
+
+  @ApiPropertyOptional({ type: () => PublicMediaImageResponse, nullable: true })
+  image?: PublicMediaImageResponse | null;
+
+  @ApiProperty({ type: PublicProductPriceResponse })
+  price!: PublicProductPriceResponse;
+
+  @ApiProperty({ type: PublicProductAvailabilityResponse })
+  availability!: PublicProductAvailabilityResponse;
+}
+
+export class PublicProductCardResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'foundation-x' })
+  slug!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  name!: string;
+
+  @ApiPropertyOptional({ type: BrandSummaryResponse, nullable: true })
+  brand?: BrandSummaryResponse | null;
+
+  @ApiProperty({ type: CategorySummaryResponse })
+  category!: CategorySummaryResponse;
+
+  @ApiPropertyOptional({ example: 'face-serum', nullable: true })
+  productType?: string | null;
+
+  @ApiPropertyOptional({ type: () => PublicMediaImageResponse, nullable: true })
+  coverImage?: PublicMediaImageResponse | null;
+
+  @ApiProperty({ example: 120 })
+  currentPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  priceFrom!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  originalPrice?: number | null;
+
+  @ApiProperty({ example: true })
+  onSale!: boolean;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ type: PublicProductAvailabilityResponse })
+  availability!: PublicProductAvailabilityResponse;
+}
+
 export class ProductReferenceResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;
@@ -460,13 +590,22 @@ export class ProductResponse {
   @ApiPropertyOptional({ example: 'face-serum', nullable: true })
   productType?: string | null;
 
-  @ApiPropertyOptional({ example: 'Lightweight buildable foundation.', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Lightweight buildable foundation.',
+    nullable: true,
+  })
   shortDescription?: string | null;
 
-  @ApiPropertyOptional({ example: 'Aqua, Glycerin, Niacinamide.', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Aqua, Glycerin, Niacinamide.',
+    nullable: true,
+  })
   ingredients?: string | null;
 
-  @ApiPropertyOptional({ example: 'Apply morning and evening.', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Apply morning and evening.',
+    nullable: true,
+  })
   directions?: string | null;
 
   @ApiProperty({ example: 120 })
@@ -475,19 +614,31 @@ export class ProductResponse {
   @ApiPropertyOptional({ example: 150, nullable: true })
   compareAtPrice?: number | null;
 
-  @ApiPropertyOptional({ example: 120, description: 'Lowest effective reference price.' })
+  @ApiPropertyOptional({
+    example: 120,
+    description: 'Lowest effective reference price.',
+  })
   priceFrom?: number;
 
-  @ApiPropertyOptional({ example: true, description: 'Derived from compareAtPrice.' })
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Derived from compareAtPrice.',
+  })
   onSale?: boolean;
 
-  @ApiPropertyOptional({ example: 20, description: 'Derived % saving when on sale.' })
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Derived % saving when on sale.',
+  })
   percentageSaving?: number;
 
   @ApiProperty({ example: 'MAD' })
   currency!: string;
 
-  @ApiPropertyOptional({ example: 'Foundation X | Demo Beauty', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Foundation X | Demo Beauty',
+    nullable: true,
+  })
   metaTitle?: string | null;
 
   @ApiPropertyOptional({ example: 'Shop Foundation X.', nullable: true })
@@ -514,6 +665,87 @@ export class ProductResponse {
 
   @ApiProperty({ type: [MediaImageResponse] })
   images!: MediaImageResponse[];
+}
+
+export class PublicProductDetailResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'foundation-x' })
+  slug!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'face-serum', nullable: true })
+  productType?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Lightweight buildable foundation.',
+    nullable: true,
+  })
+  shortDescription?: string | null;
+
+  @ApiPropertyOptional({ example: 'Demo foundation', nullable: true })
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Aqua, Glycerin, Niacinamide.',
+    nullable: true,
+  })
+  ingredients?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Apply morning and evening.',
+    nullable: true,
+  })
+  directions?: string | null;
+
+  @ApiProperty({ example: 120 })
+  currentPrice!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  originalPrice?: number | null;
+
+  @ApiProperty({ example: 120 })
+  priceFrom!: number;
+
+  @ApiProperty({ example: true })
+  onSale!: boolean;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ type: CategorySummaryResponse })
+  category!: CategorySummaryResponse;
+
+  @ApiPropertyOptional({ type: BrandSummaryResponse, nullable: true })
+  brand?: BrandSummaryResponse | null;
+
+  @ApiPropertyOptional({
+    type: () => PublicProductVariantResponse,
+    nullable: true,
+  })
+  selectedReference?: PublicProductVariantResponse | null;
+
+  @ApiProperty({ type: [PublicProductVariantResponse] })
+  selectableReferences!: PublicProductVariantResponse[];
+
+  @ApiProperty({
+    example: {
+      requiresReference: true,
+      selectedReferenceId: uuidExample,
+      canAdd: true,
+      disabledReason: null,
+    },
+  })
+  addToCart!: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: () => PublicMediaImageResponse, nullable: true })
+  coverImage?: PublicMediaImageResponse | null;
+
+  @ApiProperty({ type: [PublicMediaImageResponse] })
+  mediaGallery!: PublicMediaImageResponse[];
 }
 
 export class PackItemResponse {

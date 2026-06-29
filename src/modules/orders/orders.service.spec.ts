@@ -9,7 +9,10 @@ import {
   ProductStatus,
 } from '@prisma/client';
 import { validate } from 'class-validator';
-import { CreateCartOrderDto } from './dto/create-cart-order.dto';
+import {
+  CartOrderItemDto,
+  CreateCartOrderDto,
+} from './dto/create-cart-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrdersService } from './orders.service';
 
@@ -327,6 +330,22 @@ describe('OrdersService', () => {
     expect(
       errors.some((error) => error.property === 'recommendationResultId'),
     ).toBe(true);
+  });
+
+  it('rejects cart DTO items without a selected reference', async () => {
+    const item = Object.assign(new CartOrderItemDto(), {
+      productId: '11111111-1111-4111-8111-111111111111',
+      quantity: 1,
+    });
+    const dto = Object.assign(new CreateCartOrderDto(), {
+      ...cartDto,
+      items: [item],
+    });
+
+    const errors = await validate(dto);
+    const itemErrors = errors.find((error) => error.property === 'items');
+
+    expect(JSON.stringify(itemErrors)).toContain('referenceId');
   });
 
   it('throws NotFoundException when recommendation result is not found', async () => {

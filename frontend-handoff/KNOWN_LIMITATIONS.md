@@ -4,7 +4,6 @@ These are current backend limitations for the admin dashboard and customer front
 
 ## Not Implemented
 
-- Stock reservation and automatic stock deduction.
 - WhatsApp integration.
 - Delivery-provider integration.
 - Refresh-token flow.
@@ -13,9 +12,6 @@ These are current backend limitations for the admin dashboard and customer front
 - Customer authentication.
 - Direct browser-to-Cloudinary signed upload.
 - Customer cart API.
-- Direct regular-store checkout for arbitrary product/reference selections.
-- Public category and brand listing endpoints.
-- Public product/pack search, filters, pagination, sorting, or slug lookup.
 - Customer-selected reference override during recommendation checkout.
 
 ## Media Limitations
@@ -47,4 +43,4 @@ Existing `logoUrl`, `imageUrl`, and `displayImageUrl` fields may still be manage
 - No delivery tracking or shipping provider workflow exists.
 - Recommendation logic is rule-based V1, not ML-based.
 - Public order lookup is intentionally a safe summary and does not expose full customer details.
-- Public order creation currently requires a `recommendationResultId`, so checkout is tied to the quiz/recommendation funnel.
+- Direct regular-store checkout exists for explicit product/reference cart lines, but there is no persistent cart resource yet.

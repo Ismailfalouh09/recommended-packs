@@ -4,12 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  MatchType,
-  MediaRole,
-  Prisma,
-  ProductStatus,
-} from '@prisma/client';
+import { MatchType, MediaRole, Prisma, ProductStatus } from '@prisma/client';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
   paginatedResponse,
@@ -18,6 +13,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { MediaUrlService } from '../media/media-url.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { QueryPublicProductDetailDto } from './dto/query-public-product-detail.dto';
 import { ProductAttributeInputDto } from './dto/product-attribute-input.dto';
 import { QueryPublicProductsDto } from './dto/query-public-products.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
@@ -189,7 +185,7 @@ export class ProductsService {
         select: this.productSelect,
       });
 
-      return products.map((product) => this.toPublicProductResponse(product));
+      return products.map((product) => this.toPublicProductCard(product));
     }
 
     const pagination = paginationParams({
@@ -209,12 +205,12 @@ export class ProductsService {
     ]);
 
     return paginatedResponse(
-      products.map((product) => this.toPublicProductResponse(product)),
+      products.map((product) => this.toPublicProductCard(product)),
       { ...pagination, totalItems },
     );
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, query: QueryPublicProductDetailDto = {}) {
     const product = await this.prisma.product.findFirst({
       where: {
         id,
@@ -227,10 +223,13 @@ export class ProductsService {
       throw new NotFoundException(`Product ${id} was not found.`);
     }
 
-    return this.toPublicProductResponse(product);
+    return this.toPublicProductDetailResponse(
+      product,
+      query.selectedReferenceId,
+    );
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, query: QueryPublicProductDetailDto = {}) {
     const product = await this.prisma.product.findFirst({
       where: {
         slug,
@@ -243,7 +242,10 @@ export class ProductsService {
       throw new NotFoundException(`Product ${slug} was not found.`);
     }
 
-    return this.toPublicProductResponse(product);
+    return this.toPublicProductDetailResponse(
+      product,
+      query.selectedReferenceId,
+    );
   }
 
   async adminFindAll(query: QueryProductsDto) {
@@ -307,7 +309,9 @@ export class ProductsService {
       compareAtPrice: dto.compareAtPrice ?? null,
       currency: dto.currency,
     });
-    const attributes = await this.resolveProductAttributes(dto.attributes ?? []);
+    const attributes = await this.resolveProductAttributes(
+      dto.attributes ?? [],
+    );
 
     const product = await this.prisma.product.create({
       data: {
@@ -381,7 +385,10 @@ export class ProductsService {
       costPrice: Object.prototype.hasOwnProperty.call(dto, 'costPrice')
         ? (dto.costPrice ?? null)
         : toMoneyNumber(existing.costPrice),
-      compareAtPrice: Object.prototype.hasOwnProperty.call(dto, 'compareAtPrice')
+      compareAtPrice: Object.prototype.hasOwnProperty.call(
+        dto,
+        'compareAtPrice',
+      )
         ? (dto.compareAtPrice ?? null)
         : toMoneyNumber(existing.compareAtPrice),
       currency: dto.currency ?? existing.currency,
@@ -403,44 +410,46 @@ export class ProductsService {
       return tx.product.update({
         where: { id },
         data: {
-        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'brandId')
-          ? { brandId: dto.brandId ?? null }
-          : {}),
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'productType')
-          ? { productType: dto.productType ?? null }
-          : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'shortDescription')
-          ? { shortDescription: dto.shortDescription ?? null }
-          : {}),
-        ...(dto.description !== undefined
-          ? { description: dto.description ?? null }
-          : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'ingredients')
-          ? { ingredients: dto.ingredients ?? null }
-          : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'directions')
-          ? { directions: dto.directions ?? null }
-          : {}),
-        ...(dto.basePrice !== undefined ? { basePrice: dto.basePrice } : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'compareAtPrice')
-          ? { compareAtPrice: dto.compareAtPrice ?? null }
-          : {}),
-        ...(dto.costPrice !== undefined
-          ? { costPrice: dto.costPrice ?? null }
-          : {}),
-        ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'metaTitle')
-          ? { metaTitle: dto.metaTitle ?? null }
-          : {}),
-        ...(Object.prototype.hasOwnProperty.call(dto, 'metaDescription')
-          ? { metaDescription: dto.metaDescription ?? null }
-          : {}),
-        ...(dto.mainImageUrl !== undefined
-          ? { mainImageUrl: dto.mainImageUrl ?? null }
-          : {}),
+          ...(dto.categoryId !== undefined
+            ? { categoryId: dto.categoryId }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'brandId')
+            ? { brandId: dto.brandId ?? null }
+            : {}),
+          ...(dto.name !== undefined ? { name: dto.name } : {}),
+          ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'productType')
+            ? { productType: dto.productType ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'shortDescription')
+            ? { shortDescription: dto.shortDescription ?? null }
+            : {}),
+          ...(dto.description !== undefined
+            ? { description: dto.description ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'ingredients')
+            ? { ingredients: dto.ingredients ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'directions')
+            ? { directions: dto.directions ?? null }
+            : {}),
+          ...(dto.basePrice !== undefined ? { basePrice: dto.basePrice } : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'compareAtPrice')
+            ? { compareAtPrice: dto.compareAtPrice ?? null }
+            : {}),
+          ...(dto.costPrice !== undefined
+            ? { costPrice: dto.costPrice ?? null }
+            : {}),
+          ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'metaTitle')
+            ? { metaTitle: dto.metaTitle ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'metaDescription')
+            ? { metaDescription: dto.metaDescription ?? null }
+            : {}),
+          ...(dto.mainImageUrl !== undefined
+            ? { mainImageUrl: dto.mainImageUrl ?? null }
+            : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
           ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
           ...(attributesIncluded
@@ -517,6 +526,8 @@ export class ProductsService {
             },
           }
         : {}),
+      ...(query.onSale === true ? { compareAtPrice: { not: null } } : {}),
+      ...(query.onSale === false ? { compareAtPrice: null } : {}),
       ...(query.search
         ? {
             OR: [
@@ -886,6 +897,265 @@ export class ProductsService {
     };
   }
 
+  private toPublicProductCard(product: any) {
+    const pricing = this.derivePublicPricing(product);
+    const coverImage = this.publicCoverImage(product.images);
+    const inStock = this.productInStock(product);
+
+    return {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      brand: product.brand,
+      category: product.category
+        ? {
+            id: product.category.id,
+            code: product.category.code,
+            name: product.category.name,
+          }
+        : null,
+      productType: product.productType,
+      coverImage,
+      coverImageUrl: coverImage?.urls?.detail ?? product.mainImageUrl ?? null,
+      priceFrom: pricing.priceFrom,
+      currentPrice: pricing.priceFrom,
+      originalPrice: pricing.onSale ? pricing.compareAtPrice : null,
+      compareAtPrice: pricing.onSale ? pricing.compareAtPrice : null,
+      onSale: pricing.onSale,
+      percentageSaving: pricing.percentageSaving,
+      currency: product.currency,
+      inStock,
+      availability: {
+        inStock,
+        label: inStock ? 'IN_STOCK' : 'OUT_OF_STOCK',
+      },
+    };
+  }
+
+  private toPublicProductDetailResponse(
+    product: any,
+    selectedReferenceId?: string,
+  ) {
+    const basePrice = toMoneyNumber(product.basePrice) ?? 0;
+    const pricing = this.derivePublicPricing(product);
+    const selectedReference = this.resolveSelectedReference(
+      product.references,
+      selectedReferenceId,
+    );
+    const selectableReferences = product.references.map((reference: any) =>
+      this.toPublicVariantReference(
+        reference,
+        basePrice,
+        pricing.compareAtPrice,
+        product.currency,
+      ),
+    );
+    const selectedPublicReference = selectedReference
+      ? this.toPublicVariantReference(
+          selectedReference,
+          basePrice,
+          pricing.compareAtPrice,
+          product.currency,
+        )
+      : null;
+    const coverImage = this.publicCoverImage(product.images);
+    const images = product.images.map((image: any) =>
+      this.toPublicImageResponse(image),
+    );
+
+    return {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      productType: product.productType,
+      shortDescription: product.shortDescription,
+      description: product.description,
+      ingredients: product.ingredients,
+      directions: product.directions,
+      basePrice,
+      compareAtPrice: pricing.compareAtPrice,
+      priceFrom: pricing.priceFrom,
+      currentPrice: selectedPublicReference?.price.current ?? pricing.priceFrom,
+      originalPrice: selectedPublicReference?.price.original ?? null,
+      onSale: selectedPublicReference?.price.onSale ?? pricing.onSale,
+      percentageSaving: pricing.percentageSaving,
+      currency: product.currency,
+      category: product.category
+        ? {
+            id: product.category.id,
+            code: product.category.code,
+            name: product.category.name,
+            image: this.toPublicSingleImageResponse(
+              product.category.image,
+              MediaRole.ICON,
+            ),
+          }
+        : null,
+      brand: product.brand,
+      selectedReference: selectedPublicReference,
+      selectedProductReference: selectedPublicReference,
+      selectableReferences,
+      references: selectableReferences,
+      suitability: {
+        general: this.curateSuitability(product.attributes),
+      },
+      addToCart: this.addToCartConstraints(selectedPublicReference),
+      coverImage,
+      coverImageUrl: coverImage?.urls?.detail ?? product.mainImageUrl ?? null,
+      mediaGallery: images,
+      images,
+    };
+  }
+
+  private publicCoverImage(images: any[] = []) {
+    const cover = images.find((image) => image.role === MediaRole.COVER);
+    return cover ? this.toPublicImageResponse(cover) : null;
+  }
+
+  private toPublicReferenceImageResponse(image: any) {
+    return this.toPublicSingleImageResponse(image, MediaRole.SWATCH, true);
+  }
+
+  private toPublicSingleImageResponse(
+    image: any,
+    role: MediaRole,
+    includeSwatch = false,
+  ) {
+    if (!image) {
+      return null;
+    }
+
+    return this.toPublicImageResponse(
+      {
+        ...image,
+        role,
+        position: 0,
+      },
+      includeSwatch,
+    );
+  }
+
+  private toPublicImageResponse(image: any, includeSwatch = false) {
+    return {
+      role: image.role,
+      position: image.position,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      urls: this.buildUrls(image.media, includeSwatch),
+    };
+  }
+
+  private resolveSelectedReference(
+    references: any[] = [],
+    selectedReferenceId?: string,
+  ) {
+    if (selectedReferenceId) {
+      const selected = references.find(
+        (reference) => reference.id === selectedReferenceId,
+      );
+
+      if (!selected) {
+        throw new BadRequestException(
+          'Selected reference is not active or does not belong to this product.',
+        );
+      }
+
+      return selected;
+    }
+
+    return (
+      references.find(
+        (reference) =>
+          reference.isDefault && this.deriveStockSignal(reference).inStock,
+      ) ??
+      references.find(
+        (reference) => this.deriveStockSignal(reference).inStock,
+      ) ??
+      references.find((reference) => reference.isDefault) ??
+      references[0] ??
+      null
+    );
+  }
+
+  private toPublicVariantReference(
+    reference: any,
+    basePrice: number,
+    productCompareAtPrice: number | null,
+    currency: string,
+  ) {
+    const currentPrice = this.effectiveReferencePrice(reference, basePrice);
+    const originalPrice =
+      productCompareAtPrice != null && productCompareAtPrice > currentPrice
+        ? productCompareAtPrice
+        : null;
+    const stock = this.deriveStockSignal(reference);
+    const image = this.toPublicReferenceImageResponse(reference.image);
+    const label =
+      reference.shadeName ?? reference.measurement ?? reference.referenceName;
+
+    return {
+      id: reference.id,
+      label,
+      name: reference.referenceName,
+      referenceCode: reference.referenceCode,
+      sku: reference.sku,
+      shade: reference.shadeName
+        ? {
+            name: reference.shadeName,
+            code: reference.shadeCode,
+          }
+        : null,
+      shadeName: reference.shadeName,
+      shadeCode: reference.shadeCode,
+      measurement: reference.measurement,
+      variationType: reference.variationType,
+      swatch: {
+        hex: reference.swatchHex,
+        image,
+      },
+      swatchHex: reference.swatchHex,
+      image,
+      imageUrl: image?.urls?.detail ?? reference.imageUrl ?? null,
+      price: {
+        current: currentPrice,
+        original: originalPrice,
+        onSale: originalPrice != null,
+        currency,
+      },
+      currentPrice,
+      originalPrice,
+      availability: {
+        inStock: stock.inStock,
+        lowStock: stock.lowStock,
+        disabledReason: stock.inStock ? null : 'OUT_OF_STOCK',
+      },
+      inStock: stock.inStock,
+      lowStock: stock.lowStock,
+      disabledReason: stock.inStock ? null : 'OUT_OF_STOCK',
+      suitability: this.curateSuitability(reference.attributes),
+    };
+  }
+
+  private addToCartConstraints(selectedReference: any) {
+    if (!selectedReference) {
+      return {
+        requiresReference: true,
+        canAdd: false,
+        disabledReason: 'REFERENCE_REQUIRED',
+      };
+    }
+
+    return {
+      requiresReference: true,
+      selectedReferenceId: selectedReference.id,
+      canAdd: selectedReference.availability.inStock,
+      disabledReason: selectedReference.availability.disabledReason,
+    };
+  }
+
   private toPublicProductResponse(product: any) {
     const basePrice = toMoneyNumber(product.basePrice) ?? 0;
     const pricing = this.derivePublicPricing(product);
@@ -1112,9 +1382,7 @@ export class ProductsService {
     }
 
     if (input.costPrice != null && input.costPrice > input.basePrice) {
-      throw new BadRequestException(
-        'Cost price cannot exceed base price.',
-      );
+      throw new BadRequestException('Cost price cannot exceed base price.');
     }
 
     if (
@@ -1178,6 +1446,12 @@ export class ProductsService {
       inStock: available > 0,
       lowStock: available > 0 && available <= reference.lowStockThreshold,
     };
+  }
+
+  private productInStock(product: any) {
+    return (product.references ?? []).some(
+      (reference: any) => this.deriveStockSignal(reference).inStock,
+    );
   }
 
   /**

@@ -2826,11 +2826,51 @@
             }
           },
           {
+            "name": "productType",
+            "required": false,
+            "in": "query",
+            "description": "Filter by the stable product-type code (kebab-case).",
+            "schema": {
+              "example": "face-serum",
+              "type": "string"
+            }
+          },
+          {
             "name": "brandId",
             "required": false,
             "in": "query",
             "schema": {
               "example": "00000000-0000-4000-8000-000000000002",
+              "type": "string"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "description": "Minimum base price (inclusive).",
+            "schema": {
+              "example": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "description": "Maximum base price (inclusive).",
+            "schema": {
+              "example": 300,
+              "type": "number"
+            }
+          },
+          {
+            "name": "attributeOptions",
+            "required": false,
+            "in": "query",
+            "description": "Comma-separated attribute-option codes. A product matches when each code is present at the product or reference suitability layer (AND across codes).",
+            "schema": {
+              "example": "DRY,MEDIUM",
               "type": "string"
             }
           },
@@ -2869,6 +2909,16 @@
             }
           },
           {
+            "name": "onSale",
+            "required": false,
+            "in": "query",
+            "description": "Filter products with a valid compare-at/original price.",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
             "name": "page",
             "required": false,
             "in": "query",
@@ -2890,13 +2940,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Active products.",
+            "description": "Active product cards.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ProductResponse"
+                    "$ref": "#/components/schemas/PublicProductCardResponse"
                   }
                 }
               }
@@ -2904,6 +2954,53 @@
           }
         },
         "summary": "List active products",
+        "tags": [
+          "Products"
+        ]
+      }
+    },
+    "/products/slug/{slug}": {
+      "get": {
+        "description": "Returns the same public product detail response shape as GET /products/:id.",
+        "operationId": "ProductsController_findBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "description": "Product slug.",
+            "schema": {
+              "example": "foundation-x",
+              "type": "string"
+            }
+          },
+          {
+            "name": "selectedReferenceId",
+            "required": false,
+            "in": "query",
+            "description": "Preferred active reference for the selected variant.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000002",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated public product detail.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProductDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Product not found."
+          }
+        },
+        "summary": "Get an active product by slug",
         "tags": [
           "Products"
         ]
@@ -2923,15 +3020,25 @@
               "example": "00000000-0000-4000-8000-000000000001",
               "type": "string"
             }
+          },
+          {
+            "name": "selectedReferenceId",
+            "required": false,
+            "in": "query",
+            "description": "Preferred active reference for the selected variant.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000002",
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Product details.",
+            "description": "Aggregated public product detail.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProductResponse"
+                  "$ref": "#/components/schemas/PublicProductDetailResponse"
                 }
               }
             }
@@ -3000,6 +3107,15 @@
             }
           },
           {
+            "name": "productType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "face-serum",
+              "type": "string"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -3008,6 +3124,7 @@
               "enum": [
                 "DRAFT",
                 "ACTIVE",
+                "HIDDEN",
                 "ARCHIVED"
               ]
             }
@@ -3591,6 +3708,43 @@
           }
         },
         "summary": "List active packs",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
+    "/packs/slug/{slug}": {
+      "get": {
+        "description": "Returns the same public pack detail response shape as GET /packs/:id.",
+        "operationId": "PacksController_findBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "description": "Pack slug.",
+            "schema": {
+              "example": "natural-glow-pack",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pack details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pack not found."
+          }
+        },
+        "summary": "Get an active pack by slug",
         "tags": [
           "Packs"
         ]
@@ -6211,6 +6365,23 @@
           }
         }
       },
+      "BrandSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "name": {
+            "type": "string",
+            "example": "Demo Beauty"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
       "CategorySummaryResponse": {
         "type": "object",
         "properties": {
@@ -6242,21 +6413,374 @@
           "name"
         ]
       },
-      "BrandSummaryResponse": {
+      "PublicMediaImageResponse": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "COVER",
+              "GALLERY",
+              "THUMBNAIL",
+              "SWATCH",
+              "ICON"
+            ],
+            "example": "COVER"
+          },
+          "position": {
+            "type": "number",
+            "example": 0
+          },
+          "altText": {
+            "type": "object",
+            "example": "Foundation bottle shade medium warm",
+            "nullable": true
+          },
+          "format": {
+            "type": "object",
+            "example": "webp",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "object",
+            "example": "image/webp",
+            "nullable": true
+          },
+          "width": {
+            "type": "object",
+            "example": 1200,
+            "nullable": true
+          },
+          "height": {
+            "type": "object",
+            "example": 1200,
+            "nullable": true
+          },
+          "urls": {
+            "$ref": "#/components/schemas/MediaUrlVariantsResponse"
+          }
+        },
+        "required": [
+          "role",
+          "position",
+          "urls"
+        ]
+      },
+      "PublicProductAvailabilityResponse": {
+        "type": "object",
+        "properties": {
+          "inStock": {
+            "type": "boolean",
+            "example": true
+          },
+          "lowStock": {
+            "type": "boolean",
+            "example": false
+          },
+          "disabledReason": {
+            "type": "object",
+            "example": null,
+            "nullable": true
+          }
+        },
+        "required": [
+          "inStock"
+        ]
+      },
+      "PublicProductCardResponse": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "example": "00000000-0000-4000-8000-000000000001"
           },
+          "slug": {
+            "type": "string",
+            "example": "foundation-x"
+          },
           "name": {
             "type": "string",
-            "example": "Demo Beauty"
+            "example": "Foundation X"
+          },
+          "brand": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BrandSummaryResponse"
+              }
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/CategorySummaryResponse"
+          },
+          "productType": {
+            "type": "object",
+            "example": "face-serum",
+            "nullable": true
+          },
+          "coverImage": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicMediaImageResponse"
+              }
+            ]
+          },
+          "currentPrice": {
+            "type": "number",
+            "example": 120
+          },
+          "priceFrom": {
+            "type": "number",
+            "example": 120
+          },
+          "originalPrice": {
+            "type": "object",
+            "example": 150,
+            "nullable": true
+          },
+          "onSale": {
+            "type": "boolean",
+            "example": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/PublicProductAvailabilityResponse"
           }
         },
         "required": [
           "id",
-          "name"
+          "slug",
+          "name",
+          "category",
+          "currentPrice",
+          "priceFrom",
+          "onSale",
+          "currency",
+          "availability"
+        ]
+      },
+      "PublicProductPriceResponse": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "number",
+            "example": 120
+          },
+          "original": {
+            "type": "object",
+            "example": 150,
+            "nullable": true
+          },
+          "onSale": {
+            "type": "boolean",
+            "example": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          }
+        },
+        "required": [
+          "current",
+          "onSale",
+          "currency"
+        ]
+      },
+      "PublicProductVariantResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "label": {
+            "type": "string",
+            "example": "Medium Warm"
+          },
+          "name": {
+            "type": "string",
+            "example": "Medium Warm"
+          },
+          "sku": {
+            "type": "object",
+            "example": "FOUNDATION-X-RF2",
+            "nullable": true
+          },
+          "shadeName": {
+            "type": "object",
+            "example": "Medium Warm",
+            "nullable": true
+          },
+          "shadeCode": {
+            "type": "object",
+            "example": "N20",
+            "nullable": true
+          },
+          "measurement": {
+            "type": "object",
+            "example": "30ml",
+            "nullable": true
+          },
+          "swatchHex": {
+            "type": "object",
+            "example": "#E8B98C",
+            "nullable": true
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicMediaImageResponse"
+              }
+            ]
+          },
+          "price": {
+            "$ref": "#/components/schemas/PublicProductPriceResponse"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/PublicProductAvailabilityResponse"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "name",
+          "price",
+          "availability"
+        ]
+      },
+      "PublicProductDetailResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "slug": {
+            "type": "string",
+            "example": "foundation-x"
+          },
+          "name": {
+            "type": "string",
+            "example": "Foundation X"
+          },
+          "productType": {
+            "type": "object",
+            "example": "face-serum",
+            "nullable": true
+          },
+          "shortDescription": {
+            "type": "object",
+            "example": "Lightweight buildable foundation.",
+            "nullable": true
+          },
+          "description": {
+            "type": "object",
+            "example": "Demo foundation",
+            "nullable": true
+          },
+          "ingredients": {
+            "type": "object",
+            "example": "Aqua, Glycerin, Niacinamide.",
+            "nullable": true
+          },
+          "directions": {
+            "type": "object",
+            "example": "Apply morning and evening.",
+            "nullable": true
+          },
+          "currentPrice": {
+            "type": "number",
+            "example": 120
+          },
+          "originalPrice": {
+            "type": "object",
+            "example": 150,
+            "nullable": true
+          },
+          "priceFrom": {
+            "type": "number",
+            "example": 120
+          },
+          "onSale": {
+            "type": "boolean",
+            "example": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CategorySummaryResponse"
+          },
+          "brand": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BrandSummaryResponse"
+              }
+            ]
+          },
+          "selectedReference": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicProductVariantResponse"
+              }
+            ]
+          },
+          "selectableReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicProductVariantResponse"
+            }
+          },
+          "addToCart": {
+            "type": "object",
+            "example": {
+              "requiresReference": true,
+              "selectedReferenceId": "00000000-0000-4000-8000-000000000001",
+              "canAdd": true,
+              "disabledReason": null
+            }
+          },
+          "coverImage": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicMediaImageResponse"
+              }
+            ]
+          },
+          "mediaGallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicMediaImageResponse"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "currentPrice",
+          "priceFrom",
+          "onSale",
+          "currency",
+          "category",
+          "selectableReferences",
+          "addToCart",
+          "mediaGallery"
         ]
       },
       "AttributeMatchResponse": {
@@ -6314,6 +6838,35 @@
             "type": "string",
             "example": "Medium Warm"
           },
+          "shadeName": {
+            "type": "object",
+            "example": "Medium Warm",
+            "nullable": true
+          },
+          "shadeCode": {
+            "type": "object",
+            "example": "N20",
+            "nullable": true
+          },
+          "swatchHex": {
+            "type": "object",
+            "example": "#E8B98C",
+            "nullable": true
+          },
+          "measurement": {
+            "type": "object",
+            "example": "45ml",
+            "nullable": true
+          },
+          "variationType": {
+            "type": "string",
+            "enum": [
+              "SHADE",
+              "SIZE",
+              "BUNDLE"
+            ],
+            "nullable": true
+          },
           "sku": {
             "type": "object",
             "example": "FOUNDATION-X-RF2",
@@ -6328,13 +6881,30 @@
             "type": "number",
             "example": 0
           },
+          "effectivePrice": {
+            "type": "number",
+            "example": 120,
+            "description": "Effective unit price (priceOverride or basePrice + delta)."
+          },
+          "inStock": {
+            "type": "boolean",
+            "example": true,
+            "description": "Derived public stock signal (exact count hidden)."
+          },
+          "lowStock": {
+            "type": "boolean",
+            "example": false,
+            "description": "Low-stock badge derived from the reference threshold."
+          },
           "stockQuantity": {
             "type": "number",
-            "example": 20
+            "example": 20,
+            "description": "Exact stock count (admin projection only)."
           },
           "reservedQuantity": {
             "type": "number",
-            "example": 0
+            "example": 0,
+            "description": "Reserved stock (admin projection only)."
           },
           "isActive": {
             "type": "boolean",
@@ -6361,8 +6931,6 @@
           "referenceCode",
           "referenceName",
           "priceDelta",
-          "stockQuantity",
-          "reservedQuantity",
           "isActive",
           "attributes"
         ]
@@ -6382,22 +6950,74 @@
             "type": "string",
             "example": "foundation-x"
           },
+          "productType": {
+            "type": "object",
+            "example": "face-serum",
+            "nullable": true
+          },
+          "shortDescription": {
+            "type": "object",
+            "example": "Lightweight buildable foundation.",
+            "nullable": true
+          },
+          "ingredients": {
+            "type": "object",
+            "example": "Aqua, Glycerin, Niacinamide.",
+            "nullable": true
+          },
+          "directions": {
+            "type": "object",
+            "example": "Apply morning and evening.",
+            "nullable": true
+          },
           "basePrice": {
             "type": "number",
             "example": 120
           },
+          "compareAtPrice": {
+            "type": "object",
+            "example": 150,
+            "nullable": true
+          },
+          "priceFrom": {
+            "type": "number",
+            "example": 120,
+            "description": "Lowest effective reference price."
+          },
+          "onSale": {
+            "type": "boolean",
+            "example": true,
+            "description": "Derived from compareAtPrice."
+          },
+          "percentageSaving": {
+            "type": "number",
+            "example": 20,
+            "description": "Derived % saving when on sale."
+          },
           "currency": {
             "type": "string",
             "example": "MAD"
+          },
+          "metaTitle": {
+            "type": "object",
+            "example": "Foundation X | Demo Beauty",
+            "nullable": true
+          },
+          "metaDescription": {
+            "type": "object",
+            "example": "Shop Foundation X.",
+            "nullable": true
           },
           "status": {
             "type": "string",
             "enum": [
               "DRAFT",
               "ACTIVE",
+              "HIDDEN",
               "ARCHIVED"
             ],
-            "example": "ACTIVE"
+            "example": "ACTIVE",
+            "description": "Admin projection only; omitted from the public contract."
           },
           "category": {
             "$ref": "#/components/schemas/CategorySummaryResponse"
@@ -6439,10 +7059,46 @@
           "slug",
           "basePrice",
           "currency",
-          "status",
           "category",
           "references",
           "images"
+        ]
+      },
+      "ProductAttributeInputDto": {
+        "type": "object",
+        "properties": {
+          "attributeGroupCode": {
+            "type": "string",
+            "example": "SKIN_TYPE"
+          },
+          "attributeOptionCode": {
+            "type": "string",
+            "example": "DRY"
+          },
+          "matchType": {
+            "type": "string",
+            "enum": [
+              "COMPATIBLE",
+              "NOT_COMPATIBLE",
+              "BOOST"
+            ],
+            "example": "COMPATIBLE"
+          },
+          "scoreValue": {
+            "type": "number",
+            "example": 40
+          },
+          "isHardFilter": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          }
+        },
+        "required": [
+          "attributeGroupCode",
+          "attributeOptionCode",
+          "matchType",
+          "scoreValue"
         ]
       },
       "CreateProductDto": {
@@ -6464,13 +7120,35 @@
             "type": "string",
             "example": "foundation-x"
           },
+          "productType": {
+            "type": "string",
+            "example": "face-serum",
+            "description": "Stable lowercase product-type code (kebab-case). Drives required-by-type validation policy and storefront filtering."
+          },
+          "shortDescription": {
+            "type": "string",
+            "example": "Lightweight buildable foundation."
+          },
           "description": {
             "type": "string",
             "example": "Demo foundation"
           },
+          "ingredients": {
+            "type": "string",
+            "example": "Aqua, Glycerin, Niacinamide."
+          },
+          "directions": {
+            "type": "string",
+            "example": "Apply morning and evening to clean skin."
+          },
           "basePrice": {
             "type": "number",
             "example": 120
+          },
+          "compareAtPrice": {
+            "type": "number",
+            "example": 150,
+            "description": "Original/compare-at price. Must be greater than basePrice to register as on sale."
           },
           "costPrice": {
             "type": "number",
@@ -6481,6 +7159,14 @@
             "example": "MAD",
             "default": "MAD"
           },
+          "metaTitle": {
+            "type": "string",
+            "example": "Foundation X | Demo Beauty"
+          },
+          "metaDescription": {
+            "type": "string",
+            "example": "Shop Foundation X, a lightweight foundation."
+          },
           "mainImageUrl": {
             "type": "string",
             "example": "https://example.com/product.jpg"
@@ -6490,6 +7176,7 @@
             "enum": [
               "DRAFT",
               "ACTIVE",
+              "HIDDEN",
               "ARCHIVED"
             ],
             "default": "DRAFT"
@@ -6498,6 +7185,13 @@
             "type": "boolean",
             "example": true,
             "default": true
+          },
+          "attributes": {
+            "description": "Product-level general suitability (skin type / concern / finish). Only groups flagged isProductAttribute may be assigned here.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductAttributeInputDto"
+            }
           }
         },
         "required": [
@@ -6527,13 +7221,35 @@
             "type": "string",
             "example": "foundation-x"
           },
+          "productType": {
+            "type": "string",
+            "example": "face-serum",
+            "description": "Stable lowercase product-type code (kebab-case). Drives required-by-type validation policy and storefront filtering."
+          },
+          "shortDescription": {
+            "type": "string",
+            "example": "Lightweight buildable foundation."
+          },
           "description": {
             "type": "string",
             "example": "Demo foundation"
           },
+          "ingredients": {
+            "type": "string",
+            "example": "Aqua, Glycerin, Niacinamide."
+          },
+          "directions": {
+            "type": "string",
+            "example": "Apply morning and evening to clean skin."
+          },
           "basePrice": {
             "type": "number",
             "example": 120
+          },
+          "compareAtPrice": {
+            "type": "number",
+            "example": 150,
+            "description": "Original/compare-at price. Must be greater than basePrice to register as on sale."
           },
           "costPrice": {
             "type": "number",
@@ -6544,6 +7260,14 @@
             "example": "MAD",
             "default": "MAD"
           },
+          "metaTitle": {
+            "type": "string",
+            "example": "Foundation X | Demo Beauty"
+          },
+          "metaDescription": {
+            "type": "string",
+            "example": "Shop Foundation X, a lightweight foundation."
+          },
           "mainImageUrl": {
             "type": "string",
             "example": "https://example.com/product.jpg"
@@ -6553,6 +7277,7 @@
             "enum": [
               "DRAFT",
               "ACTIVE",
+              "HIDDEN",
               "ARCHIVED"
             ],
             "default": "DRAFT"
@@ -6561,6 +7286,13 @@
             "type": "boolean",
             "example": true,
             "default": true
+          },
+          "attributes": {
+            "description": "Product-level general suitability (skin type / concern / finish). Only groups flagged isProductAttribute may be assigned here.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductAttributeInputDto"
+            }
           }
         }
       },
@@ -6611,6 +7343,33 @@
           "referenceName": {
             "type": "string",
             "example": "Medium Warm"
+          },
+          "shadeName": {
+            "type": "object",
+            "example": "Medium Warm",
+            "description": "Structured shade identity (augments referenceName)."
+          },
+          "shadeCode": {
+            "type": "object",
+            "example": "N20"
+          },
+          "swatchHex": {
+            "type": "object",
+            "example": "#E8B98C",
+            "description": "Hex colour for swatch UI (#RRGGBB)."
+          },
+          "measurement": {
+            "type": "object",
+            "example": "45ml"
+          },
+          "variationType": {
+            "type": "string",
+            "enum": [
+              "SHADE",
+              "SIZE",
+              "BUNDLE"
+            ],
+            "description": "Single variation axis for this reference."
           },
           "barcode": {
             "type": "object",
@@ -6680,6 +7439,33 @@
           "referenceName": {
             "type": "string",
             "example": "Medium Warm"
+          },
+          "shadeName": {
+            "type": "object",
+            "example": "Medium Warm",
+            "description": "Structured shade identity (augments referenceName)."
+          },
+          "shadeCode": {
+            "type": "object",
+            "example": "N20"
+          },
+          "swatchHex": {
+            "type": "object",
+            "example": "#E8B98C",
+            "description": "Hex colour for swatch UI (#RRGGBB)."
+          },
+          "measurement": {
+            "type": "object",
+            "example": "45ml"
+          },
+          "variationType": {
+            "type": "string",
+            "enum": [
+              "SHADE",
+              "SIZE",
+              "BUNDLE"
+            ],
+            "description": "Single variation axis for this reference."
           },
           "barcode": {
             "type": "object",
@@ -7779,6 +8565,26 @@
           "referenceNameSnapshot": {
             "type": "string",
             "example": "Medium Warm"
+          },
+          "skuSnapshot": {
+            "type": "object",
+            "example": "FOUNDATION-X-RF2",
+            "nullable": true
+          },
+          "variationSnapshot": {
+            "type": "object",
+            "example": "Medium Warm",
+            "nullable": true
+          },
+          "productImageUrlSnapshot": {
+            "type": "object",
+            "example": "https://example.com/product.jpg",
+            "nullable": true
+          },
+          "brandNameSnapshot": {
+            "type": "object",
+            "example": "Demo Beauty",
+            "nullable": true
           },
           "unitPriceSnapshot": {
             "type": "number",

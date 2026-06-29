@@ -38,9 +38,11 @@ describe('ProductReferencesService', () => {
         update: jest.fn().mockResolvedValue(referenceFixture()),
       },
       attributeGroup: {
-        findFirst: jest
-          .fn()
-          .mockResolvedValue({ id: 'group-1', code: 'SKIN_COLOR' }),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'group-1',
+          code: 'SKIN_COLOR',
+          isProductAttribute: false,
+        }),
       },
       attributeOption: {
         findFirst: jest
@@ -121,6 +123,39 @@ describe('ProductReferencesService', () => {
         sku: 'FOUNDATION-X-RF2',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects active references under archived products', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'product-1',
+      status: ProductStatus.ARCHIVED,
+      isActive: false,
+    });
+
+    await expect(
+      service.create('product-1', {
+        referenceCode: 'RF2',
+        referenceName: 'Medium Warm',
+        isActive: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects product-level attribute groups on references', async () => {
+    prisma.productReference.findUnique.mockResolvedValue(null);
+    prisma.attributeGroup.findFirst.mockResolvedValue({
+      id: 'group-1',
+      code: 'SKIN_TYPE',
+      isProductAttribute: true,
+    });
+
+    await expect(
+      service.create('product-1', {
+        referenceCode: 'RF2',
+        referenceName: 'Medium Warm',
+        attributes: [attributeInput()],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects reserved quantity greater than stock', async () => {
