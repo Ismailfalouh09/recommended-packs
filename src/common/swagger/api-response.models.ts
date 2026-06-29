@@ -17,6 +17,7 @@ import {
   SelectionMode,
   SelectionType,
   SourceChannel,
+  VariationType,
 } from '@prisma/client';
 
 const uuidExample = '00000000-0000-4000-8000-000000000001';
@@ -382,6 +383,21 @@ export class ProductReferenceResponse {
   @ApiProperty({ example: 'Medium Warm' })
   referenceName!: string;
 
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'N20', nullable: true })
+  shadeCode?: string | null;
+
+  @ApiPropertyOptional({ example: '#E8B98C', nullable: true })
+  swatchHex?: string | null;
+
+  @ApiPropertyOptional({ example: '45ml', nullable: true })
+  measurement?: string | null;
+
+  @ApiPropertyOptional({ enum: VariationType, nullable: true })
+  variationType?: VariationType | null;
+
   @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
   sku?: string | null;
 
@@ -391,11 +407,35 @@ export class ProductReferenceResponse {
   @ApiProperty({ example: 0 })
   priceDelta!: number;
 
-  @ApiProperty({ example: 20 })
-  stockQuantity!: number;
+  @ApiPropertyOptional({
+    example: 120,
+    description: 'Effective unit price (priceOverride or basePrice + delta).',
+  })
+  effectivePrice?: number;
 
-  @ApiProperty({ example: 0 })
-  reservedQuantity!: number;
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Derived public stock signal (exact count hidden).',
+  })
+  inStock?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Low-stock badge derived from the reference threshold.',
+  })
+  lowStock?: boolean;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Exact stock count (admin projection only).',
+  })
+  stockQuantity?: number;
+
+  @ApiPropertyOptional({
+    example: 0,
+    description: 'Reserved stock (admin projection only).',
+  })
+  reservedQuantity?: number;
 
   @ApiProperty({ example: true })
   isActive!: boolean;
@@ -417,14 +457,48 @@ export class ProductResponse {
   @ApiProperty({ example: 'foundation-x' })
   slug!: string;
 
+  @ApiPropertyOptional({ example: 'face-serum', nullable: true })
+  productType?: string | null;
+
+  @ApiPropertyOptional({ example: 'Lightweight buildable foundation.', nullable: true })
+  shortDescription?: string | null;
+
+  @ApiPropertyOptional({ example: 'Aqua, Glycerin, Niacinamide.', nullable: true })
+  ingredients?: string | null;
+
+  @ApiPropertyOptional({ example: 'Apply morning and evening.', nullable: true })
+  directions?: string | null;
+
   @ApiProperty({ example: 120 })
   basePrice!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  compareAtPrice?: number | null;
+
+  @ApiPropertyOptional({ example: 120, description: 'Lowest effective reference price.' })
+  priceFrom?: number;
+
+  @ApiPropertyOptional({ example: true, description: 'Derived from compareAtPrice.' })
+  onSale?: boolean;
+
+  @ApiPropertyOptional({ example: 20, description: 'Derived % saving when on sale.' })
+  percentageSaving?: number;
 
   @ApiProperty({ example: 'MAD' })
   currency!: string;
 
-  @ApiProperty({ enum: ProductStatus, example: ProductStatus.ACTIVE })
-  status!: ProductStatus;
+  @ApiPropertyOptional({ example: 'Foundation X | Demo Beauty', nullable: true })
+  metaTitle?: string | null;
+
+  @ApiPropertyOptional({ example: 'Shop Foundation X.', nullable: true })
+  metaDescription?: string | null;
+
+  @ApiPropertyOptional({
+    enum: ProductStatus,
+    example: ProductStatus.ACTIVE,
+    description: 'Admin projection only; omitted from the public contract.',
+  })
+  status?: ProductStatus;
 
   @ApiProperty({ type: CategorySummaryResponse })
   category!: CategorySummaryResponse;
@@ -605,6 +679,21 @@ export class OrderItemResponse {
 
   @ApiProperty({ example: 'Medium Warm' })
   referenceNameSnapshot!: string;
+
+  @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
+  skuSnapshot?: string | null;
+
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  variationSnapshot?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://example.com/product.jpg',
+    nullable: true,
+  })
+  productImageUrlSnapshot?: string | null;
+
+  @ApiPropertyOptional({ example: 'Demo Beauty', nullable: true })
+  brandNameSnapshot?: string | null;
 
   @ApiProperty({ example: 120 })
   unitPriceSnapshot!: number;

@@ -131,6 +131,11 @@ export class ProductReferencesService {
           productId,
           referenceCode: dto.referenceCode,
           referenceName: dto.referenceName,
+          shadeName: dto.shadeName ?? null,
+          shadeCode: dto.shadeCode ?? null,
+          swatchHex: dto.swatchHex ?? null,
+          measurement: dto.measurement ?? null,
+          variationType: dto.variationType ?? null,
           barcode: dto.barcode ?? null,
           sku: dto.sku ?? null,
           priceOverride: dto.priceOverride ?? null,
@@ -227,6 +232,21 @@ export class ProductReferencesService {
           ...(dto.referenceName !== undefined
             ? { referenceName: dto.referenceName }
             : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'shadeName')
+            ? { shadeName: dto.shadeName ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'shadeCode')
+            ? { shadeCode: dto.shadeCode ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'swatchHex')
+            ? { swatchHex: dto.swatchHex ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'measurement')
+            ? { measurement: dto.measurement ?? null }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(dto, 'variationType')
+            ? { variationType: dto.variationType ?? null }
+            : {}),
           ...(Object.prototype.hasOwnProperty.call(dto, 'barcode')
             ? { barcode: dto.barcode ?? null }
             : {}),
@@ -317,6 +337,11 @@ export class ProductReferencesService {
       productId: true,
       referenceCode: true,
       referenceName: true,
+      shadeName: true,
+      shadeCode: true,
+      swatchHex: true,
+      measurement: true,
+      variationType: true,
       barcode: true,
       sku: true,
       priceOverride: true,
@@ -387,6 +412,11 @@ export class ProductReferencesService {
       productId: reference.productId,
       referenceCode: reference.referenceCode,
       referenceName: reference.referenceName,
+      shadeName: reference.shadeName,
+      shadeCode: reference.shadeCode,
+      swatchHex: reference.swatchHex,
+      measurement: reference.measurement,
+      variationType: reference.variationType,
       barcode: reference.barcode,
       sku: reference.sku,
       priceOverride: toMoneyNumber(reference.priceOverride),

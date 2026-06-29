@@ -9,6 +9,7 @@ import {
   RecommendationTargetType,
   SelectionMode,
   SelectionType,
+  VariationType,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
@@ -368,6 +369,31 @@ async function seedCatalog() {
     ],
   ] satisfies Array<[ProductCode, string, string, string, string]>;
 
+  // Phase 4 demo enrichment (additive, nullable): product type, sale price,
+  // and teaser copy on a couple of products to exercise the new fields.
+  const productExtras: Partial<
+    Record<
+      string,
+      {
+        productType?: string;
+        shortDescription?: string;
+        compareAtPrice?: string;
+        ingredients?: string;
+        directions?: string;
+      }
+    >
+  > = {
+    'foundation-x': {
+      productType: 'foundation',
+      shortDescription: 'Buildable medium-coverage foundation.',
+      compareAtPrice: '159.00',
+    },
+    'setting-powder-b': {
+      productType: 'setting-powder',
+      shortDescription: 'Translucent blurring finish.',
+    },
+  };
+
   const products = new Map<ProductCode, Awaited<ReturnType<typeof prisma.product.upsert>>>();
 
   for (const [slug, name, categoryCode, description, basePrice] of productDefinitions) {
@@ -376,6 +402,8 @@ async function seedCatalog() {
     if (!category) {
       throw new Error(`Missing category ${categoryCode}`);
     }
+
+    const extras = productExtras[slug] ?? {};
 
     const product = await prisma.product.upsert({
       where: { slug },
@@ -388,6 +416,7 @@ async function seedCatalog() {
         currency: 'MAD',
         status: ProductStatus.ACTIVE,
         isActive: true,
+        ...extras,
       },
       create: {
         categoryId: category.id,
@@ -399,6 +428,7 @@ async function seedCatalog() {
         currency: 'MAD',
         status: ProductStatus.ACTIVE,
         isActive: true,
+        ...extras,
       },
     });
 
@@ -427,6 +457,52 @@ async function seedProductReferences(
     ['setting-powder-b', 'DEFAULT', 'Translucent', '95.00', true],
   ] satisfies Array<[ProductCode, string, string, string, boolean]>;
 
+  // Phase 4 demo enrichment: structured shade identity + swatch hex +
+  // variation axis on foundation/lip shades; one foundation shade is left
+  // out of stock to exercise the "Sold out" / derived availability path.
+  const referenceExtras: Partial<
+    Record<
+      string,
+      {
+        shadeName?: string;
+        shadeCode?: string;
+        swatchHex?: string;
+        variationType?: VariationType;
+        measurement?: string;
+        stockQuantity?: number;
+      }
+    >
+  > = {
+    'foundation-x.RF1': {
+      shadeName: 'Light Cool',
+      shadeCode: 'C10',
+      swatchHex: '#F2D2B6',
+      variationType: VariationType.SHADE,
+    },
+    'foundation-x.RF2': {
+      shadeName: 'Medium Warm',
+      shadeCode: 'W30',
+      swatchHex: '#E8B98C',
+      variationType: VariationType.SHADE,
+    },
+    'foundation-x.RF3': {
+      shadeName: 'Dark Warm',
+      shadeCode: 'W60',
+      swatchHex: '#9C6B43',
+      variationType: VariationType.SHADE,
+      stockQuantity: 0,
+    },
+    'lipstick-y.RF1': {
+      shadeName: 'Nude',
+      swatchHex: '#C98B7A',
+      variationType: VariationType.SHADE,
+    },
+    'setting-powder-b.DEFAULT': {
+      measurement: '15g',
+      variationType: VariationType.SIZE,
+    },
+  };
+
   const references = new Map<string, Awaited<ReturnType<typeof prisma.productReference.upsert>>>();
 
   for (const [productSlug, referenceCode, referenceName, priceOverride, isDefault] of referenceDefinitions) {
@@ -435,6 +511,8 @@ async function seedProductReferences(
     if (!product) {
       throw new Error(`Missing product ${productSlug}`);
     }
+
+    const extras = referenceExtras[`${productSlug}.${referenceCode}`] ?? {};
 
     const reference = await prisma.productReference.upsert({
       where: {
@@ -452,6 +530,7 @@ async function seedProductReferences(
         lowStockThreshold: 5,
         isDefault,
         isActive: true,
+        ...extras,
       },
       create: {
         productId: product.id,
@@ -464,6 +543,7 @@ async function seedProductReferences(
         lowStockThreshold: 5,
         isDefault,
         isActive: true,
+        ...extras,
       },
     });
 

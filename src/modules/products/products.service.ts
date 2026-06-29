@@ -17,6 +17,12 @@ import { QueryPublicProductsDto } from './dto/query-public-products.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
+/**
+ * Allowed pricing currencies (single-currency MVP — MAD). Centralised so a
+ * future multi-currency change is a config edit, not a schema/code hunt.
+ */
+const ALLOWED_CURRENCIES = new Set(['MAD']);
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -28,9 +34,16 @@ export class ProductsService {
     id: true,
     name: true,
     slug: true,
+    productType: true,
+    shortDescription: true,
     description: true,
+    ingredients: true,
+    directions: true,
     basePrice: true,
+    compareAtPrice: true,
     currency: true,
+    metaTitle: true,
+    metaDescription: true,
     mainImageUrl: true,
     status: true,
     category: {
@@ -63,6 +76,11 @@ export class ProductsService {
         id: true,
         referenceCode: true,
         referenceName: true,
+        shadeName: true,
+        shadeCode: true,
+        swatchHex: true,
+        measurement: true,
+        variationType: true,
         priceOverride: true,
         priceDelta: true,
         imageUrl: true,
@@ -78,6 +96,8 @@ export class ProductsService {
           },
         },
         stockQuantity: true,
+        reservedQuantity: true,
+        lowStockThreshold: true,
         isDefault: true,
         attributes: {
           orderBy: [{ attributeGroup: { sortOrder: 'asc' } }],
@@ -161,8 +181,7 @@ export class ProductsService {
     const product = await this.prisma.product.findFirst({
       where: {
         id,
-        isActive: true,
-        status: 'ACTIVE',
+        status: ProductStatus.ACTIVE,
       },
       select: this.productSelect,
     });
@@ -178,7 +197,6 @@ export class ProductsService {
     const product = await this.prisma.product.findFirst({
       where: {
         slug,
-        isActive: true,
         status: ProductStatus.ACTIVE,
       },
       select: this.productSelect,
@@ -246,6 +264,12 @@ export class ProductsService {
     await this.ensureUniqueSlug(dto.slug);
     await this.validateCategoryForProduct(dto.categoryId, dto.isActive ?? true);
     await this.validateBrandForProduct(dto.brandId, dto.isActive ?? true);
+    this.validatePricing({
+      basePrice: dto.basePrice,
+      costPrice: dto.costPrice ?? null,
+      compareAtPrice: dto.compareAtPrice ?? null,
+      currency: dto.currency,
+    });
 
     const product = await this.prisma.product.create({
       data: {
@@ -253,10 +277,17 @@ export class ProductsService {
         brandId: dto.brandId ?? null,
         name: dto.name,
         slug: dto.slug,
+        productType: dto.productType ?? null,
+        shortDescription: dto.shortDescription ?? null,
         description: dto.description ?? null,
+        ingredients: dto.ingredients ?? null,
+        directions: dto.directions ?? null,
         basePrice: dto.basePrice,
+        compareAtPrice: dto.compareAtPrice ?? null,
         costPrice: dto.costPrice ?? null,
         currency: dto.currency,
+        metaTitle: dto.metaTitle ?? null,
+        metaDescription: dto.metaDescription ?? null,
         mainImageUrl: dto.mainImageUrl ?? null,
         status: dto.status ?? ProductStatus.DRAFT,
         isActive: dto.isActive ?? true,
@@ -275,6 +306,10 @@ export class ProductsService {
         categoryId: true,
         brandId: true,
         isActive: true,
+        basePrice: true,
+        costPrice: true,
+        compareAtPrice: true,
+        currency: true,
       },
     });
 
@@ -298,6 +333,17 @@ export class ProductsService {
       targetIsActive,
     );
 
+    this.validatePricing({
+      basePrice: dto.basePrice ?? toMoneyNumber(existing.basePrice)!,
+      costPrice: Object.prototype.hasOwnProperty.call(dto, 'costPrice')
+        ? (dto.costPrice ?? null)
+        : toMoneyNumber(existing.costPrice),
+      compareAtPrice: Object.prototype.hasOwnProperty.call(dto, 'compareAtPrice')
+        ? (dto.compareAtPrice ?? null)
+        : toMoneyNumber(existing.compareAtPrice),
+      currency: dto.currency ?? existing.currency,
+    });
+
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -307,14 +353,35 @@ export class ProductsService {
           : {}),
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'productType')
+          ? { productType: dto.productType ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'shortDescription')
+          ? { shortDescription: dto.shortDescription ?? null }
+          : {}),
         ...(dto.description !== undefined
           ? { description: dto.description ?? null }
           : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'ingredients')
+          ? { ingredients: dto.ingredients ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'directions')
+          ? { directions: dto.directions ?? null }
+          : {}),
         ...(dto.basePrice !== undefined ? { basePrice: dto.basePrice } : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'compareAtPrice')
+          ? { compareAtPrice: dto.compareAtPrice ?? null }
+          : {}),
         ...(dto.costPrice !== undefined
           ? { costPrice: dto.costPrice ?? null }
           : {}),
         ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'metaTitle')
+          ? { metaTitle: dto.metaTitle ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'metaDescription')
+          ? { metaDescription: dto.metaDescription ?? null }
+          : {}),
         ...(dto.mainImageUrl !== undefined
           ? { mainImageUrl: dto.mainImageUrl ?? null }
           : {}),
@@ -353,8 +420,10 @@ export class ProductsService {
   }
 
   private publicProductWhere(query: QueryPublicProductsDto) {
+    // Visibility is driven by `status` as the single source of truth
+    // (Phase 2 §3 / 4.5). `isActive` is retained physically during the compat
+    // window but is no longer a public-read input.
     return {
-      isActive: true,
       status: ProductStatus.ACTIVE,
       ...(query.categoryId !== undefined
         ? { categoryId: query.categoryId }
@@ -431,10 +500,17 @@ export class ProductsService {
       brandId: true,
       name: true,
       slug: true,
+      productType: true,
+      shortDescription: true,
       description: true,
+      ingredients: true,
+      directions: true,
       basePrice: true,
+      compareAtPrice: true,
       costPrice: true,
       currency: true,
+      metaTitle: true,
+      metaDescription: true,
       mainImageUrl: true,
       status: true,
       isActive: true,
@@ -507,6 +583,11 @@ export class ProductsService {
           id: true,
           referenceCode: true,
           referenceName: true,
+          shadeName: true,
+          shadeCode: true,
+          swatchHex: true,
+          measurement: true,
+          variationType: true,
           barcode: true,
           sku: true,
           priceOverride: true,
@@ -566,16 +647,32 @@ export class ProductsService {
   private toAdminListResponse(product: any) {
     const stock = this.referenceStockSummary(product.references);
 
+    const basePrice = toMoneyNumber(product.basePrice) ?? 0;
+    const compareAtPrice = toMoneyNumber(product.compareAtPrice);
+    const onSale = compareAtPrice != null && compareAtPrice > basePrice;
+
     return {
       id: product.id,
       categoryId: product.categoryId,
       brandId: product.brandId,
       name: product.name,
       slug: product.slug,
+      productType: product.productType,
+      shortDescription: product.shortDescription,
       description: product.description,
-      basePrice: toMoneyNumber(product.basePrice),
+      ingredients: product.ingredients,
+      directions: product.directions,
+      basePrice,
+      compareAtPrice,
+      onSale,
+      percentageSaving:
+        onSale && compareAtPrice
+          ? Math.round(((compareAtPrice - basePrice) / compareAtPrice) * 100)
+          : 0,
       costPrice: toMoneyNumber(product.costPrice),
       currency: product.currency,
+      metaTitle: product.metaTitle,
+      metaDescription: product.metaDescription,
       mainImageUrl: product.mainImageUrl,
       status: product.status,
       isActive: product.isActive,
@@ -608,6 +705,11 @@ export class ProductsService {
         id: reference.id,
         referenceCode: reference.referenceCode,
         referenceName: reference.referenceName,
+        shadeName: reference.shadeName,
+        shadeCode: reference.shadeCode,
+        swatchHex: reference.swatchHex,
+        measurement: reference.measurement,
+        variationType: reference.variationType,
         barcode: reference.barcode,
         sku: reference.sku,
         priceOverride: toMoneyNumber(reference.priceOverride),
@@ -634,8 +736,16 @@ export class ProductsService {
   }
 
   private toPublicProductResponse(product: any) {
+    const basePrice = toMoneyNumber(product.basePrice) ?? 0;
+    const pricing = this.derivePublicPricing(product);
+
     return {
       ...product,
+      basePrice,
+      compareAtPrice: pricing.compareAtPrice,
+      priceFrom: pricing.priceFrom,
+      onSale: pricing.onSale,
+      percentageSaving: pricing.percentageSaving,
       category: product.category
         ? {
             ...product.category,
@@ -645,10 +755,28 @@ export class ProductsService {
             ),
           }
         : null,
-      references: product.references.map((reference: any) => ({
-        ...reference,
-        image: this.toReferenceImageResponse(reference.image),
-      })),
+      references: product.references.map((reference: any) => {
+        // Strip raw derivation inputs from the public projection (R9);
+        // expose only the derived stock signal.
+        const {
+          reservedQuantity: _reservedQuantity,
+          lowStockThreshold: _lowStockThreshold,
+          priceOverride,
+          priceDelta,
+          ...publicReference
+        } = reference;
+        const stock = this.deriveStockSignal(reference);
+
+        return {
+          ...publicReference,
+          priceOverride: toMoneyNumber(priceOverride),
+          priceDelta: toMoneyNumber(priceDelta),
+          effectivePrice: this.effectiveReferencePrice(reference, basePrice),
+          inStock: stock.inStock,
+          lowStock: stock.lowStock,
+          image: this.toReferenceImageResponse(reference.image),
+        };
+      }),
       coverImage: this.coverImage(product.images),
       images: product.images.map((image: any) => this.toImageResponse(image)),
     };
@@ -800,5 +928,91 @@ export class ProductsService {
         'Inactive brand cannot receive an active product.',
       );
     }
+  }
+
+  /**
+   * Financial-integrity guards (Phase 1 Q8, R10): currency must be in the
+   * allowed set, cost may not exceed base price, and a compare-at price (when
+   * set) must exceed base price to be a meaningful "was" price.
+   */
+  private validatePricing(input: {
+    basePrice: number;
+    costPrice: number | null;
+    compareAtPrice: number | null;
+    currency: string;
+  }) {
+    if (!ALLOWED_CURRENCIES.has(input.currency)) {
+      throw new BadRequestException(
+        `Currency ${input.currency} is not supported. Allowed: ${[...ALLOWED_CURRENCIES].join(', ')}.`,
+      );
+    }
+
+    if (input.costPrice != null && input.costPrice > input.basePrice) {
+      throw new BadRequestException(
+        'Cost price cannot exceed base price.',
+      );
+    }
+
+    if (
+      input.compareAtPrice != null &&
+      input.compareAtPrice <= input.basePrice
+    ) {
+      throw new BadRequestException(
+        'Compare-at price must be greater than base price.',
+      );
+    }
+  }
+
+  /**
+   * Effective unit price of a reference (Phase 0 §1.1; orders.service parity):
+   * `priceOverride` when set, else `basePrice + priceDelta`.
+   */
+  private effectiveReferencePrice(
+    reference: { priceOverride: unknown; priceDelta: unknown },
+    basePrice: number,
+  ): number {
+    const override = toMoneyNumber(reference.priceOverride as never);
+    if (override != null) {
+      return override;
+    }
+
+    const delta = toMoneyNumber(reference.priceDelta as never) ?? 0;
+    return basePrice + delta;
+  }
+
+  /**
+   * Public derived pricing: lowest effective reference price ("from"), plus
+   * onSale / % saving derived from the product compare-at price.
+   */
+  private derivePublicPricing(product: any) {
+    const basePrice = toMoneyNumber(product.basePrice) ?? 0;
+    const compareAtPrice = toMoneyNumber(product.compareAtPrice);
+
+    const effectivePrices = (product.references ?? []).map((reference: any) =>
+      this.effectiveReferencePrice(reference, basePrice),
+    );
+    const priceFrom = effectivePrices.length
+      ? Math.min(...effectivePrices)
+      : basePrice;
+
+    const onSale = compareAtPrice != null && compareAtPrice > priceFrom;
+    const percentageSaving = onSale
+      ? Math.round(((compareAtPrice! - priceFrom) / compareAtPrice!) * 100)
+      : 0;
+
+    return { priceFrom, compareAtPrice, onSale, percentageSaving };
+  }
+
+  /** Derived public stock signal — boolean + low-stock badge, no exact count. */
+  private deriveStockSignal(reference: {
+    stockQuantity: number;
+    reservedQuantity: number;
+    lowStockThreshold: number;
+  }) {
+    const available = this.availableStock(reference);
+    return {
+      inStock: available > 0,
+      lowStock: available > 0 && available <= reference.lowStockThreshold,
+    };
   }
 }

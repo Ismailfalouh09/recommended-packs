@@ -121,6 +121,10 @@ describe('ProductsService admin catalog', () => {
       categoryId: 'category-1',
       brandId: 'brand-1',
       isActive: true,
+      basePrice: new Prisma.Decimal(120),
+      costPrice: new Prisma.Decimal(70),
+      compareAtPrice: null,
+      currency: 'MAD',
     });
 
     const result = await service.adminUpdate('product-1', { name: 'Updated' });
@@ -148,6 +152,110 @@ describe('ProductsService admin catalog', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects a cost price above the base price', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        categoryId: 'category-1',
+        name: 'Foundation X',
+        slug: 'foundation-x',
+        basePrice: 120,
+        costPrice: 130,
+        currency: 'MAD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects an unsupported currency', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        categoryId: 'category-1',
+        name: 'Foundation X',
+        slug: 'foundation-x',
+        basePrice: 120,
+        currency: 'USD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a compare-at price not above the base price', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        categoryId: 'category-1',
+        name: 'Foundation X',
+        slug: 'foundation-x',
+        basePrice: 120,
+        compareAtPrice: 100,
+        currency: 'MAD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('derives onSale and % saving from a valid compare-at price', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+    prisma.product.create.mockResolvedValue(
+      productFixture({
+        basePrice: new Prisma.Decimal(120),
+        compareAtPrice: new Prisma.Decimal(150),
+      }),
+    );
+
+    const result = await service.adminCreate({
+      categoryId: 'category-1',
+      name: 'Foundation X',
+      slug: 'foundation-x',
+      basePrice: 120,
+      compareAtPrice: 150,
+      currency: 'MAD',
+    });
+
+    expect(result.onSale).toBe(true);
+    expect(result.percentageSaving).toBe(20);
+  });
+
+  it('exposes a derived stock signal (not raw reserved/threshold) on public references', async () => {
+    prisma.product.findFirst.mockResolvedValue(
+      productFixture({
+        references: [
+          {
+            id: 'ref-1',
+            referenceCode: 'RF1',
+            referenceName: 'Medium Warm',
+            shadeName: 'Medium Warm',
+            shadeCode: 'N20',
+            swatchHex: '#E8B98C',
+            measurement: null,
+            variationType: 'SHADE',
+            priceOverride: null,
+            priceDelta: new Prisma.Decimal(10),
+            imageUrl: null,
+            image: null,
+            stockQuantity: 3,
+            reservedQuantity: 1,
+            lowStockThreshold: 5,
+            isDefault: true,
+            attributes: [],
+          },
+        ],
+      }),
+    );
+
+    const result: any = await service.findOne('product-1');
+    const reference = result.references[0];
+
+    expect(reference.inStock).toBe(true);
+    expect(reference.lowStock).toBe(true);
+    expect(reference.effectivePrice).toBe(130);
+    expect(reference).not.toHaveProperty('reservedQuantity');
+    expect(reference).not.toHaveProperty('lowStockThreshold');
+    expect(result.priceFrom).toBe(130);
+  });
+
   it('archives a product and deactivates its references', async () => {
     prisma.product.findUnique.mockResolvedValue({ id: 'product-1' });
 
@@ -161,7 +269,7 @@ describe('ProductsService admin catalog', () => {
     });
   });
 
-  it('public product endpoint excludes archived or inactive products', async () => {
+  it('public product endpoint excludes non-active products (status single source)', async () => {
     prisma.product.findFirst.mockResolvedValue(null);
 
     await expect(service.findOne('product-1')).rejects.toBeInstanceOf(
@@ -171,7 +279,6 @@ describe('ProductsService admin catalog', () => {
       expect.objectContaining({
         where: {
           id: 'product-1',
-          isActive: true,
           status: ProductStatus.ACTIVE,
         },
       }),
@@ -193,7 +300,6 @@ describe('ProductsService admin catalog', () => {
       expect.objectContaining({
         where: {
           id: 'product-1',
-          isActive: true,
           status: ProductStatus.ACTIVE,
         },
       }),
@@ -215,7 +321,6 @@ describe('ProductsService admin catalog', () => {
       expect.objectContaining({
         where: {
           slug: 'foundation-x',
-          isActive: true,
           status: ProductStatus.ACTIVE,
         },
       }),
@@ -232,7 +337,6 @@ describe('ProductsService admin catalog', () => {
       expect.objectContaining({
         where: {
           slug: 'unknown-product',
-          isActive: true,
           status: ProductStatus.ACTIVE,
         },
       }),
@@ -248,7 +352,6 @@ describe('ProductsService admin catalog', () => {
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          isActive: true,
           status: ProductStatus.ACTIVE,
         },
         orderBy: [{ createdAt: 'desc' }],
@@ -350,10 +453,17 @@ function productFixture(overrides: Record<string, unknown> = {}) {
     brandId: 'brand-1',
     name: 'Foundation X',
     slug: 'foundation-x',
+    productType: null,
+    shortDescription: null,
     description: null,
+    ingredients: null,
+    directions: null,
     basePrice: new Prisma.Decimal(120),
+    compareAtPrice: null,
     costPrice: new Prisma.Decimal(70),
     currency: 'MAD',
+    metaTitle: null,
+    metaDescription: null,
     mainImageUrl: null,
     status: ProductStatus.ACTIVE,
     isActive: true,

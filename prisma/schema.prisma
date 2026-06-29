@@ -29,7 +29,14 @@ enum SelectionType {
 enum ProductStatus {
   DRAFT
   ACTIVE
+  HIDDEN
   ARCHIVED
+}
+
+enum VariationType {
+  SHADE
+  SIZE
+  BUNDLE
 }
 
 enum PackStatus {
@@ -151,6 +158,7 @@ model AttributeGroup {
   quizQuestions              QuizQuestion[]
   customerProfileAnswers     CustomerProfileAnswer[]
   productReferenceAttributes ProductReferenceAttribute[]
+  productAttributes          ProductAttribute[]
   packAttributes             PackAttribute[]
   recommendationRules        RecommendationRule[]
 
@@ -172,6 +180,7 @@ model AttributeOption {
   quizQuestionOptions        QuizQuestionOption[]
   customerProfileAnswers     CustomerProfileAnswer[]
   productReferenceAttributes ProductReferenceAttribute[]
+  productAttributes          ProductAttribute[]
   packAttributes             PackAttribute[]
 
   @@unique([attributeGroupId, code])
@@ -311,22 +320,30 @@ model Product {
   id           String        @id @default(uuid()) @db.Uuid
   categoryId   String        @map("category_id") @db.Uuid
   brandId      String?       @map("brand_id") @db.Uuid
-  name         String        @db.VarChar(180)
-  slug         String        @unique @db.VarChar(200)
-  description  String?
-  basePrice    Decimal       @map("base_price") @db.Decimal(10, 2)
-  costPrice    Decimal?      @map("cost_price") @db.Decimal(10, 2)
-  currency     String        @default("MAD") @db.Char(3)
-  mainImageUrl String?       @map("main_image_url")
-  status       ProductStatus @default(DRAFT)
-  isActive     Boolean       @default(true) @map("is_active")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  name             String        @db.VarChar(180)
+  slug             String        @unique @db.VarChar(200)
+  productType      String?       @map("product_type") @db.VarChar(60)
+  shortDescription String?       @map("short_description") @db.VarChar(280)
+  description      String?
+  ingredients      String?       @db.Text
+  directions       String?       @db.Text
+  basePrice        Decimal       @map("base_price") @db.Decimal(10, 2)
+  compareAtPrice   Decimal?      @map("compare_at_price") @db.Decimal(10, 2)
+  costPrice        Decimal?      @map("cost_price") @db.Decimal(10, 2)
+  currency         String        @default("MAD") @db.Char(3)
+  metaTitle        String?       @map("meta_title") @db.VarChar(180)
+  metaDescription  String?       @map("meta_description") @db.VarChar(320)
+  mainImageUrl     String?       @map("main_image_url")
+  status           ProductStatus @default(DRAFT)
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   brand    Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
   references                ProductReference[]
+  attributes                ProductAttribute[]
   images                    ProductImage[]
   packItems                 PackItem[]
   recommendationResultItems RecommendationResultItem[]
@@ -336,26 +353,33 @@ model Product {
   @@index([brandId])
   @@index([status])
   @@index([isActive])
+  @@index([productType])
+  @@index([status, categoryId])
   @@map("products")
 }
 
 model ProductReference {
   id                String   @id @default(uuid()) @db.Uuid
-  productId         String   @map("product_id") @db.Uuid
-  referenceCode     String   @map("reference_code") @db.VarChar(80)
-  referenceName     String   @map("reference_name") @db.VarChar(160)
-  barcode           String?  @unique @db.VarChar(120)
-  sku               String?  @unique @db.VarChar(120)
-  priceOverride     Decimal? @map("price_override") @db.Decimal(10, 2)
-  priceDelta        Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
-  imageUrl          String?  @map("image_url")
-  stockQuantity     Int      @default(0) @map("stock_quantity")
-  reservedQuantity  Int      @default(0) @map("reserved_quantity")
-  lowStockThreshold Int      @default(5) @map("low_stock_threshold")
-  isDefault         Boolean  @default(false) @map("is_default")
-  isActive          Boolean  @default(true) @map("is_active")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  productId         String         @map("product_id") @db.Uuid
+  referenceCode     String         @map("reference_code") @db.VarChar(80)
+  referenceName     String         @map("reference_name") @db.VarChar(160)
+  shadeName         String?        @map("shade_name") @db.VarChar(120)
+  shadeCode         String?        @map("shade_code") @db.VarChar(60)
+  swatchHex         String?        @map("swatch_hex") @db.VarChar(7)
+  measurement       String?        @db.VarChar(40)
+  variationType     VariationType? @map("variation_type")
+  barcode           String?        @unique @db.VarChar(120)
+  sku               String?        @unique @db.VarChar(120)
+  priceOverride     Decimal?       @map("price_override") @db.Decimal(10, 2)
+  priceDelta        Decimal        @default(0) @map("price_delta") @db.Decimal(10, 2)
+  imageUrl          String?        @map("image_url")
+  stockQuantity     Int            @default(0) @map("stock_quantity")
+  reservedQuantity  Int            @default(0) @map("reserved_quantity")
+  lowStockThreshold Int            @default(5) @map("low_stock_threshold")
+  isDefault         Boolean        @default(false) @map("is_default")
+  isActive          Boolean        @default(true) @map("is_active")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -369,6 +393,7 @@ model ProductReference {
   @@index([productId])
   @@index([isActive])
   @@index([stockQuantity])
+  @@index([variationType])
   @@map("product_references")
 }
 
@@ -392,6 +417,28 @@ model ProductReferenceAttribute {
   @@index([attributeOptionId])
   @@index([matchType])
   @@map("product_reference_attributes")
+}
+
+model ProductAttribute {
+  id                String    @id @default(uuid()) @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  attributeGroupId  String    @map("attribute_group_id") @db.Uuid
+  attributeOptionId String    @map("attribute_option_id") @db.Uuid
+  matchType         MatchType @default(COMPATIBLE) @map("match_type")
+  scoreValue        Int       @default(0) @map("score_value")
+  isHardFilter      Boolean   @default(false) @map("is_hard_filter")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  product         Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeGroup  AttributeGroup  @relation(fields: [attributeGroupId], references: [id], onDelete: Restrict)
+  attributeOption AttributeOption @relation(fields: [attributeOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, attributeGroupId, attributeOptionId])
+  @@index([productId])
+  @@index([attributeGroupId])
+  @@index([attributeOptionId])
+  @@index([matchType])
+  @@map("product_attributes")
 }
 
 /**
@@ -447,7 +494,7 @@ model PackItem {
 
   pack             Pack              @relation(fields: [packId], references: [id], onDelete: Cascade)
   product          Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
-  productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: SetNull)
+  productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: Restrict)
 
   recommendationResultItems RecommendationResultItem[]
 
@@ -666,12 +713,16 @@ model OrderItem {
   packId                String?  @map("pack_id") @db.Uuid
   productId             String   @map("product_id") @db.Uuid
   productReferenceId    String   @map("product_reference_id") @db.Uuid
-  productNameSnapshot   String   @map("product_name_snapshot") @db.VarChar(180)
-  referenceNameSnapshot String   @map("reference_name_snapshot") @db.VarChar(160)
-  unitPriceSnapshot     Decimal  @map("unit_price_snapshot") @db.Decimal(10, 2)
-  quantity              Int      @default(1)
-  totalPrice            Decimal  @map("total_price") @db.Decimal(10, 2)
-  createdAt             DateTime @default(now()) @map("created_at")
+  productNameSnapshot     String   @map("product_name_snapshot") @db.VarChar(180)
+  referenceNameSnapshot   String   @map("reference_name_snapshot") @db.VarChar(160)
+  skuSnapshot             String?  @map("sku_snapshot") @db.VarChar(120)
+  variationSnapshot       String?  @map("variation_snapshot") @db.VarChar(160)
+  productImageUrlSnapshot String?  @map("product_image_url_snapshot") @db.Text
+  brandNameSnapshot       String?  @map("brand_name_snapshot") @db.VarChar(120)
+  unitPriceSnapshot       Decimal  @map("unit_price_snapshot") @db.Decimal(10, 2)
+  quantity                Int      @default(1)
+  totalPrice              Decimal  @map("total_price") @db.Decimal(10, 2)
+  createdAt               DateTime @default(now()) @map("created_at")
 
   order            Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   pack             Pack?            @relation("PackOrderItems", fields: [packId], references: [id], onDelete: SetNull)
