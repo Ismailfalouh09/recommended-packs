@@ -20,9 +20,15 @@ const admin = {
 describe('OrderWorkflowService', () => {
   let prisma: any;
   let tx: any;
+  let orderStockService: any;
   let service: OrderWorkflowService;
 
   beforeEach(() => {
+    orderStockService = {
+      releaseReserved: jest.fn().mockResolvedValue(undefined),
+      finalizeReservedAsDelivered: jest.fn().mockResolvedValue(undefined),
+      restoreDelivered: jest.fn().mockResolvedValue(undefined),
+    };
     tx = {
       order: {
         findUnique: jest.fn(),
@@ -37,7 +43,7 @@ describe('OrderWorkflowService', () => {
         callback(tx),
       ),
     };
-    service = new OrderWorkflowService(prisma);
+    service = new OrderWorkflowService(prisma, orderStockService);
   });
 
   it.each([
@@ -116,6 +122,12 @@ describe('OrderWorkflowService', () => {
         data: expect.objectContaining({ paymentStatus: PaymentStatus.UNPAID }),
       }),
     );
+    expect(orderStockService.releaseReserved).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        productReferenceId: 'reference-1',
+        quantity: 2,
+      }),
+    ]);
   });
 
   it('does not allow paid orders to be canceled', async () => {
@@ -143,6 +155,12 @@ describe('OrderWorkflowService', () => {
         }),
       }),
     );
+    expect(orderStockService.restoreDelivered).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        productReferenceId: 'reference-1',
+        quantity: 2,
+      }),
+    ]);
   });
 
   it('keeps returned unpaid orders unpaid', async () => {
@@ -158,6 +176,32 @@ describe('OrderWorkflowService', () => {
       expect.objectContaining({
         data: expect.objectContaining({ paymentStatus: PaymentStatus.UNPAID }),
       }),
+    );
+    expect(orderStockService.releaseReserved).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        productReferenceId: 'reference-1',
+        quantity: 2,
+      }),
+    ]);
+  });
+
+  it('finalizes reserved stock when an order is delivered', async () => {
+    mockOrder(OrderStatus.SHIPPED, PaymentStatus.UNPAID);
+
+    await service.updateStatus(
+      'order-1',
+      { status: OrderStatus.DELIVERED },
+      admin,
+    );
+
+    expect(orderStockService.finalizeReservedAsDelivered).toHaveBeenCalledWith(
+      tx,
+      [
+        expect.objectContaining({
+          productReferenceId: 'reference-1',
+          quantity: 2,
+        }),
+      ],
     );
   });
 
@@ -208,6 +252,13 @@ describe('OrderWorkflowService', () => {
         paymentStatus,
         totalAmount: decimal(299),
         currency: 'MAD',
+        items: [
+          {
+            productReferenceId: 'reference-1',
+            referenceNameSnapshot: 'RF2 Medium Warm',
+            quantity: 2,
+          },
+        ],
       })
       .mockResolvedValueOnce({
         id: 'order-1',

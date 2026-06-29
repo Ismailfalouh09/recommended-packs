@@ -9,9 +9,13 @@ import { OrdersService } from './orders.service';
 
 describe('OrdersService admin reads and public safety', () => {
   let prisma: any;
+  let orderStockService: any;
   let service: OrdersService;
 
   beforeEach(() => {
+    orderStockService = {
+      reserveForNewOrder: jest.fn(),
+    };
     prisma = {
       $transaction: jest.fn((operations: unknown[]) => Promise.all(operations)),
       recommendationResult: { findUnique: jest.fn() },
@@ -21,7 +25,7 @@ describe('OrdersService admin reads and public safety', () => {
         findUnique: jest.fn(),
       },
     };
-    service = new OrdersService(prisma);
+    service = new OrdersService(prisma, orderStockService);
   });
 
   it('returns paginated admin order list with decimal serialization', async () => {
@@ -93,6 +97,17 @@ describe('OrdersService admin reads and public safety', () => {
 
     expect(result.customer.phone).toBe('0600000000');
     expect(result.address.addressLine).toBe('Maarif');
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        productName: 'Foundation X',
+        referenceName: 'RF2 Medium Warm',
+        sku: 'SKU-RF2',
+        variation: 'Medium Warm / 30ml',
+        imageUrl: 'https://cdn.example/ref-medium.jpg',
+        brandName: 'Glow Brand',
+        originalUnitPrice: 159,
+      }),
+    );
     expect(result.statusHistory).toHaveLength(2);
     expect(result.statusHistory[1].changedByAdmin).toEqual({
       id: 'admin-1',
@@ -214,7 +229,12 @@ function orderDetailFixture() {
         productReferenceId: 'reference-1',
         productNameSnapshot: 'Foundation X',
         referenceNameSnapshot: 'RF2 Medium Warm',
+        skuSnapshot: 'SKU-RF2',
+        variationSnapshot: 'Medium Warm / 30ml',
+        productImageUrlSnapshot: 'https://cdn.example/ref-medium.jpg',
+        brandNameSnapshot: 'Glow Brand',
         unitPriceSnapshot: decimal(120),
+        originalUnitPriceSnapshot: decimal(159),
         quantity: 1,
         totalPrice: decimal(120),
       },

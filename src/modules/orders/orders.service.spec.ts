@@ -44,28 +44,26 @@ const cartDto: CreateCartOrderDto = {
 describe('OrdersService', () => {
   let prisma: any;
   let tx: any;
+  let orderStockService: any;
   let service: OrdersService;
 
   beforeEach(() => {
     tx = createTransactionMock();
+    orderStockService = {
+      reserveForNewOrder: jest.fn().mockResolvedValue(undefined),
+    };
     prisma = {
-      recommendationResult: {
-        findUnique: jest.fn(),
-      },
+      recommendationResult: tx.recommendationResult,
       order: {
         findUnique: jest.fn(),
       },
-      product: {
-        findUnique: jest.fn(),
-      },
-      productReference: {
-        findUnique: jest.fn(),
-      },
+      product: tx.product,
+      productReference: tx.productReference,
       $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
         callback(tx),
       ),
     };
-    service = new OrdersService(prisma);
+    service = new OrdersService(prisma, orderStockService);
   });
 
   it('creates an order from a valid recommendation result', async () => {
@@ -211,10 +209,81 @@ describe('OrdersService', () => {
           productReferenceId: 'reference-1',
           productNameSnapshot: 'Foundation X',
           referenceNameSnapshot: 'RF2 Medium Warm',
+          skuSnapshot: 'SKU-RF2',
+          variationSnapshot: 'Medium Warm / 30ml',
+          productImageUrlSnapshot: 'https://cdn.example/ref-medium.jpg',
+          brandNameSnapshot: 'Glow Brand',
+          unitPriceSnapshot: decimal(120),
+          originalUnitPriceSnapshot: decimal(159),
           quantity: 1,
         }),
       ],
     });
+  });
+
+  it('saves fixed and automatic pack selected references as order items', async () => {
+    const result: any = recommendationResultFixture();
+    result.items = [
+      {
+        ...result.items[0],
+        id: 'fixed-result-item',
+        selectedProductReference: {
+          ...result.items[0].selectedProductReference,
+          id: 'fixed-reference',
+          referenceCode: 'FIX',
+          referenceName: 'Fixed Shade',
+          sku: 'SKU-FIX',
+        },
+      },
+      {
+        ...result.items[0],
+        id: 'auto-result-item',
+        quantity: 2,
+        selectedProductReference: {
+          ...result.items[0].selectedProductReference,
+          id: 'auto-reference',
+          referenceCode: 'AUTO',
+          referenceName: 'Auto Shade',
+          sku: 'SKU-AUTO',
+        },
+      },
+    ];
+    prisma.recommendationResult.findUnique.mockResolvedValue(result);
+
+    await service.create(baseDto);
+
+    expect(tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          productReferenceId: 'fixed-reference',
+          referenceNameSnapshot: 'FIX Fixed Shade',
+          skuSnapshot: 'SKU-FIX',
+          quantity: 1,
+        }),
+        expect.objectContaining({
+          productReferenceId: 'auto-reference',
+          referenceNameSnapshot: 'AUTO Auto Shade',
+          skuSnapshot: 'SKU-AUTO',
+          quantity: 2,
+        }),
+      ]),
+    });
+  });
+
+  it('reserves selected recommendation stock inside order creation', async () => {
+    prisma.recommendationResult.findUnique.mockResolvedValue(
+      recommendationResultFixture(),
+    );
+
+    await service.create(baseDto);
+
+    expect(orderStockService.reserveForNewOrder).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        productReferenceId: 'reference-1',
+        referenceNameSnapshot: 'RF2 Medium Warm',
+        quantity: 1,
+      }),
+    ]);
   });
 
   it('creates initial status history', async () => {
@@ -376,10 +445,21 @@ describe('OrdersService', () => {
           packId: null,
           productId: 'product-1',
           productReferenceId: 'reference-1',
+          skuSnapshot: 'SKU-RF2',
+          variationSnapshot: 'Medium Warm / 30ml',
+          productImageUrlSnapshot: 'https://cdn.example/ref-medium.jpg',
+          brandNameSnapshot: 'Glow Brand',
+          originalUnitPriceSnapshot: decimal(159),
           quantity: 1,
         }),
       ],
     });
+    expect(orderStockService.reserveForNewOrder).toHaveBeenCalledWith(tx, [
+      expect.objectContaining({
+        productReferenceId: 'reference-1',
+        quantity: 1,
+      }),
+    ]);
   });
 
   it('creates a cart order with multiple quantities', async () => {
@@ -449,6 +529,17 @@ describe('OrdersService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects cart references with stock already reserved', async () => {
+    prisma.product.findUnique.mockResolvedValue(cartProductFixture());
+    prisma.productReference.findUnique.mockResolvedValue(
+      cartReferenceFixture({ stockQuantity: 2, reservedQuantity: 2 }),
+    );
+
+    await expect(service.createFromCart(cartDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
   it('rejects inactive cart products', async () => {
     prisma.product.findUnique.mockResolvedValue(
       cartProductFixture({ isActive: false }),
@@ -493,6 +584,12 @@ function createTransactionMock() {
         extraInfo: baseDto.extraInfo,
       }),
     },
+    product: {
+      findUnique: jest.fn(),
+    },
+    productReference: {
+      findUnique: jest.fn(),
+    },
     order: {
       create: jest.fn().mockImplementation(({ data }) =>
         Promise.resolve({
@@ -516,6 +613,7 @@ function createTransactionMock() {
       create: jest.fn().mockResolvedValue({ id: 'history-1' }),
     },
     recommendationResult: {
+      findUnique: jest.fn(),
       update: jest
         .fn()
         .mockResolvedValue({ id: baseDto.recommendationResultId }),
@@ -554,13 +652,29 @@ function recommendationResultFixture(
         id: 'product-1',
         name: 'Foundation X',
         basePrice: overrides.item?.productBasePrice ?? decimal(120),
+        compareAtPrice: decimal(159),
+        mainImageUrl: 'https://cdn.example/product-main.jpg',
         isActive: overrides.item?.productIsActive ?? true,
         status: overrides.item?.productStatus ?? ProductStatus.ACTIVE,
+        brand: {
+          name: 'Glow Brand',
+        },
+        images: [
+          {
+            media: {
+              secureUrl: 'https://cdn.example/product-cover.jpg',
+              url: null,
+            },
+          },
+        ],
       },
       selectedProductReference: {
         id: 'reference-1',
         referenceCode: 'RF2',
         referenceName: 'Medium Warm',
+        shadeName: 'Medium Warm',
+        measurement: '30ml',
+        sku: 'SKU-RF2',
         priceOverride:
           overrides.item &&
           Object.prototype.hasOwnProperty.call(
@@ -570,6 +684,13 @@ function recommendationResultFixture(
             ? overrides.item.referencePriceOverride
             : decimal(120),
         priceDelta: overrides.item?.referencePriceDelta ?? decimal(0),
+        imageUrl: 'https://cdn.example/reference-legacy.jpg',
+        image: {
+          media: {
+            secureUrl: 'https://cdn.example/ref-medium.jpg',
+            url: null,
+          },
+        },
         stockQuantity: overrides.item?.stockQuantity ?? 10,
         reservedQuantity: overrides.item?.reservedQuantity ?? 0,
         isActive: overrides.item?.referenceIsActive ?? true,
@@ -621,9 +742,22 @@ function cartProductFixture(
     id: overrides.id ?? 'product-1',
     name: overrides.name ?? 'Foundation X',
     basePrice: overrides.basePrice ?? decimal(100),
+    compareAtPrice: decimal(159),
+    mainImageUrl: 'https://cdn.example/product-main.jpg',
     currency: overrides.currency ?? 'MAD',
     isActive: overrides.isActive ?? true,
     status: overrides.status ?? ProductStatus.ACTIVE,
+    brand: {
+      name: 'Glow Brand',
+    },
+    images: [
+      {
+        media: {
+          secureUrl: 'https://cdn.example/product-cover.jpg',
+          url: null,
+        },
+      },
+    ],
   };
 }
 
@@ -633,9 +767,14 @@ function cartReferenceFixture(
     productId: string;
     referenceCode: string;
     referenceName: string;
+    shadeName: string | null;
+    measurement: string | null;
+    sku: string | null;
     priceOverride: Prisma.Decimal | null;
     priceDelta: Prisma.Decimal;
+    imageUrl: string | null;
     stockQuantity: number;
+    reservedQuantity: number;
     isActive: boolean;
   }> = {},
 ) {
@@ -644,6 +783,15 @@ function cartReferenceFixture(
     productId: overrides.productId ?? 'product-1',
     referenceCode: overrides.referenceCode ?? 'RF2',
     referenceName: overrides.referenceName ?? 'Medium Warm',
+    shadeName: Object.prototype.hasOwnProperty.call(overrides, 'shadeName')
+      ? (overrides.shadeName ?? null)
+      : 'Medium Warm',
+    measurement: Object.prototype.hasOwnProperty.call(overrides, 'measurement')
+      ? (overrides.measurement ?? null)
+      : '30ml',
+    sku: Object.prototype.hasOwnProperty.call(overrides, 'sku')
+      ? (overrides.sku ?? null)
+      : 'SKU-RF2',
     priceOverride: Object.prototype.hasOwnProperty.call(
       overrides,
       'priceOverride',
@@ -651,7 +799,17 @@ function cartReferenceFixture(
       ? (overrides.priceOverride ?? null)
       : decimal(125),
     priceDelta: overrides.priceDelta ?? decimal(0),
+    imageUrl: Object.prototype.hasOwnProperty.call(overrides, 'imageUrl')
+      ? (overrides.imageUrl ?? null)
+      : 'https://cdn.example/reference-legacy.jpg',
+    image: {
+      media: {
+        secureUrl: 'https://cdn.example/ref-medium.jpg',
+        url: null,
+      },
+    },
     stockQuantity: overrides.stockQuantity ?? 10,
+    reservedQuantity: overrides.reservedQuantity ?? 0,
     isActive: overrides.isActive ?? true,
   };
 }

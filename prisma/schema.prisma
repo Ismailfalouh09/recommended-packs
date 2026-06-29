@@ -317,9 +317,9 @@ model Brand {
 }
 
 model Product {
-  id           String        @id @default(uuid()) @db.Uuid
-  categoryId   String        @map("category_id") @db.Uuid
-  brandId      String?       @map("brand_id") @db.Uuid
+  id               String        @id @default(uuid()) @db.Uuid
+  categoryId       String        @map("category_id") @db.Uuid
+  brandId          String?       @map("brand_id") @db.Uuid
   name             String        @db.VarChar(180)
   slug             String        @unique @db.VarChar(200)
   productType      String?       @map("product_type") @db.VarChar(60)
@@ -359,7 +359,7 @@ model Product {
 }
 
 model ProductReference {
-  id                String   @id @default(uuid()) @db.Uuid
+  id                String         @id @default(uuid()) @db.Uuid
   productId         String         @map("product_id") @db.Uuid
   referenceCode     String         @map("reference_code") @db.VarChar(80)
   referenceName     String         @map("reference_name") @db.VarChar(160)
@@ -708,21 +708,22 @@ model Order {
 }
 
 model OrderItem {
-  id                    String   @id @default(uuid()) @db.Uuid
-  orderId               String   @map("order_id") @db.Uuid
-  packId                String?  @map("pack_id") @db.Uuid
-  productId             String   @map("product_id") @db.Uuid
-  productReferenceId    String   @map("product_reference_id") @db.Uuid
-  productNameSnapshot     String   @map("product_name_snapshot") @db.VarChar(180)
-  referenceNameSnapshot   String   @map("reference_name_snapshot") @db.VarChar(160)
-  skuSnapshot             String?  @map("sku_snapshot") @db.VarChar(120)
-  variationSnapshot       String?  @map("variation_snapshot") @db.VarChar(160)
-  productImageUrlSnapshot String?  @map("product_image_url_snapshot") @db.Text
-  brandNameSnapshot       String?  @map("brand_name_snapshot") @db.VarChar(120)
-  unitPriceSnapshot       Decimal  @map("unit_price_snapshot") @db.Decimal(10, 2)
-  quantity                Int      @default(1)
-  totalPrice              Decimal  @map("total_price") @db.Decimal(10, 2)
-  createdAt               DateTime @default(now()) @map("created_at")
+  id                        String   @id @default(uuid()) @db.Uuid
+  orderId                   String   @map("order_id") @db.Uuid
+  packId                    String?  @map("pack_id") @db.Uuid
+  productId                 String   @map("product_id") @db.Uuid
+  productReferenceId        String   @map("product_reference_id") @db.Uuid
+  productNameSnapshot       String   @map("product_name_snapshot") @db.VarChar(180)
+  referenceNameSnapshot     String   @map("reference_name_snapshot") @db.VarChar(160)
+  skuSnapshot               String?  @map("sku_snapshot") @db.VarChar(120)
+  variationSnapshot         String?  @map("variation_snapshot") @db.VarChar(160)
+  productImageUrlSnapshot   String?  @map("product_image_url_snapshot") @db.Text
+  brandNameSnapshot         String?  @map("brand_name_snapshot") @db.VarChar(120)
+  unitPriceSnapshot         Decimal  @map("unit_price_snapshot") @db.Decimal(10, 2)
+  originalUnitPriceSnapshot Decimal? @map("original_unit_price_snapshot") @db.Decimal(10, 2)
+  quantity                  Int      @default(1)
+  totalPrice                Decimal  @map("total_price") @db.Decimal(10, 2)
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   order            Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   pack             Pack?            @relation("PackOrderItems", fields: [packId], references: [id], onDelete: SetNull)

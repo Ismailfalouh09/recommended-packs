@@ -195,6 +195,12 @@ Continuation note: the previous agent had completed Phase 5 only through `5.7 Pr
 - `frontend-handoff/KNOWN_LIMITATIONS.md` - stock reservation and automatic stock deduction not implemented.
 - `docs/PRODUCT_OBJECT_CURRENT_STATE_ANALYSIS.md` - critical stock decrement risk, TOCTOU risk, order snapshot risk.
 
+**Implementation progress (2026-06-29)**
+- Phase 7.1-7.3, 7.7-7.8 are implemented for current cart and recommendation checkout paths: order items persist the selected `ProductReference`, freeze product/reference/brand/SKU/variation/image/unit/original price snapshots, and reserve stock atomically in the order transaction.
+- Phase 7.5-7.6 are implemented with COD reservation semantics: order creation increments `reservedQuantity`; cancellation/returned-before-delivery releases reservation; delivery decrements `stockQuantity` and reservation; returned-after-delivery restores `stockQuantity`.
+- Phase 7.9 is implemented as nullable `originalUnitPriceSnapshot` from product `compareAtPrice` when it is greater than the effective unit price.
+- Remaining Phase 7 verification is manual/business approval of COD stock timing and any policy difference for returned items that should not be restocked.
+
 ### Phase 8 — Admin Dashboard and Storefront Contract Integration
 
 | Step ID | Step Name | Purpose | Main Areas Impacted | Prerequisites | Deliverables | Verification / Exit Criteria | Risks |

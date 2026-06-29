@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  MediaRole,
   OrderStatus,
   PackStatus,
   PaymentMethod,
@@ -21,6 +22,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCartOrderDto } from './dto/create-cart-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryAdminOrdersDto } from './dto/query-admin-orders.dto';
+import { OrderStockService } from './order-stock.service';
 
 type Money = InstanceType<typeof Prisma.Decimal>;
 
@@ -34,7 +36,12 @@ interface PricedOrderItem {
   productReferenceId: string;
   productNameSnapshot: string;
   referenceNameSnapshot: string;
+  skuSnapshot: string | null;
+  variationSnapshot: string | null;
+  productImageUrlSnapshot: string | null;
+  brandNameSnapshot: string | null;
   unitPriceSnapshot: Money;
+  originalUnitPriceSnapshot: Money | null;
   quantity: number;
   totalPrice: Money;
 }
@@ -59,25 +66,30 @@ interface CustomerOrderInput {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly orderStockService: OrderStockService,
+  ) {}
 
   async create(createOrderDto: CreateOrderDto) {
-    const recommendationResult = await this.loadRecommendationResult(
-      createOrderDto.recommendationResultId,
-    );
-
-    if (!recommendationResult) {
-      throw new NotFoundException(
-        `Recommendation result ${createOrderDto.recommendationResultId} was not found.`,
-      );
-    }
-
-    this.validateRecommendationResult(recommendationResult);
-
-    const priceSummary = this.calculateOrderPrice(recommendationResult);
     const orderNumber = this.generateOrderNumber();
 
     const created = await this.prisma.$transaction(async (tx) => {
+      const recommendationResult = await this.loadRecommendationResult(
+        createOrderDto.recommendationResultId,
+        tx,
+      );
+
+      if (!recommendationResult) {
+        throw new NotFoundException(
+          `Recommendation result ${createOrderDto.recommendationResultId} was not found.`,
+        );
+      }
+
+      this.validateRecommendationResult(recommendationResult);
+      const priceSummary = this.calculateOrderPrice(recommendationResult);
+      await this.orderStockService.reserveForNewOrder(tx, priceSummary.items);
+
       const customer = await this.upsertCustomer(tx, createOrderDto);
 
       await tx.customerAddress.updateMany({
@@ -129,7 +141,12 @@ export class OrdersService {
           productReferenceId: item.productReferenceId,
           productNameSnapshot: item.productNameSnapshot,
           referenceNameSnapshot: item.referenceNameSnapshot,
+          skuSnapshot: item.skuSnapshot,
+          variationSnapshot: item.variationSnapshot,
+          productImageUrlSnapshot: item.productImageUrlSnapshot,
+          brandNameSnapshot: item.brandNameSnapshot,
           unitPriceSnapshot: item.unitPriceSnapshot,
+          originalUnitPriceSnapshot: item.originalUnitPriceSnapshot,
           quantity: item.quantity,
           totalPrice: item.totalPrice,
         })),
@@ -153,6 +170,8 @@ export class OrdersService {
         order,
         customer,
         address,
+        pack: recommendationResult.pack,
+        items: priceSummary.items,
       };
     });
 
@@ -160,16 +179,18 @@ export class OrdersService {
       order: created.order,
       customer: created.customer,
       address: created.address,
-      pack: recommendationResult.pack,
-      items: priceSummary.items,
+      pack: created.pack,
+      items: created.items,
     });
   }
 
   async createFromCart(dto: CreateCartOrderDto) {
-    const priceSummary = await this.calculateCartOrderPrice(dto);
     const orderNumber = this.generateOrderNumber();
 
     const created = await this.prisma.$transaction(async (tx) => {
+      const priceSummary = await this.calculateCartOrderPrice(dto, tx);
+      await this.orderStockService.reserveForNewOrder(tx, priceSummary.items);
+
       const customer = await this.upsertCustomer(tx, dto);
 
       await tx.customerAddress.updateMany({
@@ -220,7 +241,12 @@ export class OrdersService {
           productReferenceId: item.productReferenceId,
           productNameSnapshot: item.productNameSnapshot,
           referenceNameSnapshot: item.referenceNameSnapshot,
+          skuSnapshot: item.skuSnapshot,
+          variationSnapshot: item.variationSnapshot,
+          productImageUrlSnapshot: item.productImageUrlSnapshot,
+          brandNameSnapshot: item.brandNameSnapshot,
           unitPriceSnapshot: item.unitPriceSnapshot,
+          originalUnitPriceSnapshot: item.originalUnitPriceSnapshot,
           quantity: item.quantity,
           totalPrice: item.totalPrice,
         })),
@@ -239,6 +265,7 @@ export class OrdersService {
         order,
         customer,
         address,
+        items: priceSummary.items,
       };
     });
 
@@ -246,7 +273,7 @@ export class OrdersService {
       order: created.order,
       customer: created.customer,
       address: created.address,
-      items: priceSummary.items,
+      items: created.items,
     });
   }
 
@@ -424,7 +451,12 @@ export class OrdersService {
             productReferenceId: true,
             productNameSnapshot: true,
             referenceNameSnapshot: true,
+            skuSnapshot: true,
+            variationSnapshot: true,
+            productImageUrlSnapshot: true,
+            brandNameSnapshot: true,
             unitPriceSnapshot: true,
+            originalUnitPriceSnapshot: true,
             quantity: true,
             totalPrice: true,
           },
@@ -455,8 +487,11 @@ export class OrdersService {
     return this.toAdminDetailResponse(order);
   }
 
-  private async loadRecommendationResult(recommendationResultId: string) {
-    return this.prisma.recommendationResult.findUnique({
+  private async loadRecommendationResult(
+    recommendationResultId: string,
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ) {
+    return client.recommendationResult.findUnique({
       where: { id: recommendationResultId },
       select: {
         id: true,
@@ -492,8 +527,28 @@ export class OrdersService {
                 id: true,
                 name: true,
                 basePrice: true,
+                compareAtPrice: true,
+                mainImageUrl: true,
                 isActive: true,
                 status: true,
+                brand: {
+                  select: {
+                    name: true,
+                  },
+                },
+                images: {
+                  where: { role: MediaRole.COVER },
+                  orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                  take: 1,
+                  select: {
+                    media: {
+                      select: {
+                        secureUrl: true,
+                        url: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             selectedProductReference: {
@@ -501,8 +556,22 @@ export class OrdersService {
                 id: true,
                 referenceCode: true,
                 referenceName: true,
+                shadeName: true,
+                measurement: true,
+                sku: true,
                 priceOverride: true,
                 priceDelta: true,
+                imageUrl: true,
+                image: {
+                  select: {
+                    media: {
+                      select: {
+                        secureUrl: true,
+                        url: true,
+                      },
+                    },
+                  },
+                },
                 stockQuantity: true,
                 reservedQuantity: true,
                 isActive: true,
@@ -555,8 +624,9 @@ export class OrdersService {
 
       if (
         item.packItem.isRequired &&
-        item.selectedProductReference.stockQuantity <=
-          item.selectedProductReference.reservedQuantity
+        item.selectedProductReference.stockQuantity -
+          item.selectedProductReference.reservedQuantity <
+          item.quantity
       ) {
         throw new BadRequestException(
           `Selected reference ${this.referenceSnapshotName(item.selectedProductReference)} is out of stock.`,
@@ -595,6 +665,7 @@ export class OrdersService {
 
   private async calculateCartOrderPrice(
     dto: CreateCartOrderDto,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<CartPriceSummary> {
     if (!dto.items?.length) {
       throw new BadRequestException('Cart must contain at least one item.');
@@ -619,15 +690,35 @@ export class OrdersService {
     let currency: string | null = null;
 
     for (const item of dto.items) {
-      const product = await this.prisma.product.findUnique({
+      const product = await client.product.findUnique({
         where: { id: item.productId },
         select: {
           id: true,
           name: true,
           basePrice: true,
+          compareAtPrice: true,
+          mainImageUrl: true,
           currency: true,
           isActive: true,
           status: true,
+          brand: {
+            select: {
+              name: true,
+            },
+          },
+          images: {
+            where: { role: MediaRole.COVER },
+            orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+            take: 1,
+            select: {
+              media: {
+                select: {
+                  secureUrl: true,
+                  url: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -641,16 +732,31 @@ export class OrdersService {
         );
       }
 
-      const reference = await this.prisma.productReference.findUnique({
+      const reference = await client.productReference.findUnique({
         where: { id: item.referenceId },
         select: {
           id: true,
           productId: true,
           referenceCode: true,
           referenceName: true,
+          shadeName: true,
+          measurement: true,
+          sku: true,
           priceOverride: true,
           priceDelta: true,
+          imageUrl: true,
+          image: {
+            select: {
+              media: {
+                select: {
+                  secureUrl: true,
+                  url: true,
+                },
+              },
+            },
+          },
           stockQuantity: true,
+          reservedQuantity: true,
           isActive: true,
         },
       });
@@ -676,7 +782,10 @@ export class OrdersService {
       const requestedQuantity =
         requestedQuantityByReference.get(reference.id) ?? item.quantity;
 
-      if (reference.stockQuantity < requestedQuantity) {
+      if (
+        reference.stockQuantity - reference.reservedQuantity <
+        requestedQuantity
+      ) {
         throw new BadRequestException(
           `Selected reference ${this.referenceSnapshotName(reference)} does not have enough stock.`,
         );
@@ -695,7 +804,15 @@ export class OrdersService {
         productReferenceId: reference.id,
         productNameSnapshot: product.name,
         referenceNameSnapshot: this.referenceSnapshotName(reference),
+        skuSnapshot: reference.sku,
+        variationSnapshot: this.variationSnapshot(reference),
+        productImageUrlSnapshot: this.snapshotImageUrl(product, reference),
+        brandNameSnapshot: product.brand?.name ?? null,
         unitPriceSnapshot: unitPrice,
+        originalUnitPriceSnapshot: this.originalUnitPriceSnapshot(
+          product,
+          unitPrice,
+        ),
         quantity: item.quantity,
         totalPrice: unitPrice.times(item.quantity),
       });
@@ -735,7 +852,20 @@ export class OrdersService {
         referenceNameSnapshot: this.referenceSnapshotName(
           item.selectedProductReference,
         ),
+        skuSnapshot: item.selectedProductReference.sku,
+        variationSnapshot: this.variationSnapshot(
+          item.selectedProductReference,
+        ),
+        productImageUrlSnapshot: this.snapshotImageUrl(
+          item.product,
+          item.selectedProductReference,
+        ),
+        brandNameSnapshot: item.product.brand?.name ?? null,
         unitPriceSnapshot: unitPrice,
+        originalUnitPriceSnapshot: this.originalUnitPriceSnapshot(
+          item.product,
+          unitPrice,
+        ),
         quantity,
         totalPrice: unitPrice.times(quantity),
       };
@@ -832,6 +962,51 @@ export class OrdersService {
     return this.decimal(product.basePrice).plus(reference.priceDelta);
   }
 
+  private originalUnitPriceSnapshot(
+    product: { compareAtPrice?: Prisma.Decimal | null },
+    unitPrice: Money,
+  ): Money | null {
+    if (!product.compareAtPrice) {
+      return null;
+    }
+
+    const originalPrice = this.decimal(product.compareAtPrice);
+    return originalPrice.gt(unitPrice) ? originalPrice : null;
+  }
+
+  private variationSnapshot(reference: {
+    referenceName: string;
+    shadeName?: string | null;
+    measurement?: string | null;
+  }): string | null {
+    const parts = [reference.shadeName, reference.measurement].filter(
+      Boolean,
+    ) as string[];
+
+    return parts.length > 0 ? parts.join(' / ') : reference.referenceName;
+  }
+
+  private snapshotImageUrl(
+    product: {
+      mainImageUrl?: string | null;
+      images?: { media: { secureUrl: string; url?: string | null } }[];
+    },
+    reference: {
+      imageUrl?: string | null;
+      image?: { media: { secureUrl: string; url?: string | null } } | null;
+    },
+  ): string | null {
+    return (
+      reference.image?.media.secureUrl ??
+      reference.image?.media.url ??
+      reference.imageUrl ??
+      product.images?.[0]?.media.secureUrl ??
+      product.images?.[0]?.media.url ??
+      product.mainImageUrl ??
+      null
+    );
+  }
+
   private deliveryFeeForCity(_city: string): Money {
     return this.decimal(0);
   }
@@ -907,8 +1082,16 @@ export class OrdersService {
         productName: item.productNameSnapshot,
         referenceId: item.productReferenceId,
         referenceName: item.referenceNameSnapshot,
+        sku: item.skuSnapshot,
+        variation: item.variationSnapshot,
+        imageUrl: item.productImageUrlSnapshot,
+        brandName: item.brandNameSnapshot,
         quantity: item.quantity,
         unitPrice: this.toNumber(item.unitPriceSnapshot),
+        originalUnitPrice:
+          item.originalUnitPriceSnapshot != null
+            ? this.toNumber(item.originalUnitPriceSnapshot)
+            : null,
         totalPrice: this.toNumber(item.totalPrice),
       })),
     };
@@ -962,8 +1145,16 @@ export class OrdersService {
         productName: item.productNameSnapshot,
         referenceId: item.productReferenceId,
         referenceName: item.referenceNameSnapshot,
+        sku: item.skuSnapshot,
+        variation: item.variationSnapshot,
+        imageUrl: item.productImageUrlSnapshot,
+        brandName: item.brandNameSnapshot,
         quantity: item.quantity,
         unitPrice: this.toNumber(item.unitPriceSnapshot),
+        originalUnitPrice:
+          item.originalUnitPriceSnapshot != null
+            ? this.toNumber(item.originalUnitPriceSnapshot)
+            : null,
         totalPrice: this.toNumber(item.totalPrice),
       })),
     };
@@ -1095,8 +1286,13 @@ export class OrdersService {
         referenceId: item.productReferenceId,
         productName: item.productNameSnapshot,
         referenceName: item.referenceNameSnapshot,
+        sku: item.skuSnapshot,
+        variation: item.variationSnapshot,
+        imageUrl: item.productImageUrlSnapshot,
+        brandName: item.brandNameSnapshot,
         quantity: item.quantity,
         unitPrice: toMoneyNumber(item.unitPriceSnapshot),
+        originalUnitPrice: toMoneyNumber(item.originalUnitPriceSnapshot),
         totalPrice: toMoneyNumber(item.totalPrice),
       })),
       statusHistory: order.statusHistory.map((history: any) => ({

@@ -14,6 +14,7 @@ import { toMoneyNumber } from '../../common/utils/decimal.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CurrentAdmin } from '../auth/types/jwt-payload.type';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { OrderStockService } from './order-stock.service';
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PENDING_CONFIRMATION]: [
@@ -30,7 +31,10 @@ const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 
 @Injectable()
 export class OrderWorkflowService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly orderStockService: OrderStockService,
+  ) {}
 
   async updateStatus(
     orderId: string,
@@ -48,6 +52,13 @@ export class OrderWorkflowService {
           paymentStatus: true,
           totalAmount: true,
           currency: true,
+          items: {
+            select: {
+              productReferenceId: true,
+              referenceNameSnapshot: true,
+              quantity: true,
+            },
+          },
         },
       });
 
@@ -82,6 +93,13 @@ export class OrderWorkflowService {
           'Order status changed before this update could be applied.',
         );
       }
+
+      await this.applyStockTransition(
+        tx,
+        order.orderStatus,
+        dto.status,
+        order.items,
+      );
 
       await tx.orderStatusHistory.create({
         data: {
@@ -167,6 +185,35 @@ export class OrderWorkflowService {
     }
 
     return currentPaymentStatus;
+  }
+
+  private async applyStockTransition(
+    tx: Prisma.TransactionClient,
+    currentStatus: OrderStatus,
+    nextStatus: OrderStatus,
+    items: {
+      productReferenceId: string;
+      referenceNameSnapshot: string;
+      quantity: number;
+    }[],
+  ) {
+    if (nextStatus === OrderStatus.CANCELED) {
+      await this.orderStockService.releaseReserved(tx, items);
+      return;
+    }
+
+    if (nextStatus === OrderStatus.DELIVERED) {
+      await this.orderStockService.finalizeReservedAsDelivered(tx, items);
+      return;
+    }
+
+    if (nextStatus === OrderStatus.RETURNED) {
+      if (currentStatus === OrderStatus.DELIVERED) {
+        await this.orderStockService.restoreDelivered(tx, items);
+      } else {
+        await this.orderStockService.releaseReserved(tx, items);
+      }
+    }
   }
 
   private historyComment(
