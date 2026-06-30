@@ -7,6 +7,9 @@ import {
 import {
   MediaRole,
   MatchType,
+  PackCompatibilityCriterion,
+  PackCompatibilityMode,
+  PackItemRole,
   PackStatus,
   PriceMode,
   Prisma,
@@ -22,9 +25,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MediaUrlService } from '../media/media-url.service';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { PackAttributeInputDto } from './dto/pack-attribute-input.dto';
+import { PackCompatibilityInputDto } from './dto/pack-compatibility-input.dto';
 import { PackItemInputDto } from './dto/pack-item-input.dto';
 import { QueryPacksDto } from './dto/query-packs.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
+import { PACK_COMPATIBILITY_GROUP_CODE } from './pack-compatibility.constants';
 
 interface ResolvedPackItem {
   productId: string;
@@ -33,6 +38,14 @@ interface ResolvedPackItem {
   selectionMode: SelectionMode;
   isRequired: boolean;
   sortOrder: number;
+  // Pack Core Evolution (Phase 2) — additive, foundation-only fields.
+  role: PackItemRole;
+  minQuantity: number | null;
+  maxQuantity: number | null;
+  quantityEditable: boolean;
+  removalAllowed: boolean;
+  replacementAllowed: boolean;
+  allowedReferenceIds: string[];
 }
 
 interface ResolvedPackAttribute {
@@ -41,6 +54,14 @@ interface ResolvedPackAttribute {
   matchType: MatchType;
   scoreValue: number;
   isHardFilter: boolean;
+}
+
+// Pack Core Evolution (Phase 2.5) — resolved compatibility profile entry for one
+// criterion. `optionIds` are canonical AttributeOption ids; empty for UNIVERSAL.
+interface ResolvedPackCompatibility {
+  criterion: PackCompatibilityCriterion;
+  mode: PackCompatibilityMode;
+  optionIds: string[];
 }
 
 interface PackScalarState {
@@ -58,6 +79,12 @@ interface PackScalarState {
   priority: number;
   status: PackStatus;
   isActive: boolean;
+  // Pack Core Evolution (Phase 2) — additive, foundation-only fields.
+  isCustomizable: boolean;
+  minRequiredItems: number | null;
+  maxItemCount: number | null;
+  minAllowedPrice: number | null;
+  allowedAddOnIds: string[];
 }
 
 @Injectable()
@@ -314,11 +341,14 @@ export class PacksService {
 
     const state = this.normalizedCreateState(dto);
     this.validatePricing(state);
+    this.validatePackRules(state);
     const items = await this.resolveItems(
       dto.items ?? [],
       this.isActivating(state),
     );
     const attributes = await this.resolveAttributes(dto.attributes ?? []);
+    const allowedAddOns = await this.resolveAllowedAddOns(state.allowedAddOnIds);
+    const compatibility = await this.resolveCompatibility(dto.compatibility ?? []);
 
     this.validatePackConfiguration(state, items);
 
@@ -327,15 +357,23 @@ export class PacksService {
         data: {
           ...this.toPackWriteData(state),
           items: {
-            createMany: {
-              data: items,
-            },
+            create: this.toItemCreateInput(items),
           },
           attributes: {
             createMany: {
               data: attributes,
             },
           },
+          ...(allowedAddOns.length
+            ? { allowedAddOns: { create: allowedAddOns } }
+            : {}),
+          ...(compatibility.length
+            ? {
+                compatibilityProfiles: {
+                  create: this.toCompatibilityCreateInput(compatibility),
+                },
+              }
+            : {}),
         },
         select: this.adminDetailSelect(),
       }),
@@ -370,11 +408,20 @@ export class PacksService {
 
     const state = this.normalizedUpdateState(existing, dto);
     this.validatePricing(state);
+    this.validatePackRules(state);
 
     const itemsIncluded = Object.prototype.hasOwnProperty.call(dto, 'items');
     const attributesIncluded = Object.prototype.hasOwnProperty.call(
       dto,
       'attributes',
+    );
+    const allowedAddOnsIncluded = Object.prototype.hasOwnProperty.call(
+      dto,
+      'allowedAddOnIds',
+    );
+    const compatibilityIncluded = Object.prototype.hasOwnProperty.call(
+      dto,
+      'compatibility',
     );
     const requestedItems = itemsIncluded
       ? (dto.items ?? [])
@@ -385,6 +432,12 @@ export class PacksService {
           selectionMode: item.selectionMode,
           isRequired: item.isRequired,
           sortOrder: item.sortOrder,
+          role: item.role,
+          minQuantity: item.minQuantity,
+          maxQuantity: item.maxQuantity,
+          quantityEditable: item.quantityEditable,
+          removalAllowed: item.removalAllowed,
+          replacementAllowed: item.replacementAllowed,
         }));
     const requestedAttributes = attributesIncluded
       ? (dto.attributes ?? [])
@@ -396,11 +449,26 @@ export class PacksService {
           isHardFilter: attribute.isHardFilter,
         }));
 
+    const requestedCompatibility: PackCompatibilityInputDto[] =
+      compatibilityIncluded
+        ? (dto.compatibility ?? [])
+        : existing.compatibilityProfiles.map((profile: any) => ({
+            criterion: profile.criterion,
+            mode: profile.mode,
+            optionCodes: profile.values.map(
+              (value: any) => value.attributeOption.code,
+            ),
+          }));
+
     const items = await this.resolveItems(
       requestedItems,
       this.isActivating(state),
     );
     const attributes = await this.resolveAttributes(requestedAttributes);
+    const allowedAddOns = allowedAddOnsIncluded
+      ? await this.resolveAllowedAddOns(state.allowedAddOnIds)
+      : [];
+    const compatibility = await this.resolveCompatibility(requestedCompatibility);
     this.validatePackConfiguration(state, items);
 
     const pack = await this.prisma.$transaction(async (tx) => {
@@ -412,6 +480,14 @@ export class PacksService {
         await tx.packAttribute.deleteMany({ where: { packId: id } });
       }
 
+      if (allowedAddOnsIncluded) {
+        await tx.packAllowedAddOn.deleteMany({ where: { packId: id } });
+      }
+
+      if (compatibilityIncluded) {
+        await tx.packCompatibilityProfile.deleteMany({ where: { packId: id } });
+      }
+
       return tx.pack.update({
         where: { id },
         data: {
@@ -419,9 +495,7 @@ export class PacksService {
           ...(itemsIncluded
             ? {
                 items: {
-                  createMany: {
-                    data: items,
-                  },
+                  create: this.toItemCreateInput(items),
                 },
               }
             : {}),
@@ -431,6 +505,20 @@ export class PacksService {
                   createMany: {
                     data: attributes,
                   },
+                },
+              }
+            : {}),
+          ...(allowedAddOnsIncluded && allowedAddOns.length
+            ? {
+                allowedAddOns: {
+                  create: allowedAddOns,
+                },
+              }
+            : {}),
+          ...(compatibilityIncluded && compatibility.length
+            ? {
+                compatibilityProfiles: {
+                  create: this.toCompatibilityCreateInput(compatibility),
                 },
               }
             : {}),
@@ -481,6 +569,10 @@ export class PacksService {
       priority: true,
       status: true,
       isActive: true,
+      isCustomizable: true,
+      minRequiredItems: true,
+      maxItemCount: true,
+      minAllowedPrice: true,
       createdAt: true,
       updatedAt: true,
       images: {
@@ -522,11 +614,49 @@ export class PacksService {
       priority: true,
       status: true,
       isActive: true,
+      isCustomizable: true,
+      minRequiredItems: true,
+      maxItemCount: true,
+      minAllowedPrice: true,
       createdAt: true,
       updatedAt: true,
       attributes: {
         orderBy: [{ attributeGroup: { sortOrder: 'asc' } }],
         select: this.packAttributeSelect,
+      },
+      allowedAddOns: {
+        select: {
+          id: true,
+          productId: true,
+          productReferenceId: true,
+        },
+      },
+      compatibilityProfiles: {
+        orderBy: [{ criterion: 'asc' }],
+        select: {
+          id: true,
+          criterion: true,
+          mode: true,
+          values: {
+            orderBy: [{ createdAt: 'asc' }],
+            select: {
+              id: true,
+              attributeOption: {
+                select: {
+                  id: true,
+                  code: true,
+                  label: true,
+                  attributeGroup: {
+                    select: {
+                      code: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       items: {
         orderBy: [{ sortOrder: 'asc' }],
@@ -538,6 +668,18 @@ export class PacksService {
           selectionMode: true,
           isRequired: true,
           sortOrder: true,
+          role: true,
+          minQuantity: true,
+          maxQuantity: true,
+          quantityEditable: true,
+          removalAllowed: true,
+          replacementAllowed: true,
+          allowedReferences: {
+            select: {
+              id: true,
+              productReferenceId: true,
+            },
+          },
           product: {
             select: {
               ...this.productSummarySelect,
@@ -588,6 +730,10 @@ export class PacksService {
       priority: true,
       status: true,
       isActive: true,
+      isCustomizable: true,
+      minRequiredItems: true,
+      maxItemCount: true,
+      minAllowedPrice: true,
       items: {
         select: {
           productId: true,
@@ -596,6 +742,12 @@ export class PacksService {
           selectionMode: true,
           isRequired: true,
           sortOrder: true,
+          role: true,
+          minQuantity: true,
+          maxQuantity: true,
+          quantityEditable: true,
+          removalAllowed: true,
+          replacementAllowed: true,
         },
       },
       attributes: {
@@ -611,6 +763,21 @@ export class PacksService {
           attributeOption: {
             select: {
               code: true,
+            },
+          },
+        },
+      },
+      compatibilityProfiles: {
+        select: {
+          criterion: true,
+          mode: true,
+          values: {
+            select: {
+              attributeOption: {
+                select: {
+                  code: true,
+                },
+              },
             },
           },
         },
@@ -635,6 +802,10 @@ export class PacksService {
       priority: pack.priority,
       status: pack.status,
       isActive: pack.isActive,
+      isCustomizable: pack.isCustomizable,
+      minRequiredItems: pack.minRequiredItems ?? null,
+      maxItemCount: pack.maxItemCount ?? null,
+      minAllowedPrice: toMoneyNumber(pack.minAllowedPrice),
       itemCount: pack._count.items,
       attributeCount: pack._count.attributes,
       createdAt: pack.createdAt,
@@ -664,6 +835,19 @@ export class PacksService {
       hasValidConfiguration: structural.validationIssues.length === 0,
       validationIssues: structural.validationIssues,
       attributes: pack.attributes,
+      allowedAddOnIds: (pack.allowedAddOns ?? []).map(
+        (addOn: any) => addOn.productId,
+      ),
+      compatibility: (pack.compatibilityProfiles ?? []).map((profile: any) => ({
+        criterion: profile.criterion,
+        mode: profile.mode,
+        values: (profile.values ?? []).map((value: any) => ({
+          attributeOptionId: value.attributeOption.id,
+          optionCode: value.attributeOption.code,
+          optionLabel: value.attributeOption.label,
+          attributeGroupCode: value.attributeOption.attributeGroup.code,
+        })),
+      })),
       items: pack.items.map((item: any) => ({
         id: item.id,
         productId: item.productId,
@@ -672,6 +856,15 @@ export class PacksService {
         selectionMode: item.selectionMode,
         isRequired: item.isRequired,
         sortOrder: item.sortOrder,
+        role: item.role,
+        minQuantity: item.minQuantity ?? null,
+        maxQuantity: item.maxQuantity ?? null,
+        quantityEditable: item.quantityEditable,
+        removalAllowed: item.removalAllowed,
+        replacementAllowed: item.replacementAllowed,
+        allowedReferenceIds: (item.allowedReferences ?? []).map(
+          (allowed: any) => allowed.productReferenceId,
+        ),
         product: {
           ...item.product,
           basePrice: toMoneyNumber(item.product.basePrice),
@@ -815,6 +1008,11 @@ export class PacksService {
       priority: dto.priority ?? 0,
       status,
       isActive: status === PackStatus.ARCHIVED ? false : (dto.isActive ?? true),
+      isCustomizable: dto.isCustomizable ?? false,
+      minRequiredItems: dto.minRequiredItems ?? null,
+      maxItemCount: dto.maxItemCount ?? null,
+      minAllowedPrice: dto.minAllowedPrice ?? null,
+      allowedAddOnIds: dto.allowedAddOnIds ?? [],
     };
   }
 
@@ -862,6 +1060,23 @@ export class PacksService {
         status === PackStatus.ARCHIVED
           ? false
           : (dto.isActive ?? existing.isActive),
+      isCustomizable: dto.isCustomizable ?? existing.isCustomizable,
+      minRequiredItems: Object.prototype.hasOwnProperty.call(
+        dto,
+        'minRequiredItems',
+      )
+        ? (dto.minRequiredItems ?? null)
+        : existing.minRequiredItems,
+      maxItemCount: Object.prototype.hasOwnProperty.call(dto, 'maxItemCount')
+        ? (dto.maxItemCount ?? null)
+        : existing.maxItemCount,
+      minAllowedPrice: Object.prototype.hasOwnProperty.call(
+        dto,
+        'minAllowedPrice',
+      )
+        ? (dto.minAllowedPrice ?? null)
+        : toMoneyNumber(existing.minAllowedPrice),
+      allowedAddOnIds: dto.allowedAddOnIds ?? [],
     };
   }
 
@@ -901,6 +1116,99 @@ export class PacksService {
         'Use either discountAmount or discountPercentage, not both.',
       );
     }
+  }
+
+  /**
+   * Pack Core Evolution (Phase 2) — structural validation of the additive,
+   * foundation-only Pack-level rule fields. These are persisted/returned but
+   * do NOT drive runtime behavior, pricing, or availability in this phase.
+   */
+  private validatePackRules(state: PackScalarState) {
+    if (state.minRequiredItems != null && state.minRequiredItems < 0) {
+      throw new BadRequestException('minRequiredItems cannot be negative.');
+    }
+
+    if (state.maxItemCount != null && state.maxItemCount < 0) {
+      throw new BadRequestException('maxItemCount cannot be negative.');
+    }
+
+    if (
+      state.minRequiredItems != null &&
+      state.maxItemCount != null &&
+      state.minRequiredItems > state.maxItemCount
+    ) {
+      throw new BadRequestException(
+        'minRequiredItems cannot be greater than maxItemCount.',
+      );
+    }
+
+    if (state.minAllowedPrice != null && state.minAllowedPrice < 0) {
+      throw new BadRequestException('minAllowedPrice cannot be negative.');
+    }
+  }
+
+  /**
+   * Pack Core Evolution (Phase 2) — resolve the additive, foundation-only
+   * allowed add-on product set. Validates referential integrity only; the
+   * relation is not consumed by any runtime business logic in this phase.
+   */
+  private async resolveAllowedAddOns(
+    productIds: string[],
+  ): Promise<Prisma.PackAllowedAddOnCreateWithoutPackInput[]> {
+    const seen = new Set<string>();
+    const resolved: Prisma.PackAllowedAddOnCreateWithoutPackInput[] = [];
+
+    for (const productId of productIds) {
+      if (seen.has(productId)) {
+        continue;
+      }
+      seen.add(productId);
+
+      const product = await this.prisma.product.findUnique({
+        where: { id: productId },
+        select: { id: true },
+      });
+
+      if (!product) {
+        throw new NotFoundException(
+          `Add-on product ${productId} was not found.`,
+        );
+      }
+
+      resolved.push({ product: { connect: { id: productId } } });
+    }
+
+    return resolved;
+  }
+
+  private toItemCreateInput(
+    items: ResolvedPackItem[],
+  ): Prisma.PackItemCreateWithoutPackInput[] {
+    return items.map((item) => ({
+      product: { connect: { id: item.productId } },
+      ...(item.productReferenceId
+        ? { productReference: { connect: { id: item.productReferenceId } } }
+        : {}),
+      quantity: item.quantity,
+      selectionMode: item.selectionMode,
+      isRequired: item.isRequired,
+      sortOrder: item.sortOrder,
+      role: item.role,
+      minQuantity: item.minQuantity,
+      maxQuantity: item.maxQuantity,
+      quantityEditable: item.quantityEditable,
+      removalAllowed: item.removalAllowed,
+      replacementAllowed: item.replacementAllowed,
+      ...(item.allowedReferenceIds.length
+        ? {
+            allowedReferences: {
+              create: item.allowedReferenceIds.map((referenceId) => ({
+                productReference: { connect: { id: referenceId } },
+              })),
+            },
+          }
+        : {}),
+    }));
   }
 
   private validatePackConfiguration(
@@ -1023,6 +1331,11 @@ export class PacksService {
         }
       }
 
+      const allowedReferenceIds = this.resolveAllowedReferenceIds(
+        item,
+        product,
+      );
+
       resolved.push({
         productId: item.productId,
         productReferenceId:
@@ -1033,10 +1346,61 @@ export class PacksService {
         selectionMode: item.selectionMode,
         isRequired,
         sortOrder: item.sortOrder ?? 0,
+        role: item.role ?? PackItemRole.FIXED,
+        minQuantity: item.minQuantity ?? null,
+        maxQuantity: item.maxQuantity ?? null,
+        quantityEditable: item.quantityEditable ?? false,
+        removalAllowed: item.removalAllowed ?? false,
+        replacementAllowed: item.replacementAllowed ?? false,
+        allowedReferenceIds,
       });
     }
 
     return resolved;
+  }
+
+  /**
+   * Pack Core Evolution (Phase 2) — structural validation of the additive,
+   * foundation-only item quantity rules + allowed-reference set. These rules
+   * are persisted/returned but do NOT drive runtime behavior in this phase.
+   */
+  private resolveAllowedReferenceIds(
+    item: PackItemInputDto,
+    product: { name: string; references: { id: string }[] },
+  ): string[] {
+    if (item.minQuantity != null && item.minQuantity < 0) {
+      throw new BadRequestException('minQuantity cannot be negative.');
+    }
+
+    if (item.maxQuantity != null && item.maxQuantity < 0) {
+      throw new BadRequestException('maxQuantity cannot be negative.');
+    }
+
+    if (
+      item.minQuantity != null &&
+      item.maxQuantity != null &&
+      item.minQuantity > item.maxQuantity
+    ) {
+      throw new BadRequestException(
+        'minQuantity cannot be greater than maxQuantity.',
+      );
+    }
+
+    const allowedReferenceIds = Array.from(
+      new Set(item.allowedReferenceIds ?? []),
+    );
+
+    for (const referenceId of allowedReferenceIds) {
+      if (
+        !product.references.some((reference) => reference.id === referenceId)
+      ) {
+        throw new BadRequestException(
+          `Allowed reference ${referenceId} must belong to product ${product.name}.`,
+        );
+      }
+    }
+
+    return allowedReferenceIds;
   }
 
   private async resolveAttributes(
@@ -1099,6 +1463,112 @@ export class PacksService {
     return resolved;
   }
 
+  /**
+   * Pack Core Evolution (Phase 2.5) — resolve the additive, foundation-only Pack
+   * Compatibility Profile. Every value is normalized to a canonical
+   * AttributeOption (single source of truth shared with the quiz); this method
+   * performs structural/data-integrity validation only and the resulting data is
+   * NOT consumed by recommendation, pricing, cart, checkout, or stock logic in
+   * this phase.
+   *
+   * Validation:
+   * - each criterion may appear at most once;
+   * - UNIVERSAL criteria must NOT carry option codes;
+   * - RESTRICTED criteria must carry >= 1 option code;
+   * - every option code must resolve to an active AttributeOption belonging to
+   *   the criterion's canonical group (cross-dimension links are rejected);
+   * - duplicate option codes within a criterion are de-duplicated.
+   */
+  private async resolveCompatibility(
+    inputs: PackCompatibilityInputDto[],
+  ): Promise<ResolvedPackCompatibility[]> {
+    const seenCriteria = new Set<PackCompatibilityCriterion>();
+    const resolved: ResolvedPackCompatibility[] = [];
+
+    for (const input of inputs) {
+      if (seenCriteria.has(input.criterion)) {
+        throw new BadRequestException(
+          `Duplicate compatibility criterion ${input.criterion}.`,
+        );
+      }
+      seenCriteria.add(input.criterion);
+
+      const mode = input.mode ?? PackCompatibilityMode.RESTRICTED;
+      const optionCodes = Array.from(new Set(input.optionCodes ?? []));
+
+      if (mode === PackCompatibilityMode.UNIVERSAL) {
+        if (optionCodes.length > 0) {
+          throw new BadRequestException(
+            `UNIVERSAL criterion ${input.criterion} must not include option codes.`,
+          );
+        }
+
+        resolved.push({ criterion: input.criterion, mode, optionIds: [] });
+        continue;
+      }
+
+      if (optionCodes.length === 0) {
+        throw new BadRequestException(
+          `RESTRICTED criterion ${input.criterion} must include at least one option code.`,
+        );
+      }
+
+      const groupCode = PACK_COMPATIBILITY_GROUP_CODE[input.criterion];
+      const group = await this.prisma.attributeGroup.findFirst({
+        where: { code: groupCode, isActive: true },
+        select: { id: true },
+      });
+
+      if (!group) {
+        throw new BadRequestException(
+          `Attribute group ${groupCode} for criterion ${input.criterion} was not found or is inactive.`,
+        );
+      }
+
+      const optionIds: string[] = [];
+      for (const code of optionCodes) {
+        const option = await this.prisma.attributeOption.findFirst({
+          where: {
+            attributeGroupId: group.id,
+            code,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        if (!option) {
+          throw new BadRequestException(
+            `Compatibility option ${code} was not found, inactive, or does not belong to ${groupCode} (criterion ${input.criterion}).`,
+          );
+        }
+
+        optionIds.push(option.id);
+      }
+
+      resolved.push({ criterion: input.criterion, mode, optionIds });
+    }
+
+    return resolved;
+  }
+
+  private toCompatibilityCreateInput(
+    compatibility: ResolvedPackCompatibility[],
+  ): Prisma.PackCompatibilityProfileCreateWithoutPackInput[] {
+    return compatibility.map((profile) => ({
+      criterion: profile.criterion,
+      mode: profile.mode,
+      ...(profile.optionIds.length
+        ? {
+            values: {
+              create: profile.optionIds.map((attributeOptionId) => ({
+                attributeOption: { connect: { id: attributeOptionId } },
+              })),
+            },
+          }
+        : {}),
+    }));
+  }
+
   private async ensureUniqueSlug(slug: string, currentId?: string) {
     const existing = await this.prisma.pack.findUnique({
       where: { slug },
@@ -1126,6 +1596,10 @@ export class PacksService {
       priority: state.priority,
       status: state.status,
       isActive: state.isActive,
+      isCustomizable: state.isCustomizable,
+      minRequiredItems: state.minRequiredItems,
+      maxItemCount: state.maxItemCount,
+      minAllowedPrice: state.minAllowedPrice,
     };
   }
 

@@ -57,10 +57,38 @@ enum SelectionMode {
   CUSTOMER_CHOICE
 }
 
+enum PackItemRole {
+  FIXED
+  REQUIRED_SELECTABLE
+  OPTIONAL_INCLUDED
+  OPTIONAL_ADDON
+}
+
 enum MatchType {
   COMPATIBLE
   NOT_COMPATIBLE
   BOOST
+}
+
+// Pack Core Evolution (Phase 2.5) — the five admin-managed compatibility
+// dimensions a Pack can express suitability for. Each criterion maps to a
+// canonical AttributeGroup (single source of truth shared with the quiz):
+//   SKIN_TONE -> SKIN_COLOR, SKIN_TYPE -> SKIN_TYPE, MAKEUP_STYLE -> STYLE,
+//   BUDGET -> BUDGET, OCCASION -> OCCASION.
+enum PackCompatibilityCriterion {
+  SKIN_TONE
+  SKIN_TYPE
+  MAKEUP_STYLE
+  BUDGET
+  OCCASION
+}
+
+// Per-criterion applicability mode. Absence of a profile row for a (pack,
+// criterion) means UNCONFIGURED (legacy default) — distinct from an explicit
+// UNIVERSAL row. UNIVERSAL needs no values; RESTRICTED needs >= 1 value.
+enum PackCompatibilityMode {
+  UNIVERSAL
+  RESTRICTED
 }
 
 enum RecommendationTargetType {
@@ -166,14 +194,16 @@ model AttributeGroup {
 }
 
 model AttributeOption {
-  id               String  @id @default(uuid()) @db.Uuid
-  attributeGroupId String  @map("attribute_group_id") @db.Uuid
-  code             String  @db.VarChar(80)
-  label            String  @db.VarChar(120)
+  id               String   @id @default(uuid()) @db.Uuid
+  attributeGroupId String   @map("attribute_group_id") @db.Uuid
+  code             String   @db.VarChar(80)
+  label            String   @db.VarChar(120)
   description      String?
-  imageUrl         String? @map("image_url")
-  sortOrder        Int     @default(0) @map("sort_order")
-  isActive         Boolean @default(true) @map("is_active")
+  imageUrl         String?  @map("image_url")
+  sortOrder        Int      @default(0) @map("sort_order")
+  isActive         Boolean  @default(true) @map("is_active")
+  minNumericValue  Decimal? @map("min_numeric_value") @db.Decimal(10, 2)
+  maxNumericValue  Decimal? @map("max_numeric_value") @db.Decimal(10, 2)
 
   attributeGroup AttributeGroup @relation(fields: [attributeGroupId], references: [id], onDelete: Cascade)
 
@@ -182,6 +212,7 @@ model AttributeOption {
   productReferenceAttributes ProductReferenceAttribute[]
   productAttributes          ProductAttribute[]
   packAttributes             PackAttribute[]
+  packCompatibilityValues    PackCompatibilityValue[]
 
   @@unique([attributeGroupId, code])
   @@index([attributeGroupId])
@@ -346,6 +377,7 @@ model Product {
   attributes                ProductAttribute[]
   images                    ProductImage[]
   packItems                 PackItem[]
+  packAllowedAddOns         PackAllowedAddOn[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
 
@@ -386,6 +418,8 @@ model ProductReference {
   attributes                ProductReferenceAttribute[]
   image                     ProductReferenceImage?
   packItems                 PackItem[]
+  packItemAllowedReferences PackItemAllowedReference[]
+  packAllowedAddOns         PackAllowedAddOn[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
 
@@ -463,15 +497,25 @@ model Pack {
   priority           Int        @default(0)
   status             PackStatus @default(DRAFT)
   isActive           Boolean    @default(true) @map("is_active")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  // Pack Core Evolution (Phase 2) — additive customization foundation.
+  // Foundation-only: stored and returned, but inert in current runtime logic.
+  isCustomizable   Boolean  @default(false) @map("is_customizable")
+  minRequiredItems Int?     @map("min_required_items")
+  maxItemCount     Int?     @map("max_item_count")
+  minAllowedPrice  Decimal? @map("min_allowed_price") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   items                 PackItem[]
   attributes            PackAttribute[]
   images                PackImage[]
+  allowedAddOns         PackAllowedAddOn[]
+  compatibilityProfiles PackCompatibilityProfile[]
   recommendationResults RecommendationResult[]
-  orders                Order[]                @relation("SelectedPackOrders")
-  orderItems            OrderItem[]            @relation("PackOrderItems")
+  orders                Order[]                    @relation("SelectedPackOrders")
+  orderItems            OrderItem[]                @relation("PackOrderItems")
 
   @@index([status])
   @@index([isActive])
@@ -489,19 +533,31 @@ model PackItem {
   selectionMode      SelectionMode @default(AUTO_BEST_REFERENCE) @map("selection_mode")
   isRequired         Boolean       @default(true) @map("is_required")
   sortOrder          Int           @default(0) @map("sort_order")
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  // Pack Core Evolution (Phase 2) — additive role taxonomy & customization rules.
+  // Foundation-only: `selectionMode`/`isRequired` remain authoritative at runtime.
+  role               PackItemRole @default(FIXED)
+  minQuantity        Int?         @map("min_quantity")
+  maxQuantity        Int?         @map("max_quantity")
+  quantityEditable   Boolean      @default(false) @map("quantity_editable")
+  removalAllowed     Boolean      @default(false) @map("removal_allowed")
+  replacementAllowed Boolean      @default(false) @map("replacement_allowed")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   pack             Pack              @relation(fields: [packId], references: [id], onDelete: Cascade)
   product          Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
   productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: Restrict)
 
+  allowedReferences         PackItemAllowedReference[]
   recommendationResultItems RecommendationResultItem[]
 
   @@index([packId])
   @@index([productId])
   @@index([productReferenceId])
   @@index([selectionMode])
+  @@index([role])
   @@map("pack_items")
 }
 
@@ -525,6 +581,88 @@ model PackAttribute {
   @@index([attributeOptionId])
   @@index([matchType])
   @@map("pack_attributes")
+}
+
+/**
+ * Pack Core Evolution (Phase 2) — additive customization foundation tables.
+ * These store the *allowed* selections for future customizable Packs. They are
+ * foundation data only and are NOT consumed by recommendation, pricing, cart,
+ * checkout, order, or stock logic in this phase.
+ */
+
+model PackItemAllowedReference {
+  id                 String   @id @default(uuid()) @db.Uuid
+  packItemId         String   @map("pack_item_id") @db.Uuid
+  productReferenceId String   @map("product_reference_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  packItem         PackItem         @relation(fields: [packItemId], references: [id], onDelete: Cascade)
+  productReference ProductReference @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([packItemId, productReferenceId])
+  @@index([packItemId])
+  @@index([productReferenceId])
+  @@map("pack_item_allowed_references")
+}
+
+model PackAllowedAddOn {
+  id                 String   @id @default(uuid()) @db.Uuid
+  packId             String   @map("pack_id") @db.Uuid
+  productId          String   @map("product_id") @db.Uuid
+  productReferenceId String?  @map("product_reference_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  pack             Pack              @relation(fields: [packId], references: [id], onDelete: Cascade)
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, productId, productReferenceId])
+  @@index([packId])
+  @@index([productId])
+  @@index([productReferenceId])
+  @@map("pack_allowed_add_ons")
+}
+
+/**
+ * Pack Core Evolution (Phase 2.5) — Pack Compatibility Profile foundation.
+ * Declares, per Pack and per supported criterion, which canonical customer-answer
+ * values a Pack is suitable for. Stored as normalized links to canonical
+ * AttributeOption records (single source of truth shared with the quiz) — never
+ * free text. This data is admin-managed foundation only and is NOT consumed by
+ * the recommendation engine, scoring, filtering, pricing, cart, checkout, order,
+ * or stock logic in this phase. A missing profile row for a (pack, criterion)
+ * pair means UNCONFIGURED.
+ */
+model PackCompatibilityProfile {
+  id        String                     @id @default(uuid()) @db.Uuid
+  packId    String                     @map("pack_id") @db.Uuid
+  criterion PackCompatibilityCriterion
+  mode      PackCompatibilityMode      @default(RESTRICTED)
+  createdAt DateTime                   @default(now()) @map("created_at")
+  updatedAt DateTime                   @updatedAt @map("updated_at")
+
+  pack   Pack                     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  values PackCompatibilityValue[]
+
+  @@unique([packId, criterion])
+  @@index([packId])
+  @@index([criterion])
+  @@map("pack_compatibility_profiles")
+}
+
+model PackCompatibilityValue {
+  id                String   @id @default(uuid()) @db.Uuid
+  profileId         String   @map("profile_id") @db.Uuid
+  attributeOptionId String   @map("attribute_option_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  profile         PackCompatibilityProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  attributeOption AttributeOption          @relation(fields: [attributeOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([profileId, attributeOptionId])
+  @@index([profileId])
+  @@index([attributeOptionId])
+  @@map("pack_compatibility_values")
 }
 
 /**

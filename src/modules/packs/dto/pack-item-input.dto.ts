@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SelectionMode } from '@prisma/client';
+import { PackItemRole, SelectionMode } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -44,4 +45,58 @@ export class PackItemInputDto {
   @Type(() => Number)
   @IsInt()
   sortOrder?: number;
+
+  /**
+   * Pack Core Evolution (Phase 2) — additive role taxonomy & customization
+   * rules. Foundation-only: persisted and returned, but inert in current
+   * runtime logic (`selectionMode`/`isRequired` remain authoritative).
+   */
+  @ApiPropertyOptional({
+    enum: PackItemRole,
+    default: PackItemRole.FIXED,
+    description:
+      'Foundation-only role taxonomy. Defaults to FIXED. Not authoritative in Phase 2.',
+  })
+  @IsOptional()
+  @IsEnum(PackItemRole)
+  role?: PackItemRole;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minQuantity?: number | null;
+
+  @ApiPropertyOptional({ example: 3 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxQuantity?: number | null;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  quantityEditable?: boolean;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  removalAllowed?: boolean;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  replacementAllowed?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Foundation-only set of allowed ProductReference IDs (must belong to this item product). Inert in Phase 2.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  allowedReferenceIds?: string[];
 }

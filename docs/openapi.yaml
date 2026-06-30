@@ -3143,6 +3143,14 @@ components:
         label:
           type: string
           example: Medium
+        minNumericValue:
+          type: object
+          example: 150
+          nullable: true
+        maxNumericValue:
+          type: object
+          example: 220
+          nullable: true
       required:
         - id
         - code
@@ -3239,6 +3247,16 @@ components:
           type: number
           example: 3
           default: 0
+        minNumericValue:
+          type: object
+          example: 150
+          nullable: true
+          description: Budget-only numeric lower bound.
+        maxNumericValue:
+          type: object
+          example: 220
+          nullable: true
+          description: Budget-only numeric upper bound.
         isActive:
           type: boolean
           example: true
@@ -3261,6 +3279,16 @@ components:
         sortOrder:
           type: number
           example: 3
+        minNumericValue:
+          type: object
+          example: 150
+          nullable: true
+          description: Budget-only numeric lower bound.
+        maxNumericValue:
+          type: object
+          example: 220
+          nullable: true
+          description: Budget-only numeric upper bound.
         isActive:
           type: boolean
           example: true
@@ -4997,6 +5025,40 @@ components:
           type: number
           example: 1
           default: 0
+        role:
+          type: string
+          enum:
+            - FIXED
+            - REQUIRED_SELECTABLE
+            - OPTIONAL_INCLUDED
+            - OPTIONAL_ADDON
+          default: FIXED
+          description: Foundation-only role taxonomy. Defaults to FIXED. Not authoritative
+            in Phase 2.
+        minQuantity:
+          type: object
+          example: 1
+        maxQuantity:
+          type: object
+          example: 3
+        quantityEditable:
+          type: boolean
+          example: false
+          default: false
+        removalAllowed:
+          type: boolean
+          example: false
+          default: false
+        replacementAllowed:
+          type: boolean
+          example: false
+          default: false
+        allowedReferenceIds:
+          description: Foundation-only set of allowed ProductReference IDs (must belong to
+            this item product). Inert in Phase 2.
+          type: array
+          items:
+            type: string
       required:
         - productId
         - selectionMode
@@ -5028,6 +5090,37 @@ components:
         - attributeOptionCode
         - matchType
         - scoreValue
+    PackCompatibilityInputDto:
+      type: object
+      properties:
+        criterion:
+          type: string
+          enum:
+            - SKIN_TONE
+            - SKIN_TYPE
+            - MAKEUP_STYLE
+            - BUDGET
+            - OCCASION
+          example: SKIN_TONE
+        mode:
+          type: string
+          enum:
+            - UNIVERSAL
+            - RESTRICTED
+          default: RESTRICTED
+          description: RESTRICTED (default) requires >= 1 optionCodes. UNIVERSAL allows
+            none.
+        optionCodes:
+          example:
+            - LIGHT
+            - MEDIUM
+          description: Canonical AttributeOption codes within the criterion group.
+            Required when RESTRICTED; must be empty/omitted when UNIVERSAL.
+          type: array
+          items:
+            type: string
+      required:
+        - criterion
     CreatePackDto:
       type: object
       properties:
@@ -5084,6 +5177,25 @@ components:
           type: boolean
           example: true
           default: true
+        isCustomizable:
+          type: boolean
+          example: false
+          default: false
+          description: Foundation-only flag. Does NOT activate customization in Phase 2.
+        minRequiredItems:
+          type: object
+          example: 2
+        maxItemCount:
+          type: object
+          example: 6
+        minAllowedPrice:
+          type: object
+          example: 150
+        allowedAddOnIds:
+          description: Foundation-only set of allowed add-on Product IDs. Inert in Phase 2.
+          type: array
+          items:
+            type: string
         items:
           type: array
           items:
@@ -5092,6 +5204,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PackAttributeInputDto"
+        compatibility:
+          description: Per-criterion compatibility profile (skin tone, skin type, makeup
+            style, budget, occasion). Foundation-only; not consumed by
+            recommendation in this phase.
+          type: array
+          items:
+            $ref: "#/components/schemas/PackCompatibilityInputDto"
       required:
         - name
         - slug
@@ -5146,6 +5265,25 @@ components:
           type: boolean
           example: true
           default: true
+        isCustomizable:
+          type: boolean
+          example: false
+          default: false
+          description: Foundation-only flag. Does NOT activate customization in Phase 2.
+        minRequiredItems:
+          type: object
+          example: 2
+        maxItemCount:
+          type: object
+          example: 6
+        minAllowedPrice:
+          type: object
+          example: 150
+        allowedAddOnIds:
+          description: Foundation-only set of allowed add-on Product IDs. Inert in Phase 2.
+          type: array
+          items:
+            type: string
         items:
           type: array
           items:
@@ -5154,6 +5292,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PackAttributeInputDto"
+        compatibility:
+          description: Per-criterion compatibility profile (skin tone, skin type, makeup
+            style, budget, occasion). Foundation-only; not consumed by
+            recommendation in this phase.
+          type: array
+          items:
+            $ref: "#/components/schemas/PackCompatibilityInputDto"
     CreateRecommendationDto:
       type: object
       properties:
@@ -5163,6 +5308,27 @@ components:
           example: 00000000-0000-4000-8000-000000000001
       required:
         - customerProfileId
+    SelectableReferenceOptionResponse:
+      type: object
+      properties:
+        referenceId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        referenceName:
+          type: string
+          example: RF2 Medium Warm
+        referenceImage:
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/MediaImageResponse"
+        quantity:
+          type: number
+          example: 1
+      required:
+        - referenceId
+        - referenceName
+        - quantity
     RecommendationResultItemResponse:
       type: object
       properties:
@@ -5178,13 +5344,27 @@ components:
         product:
           $ref: "#/components/schemas/ProductResponse"
         selectedProductReference:
-          $ref: "#/components/schemas/ProductReferenceResponse"
+          nullable: true
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/ProductReferenceResponse"
+        selectionRequired:
+          type: boolean
+          example: false
+          description: True when this is a required customer-choice slot that is eligible
+            but awaiting the customer’s final reference selection. The engine
+            does not pick a reference for such a slot.
+        availableOptions:
+          description: Valid, compatible, in-stock references the customer may choose from
+            when selectionRequired is true.
+          type: array
+          items:
+            $ref: "#/components/schemas/SelectableReferenceOptionResponse"
       required:
         - id
         - quantity
         - itemScore
         - product
-        - selectedProductReference
     RecommendationPackResponse:
       type: object
       properties:
@@ -5203,6 +5383,19 @@ components:
         reasonSummary:
           type: string
           example: Strong match for your selected profile.
+        customerReasons:
+          example:
+            - Matches your makeup style
+            - Fits your selected budget
+          type: array
+          items:
+            type: string
+        recommendationType:
+          type: string
+          enum:
+            - BEST_MATCH
+            - ALTERNATIVE
+          example: BEST_MATCH
         pack:
           $ref: "#/components/schemas/PackResponse"
         items:

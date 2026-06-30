@@ -98,6 +98,12 @@ export class AttributeOptionResponse {
 
   @ApiProperty({ example: 'Medium' })
   label!: string;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  minNumericValue?: number | null;
+
+  @ApiPropertyOptional({ example: 220, nullable: true })
+  maxNumericValue?: number | null;
 }
 
 export class AttributeGroupResponse {
@@ -806,6 +812,20 @@ export class PackResponse {
   images!: MediaImageResponse[];
 }
 
+export class SelectableReferenceOptionResponse {
+  @ApiProperty({ example: uuidExample })
+  referenceId!: string;
+
+  @ApiProperty({ example: 'RF2 Medium Warm' })
+  referenceName!: string;
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  referenceImage?: MediaImageResponse | null;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+}
+
 export class RecommendationResultItemResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;
@@ -819,8 +839,22 @@ export class RecommendationResultItemResponse {
   @ApiProperty({ type: ProductResponse })
   product!: ProductResponse;
 
-  @ApiProperty({ type: ProductReferenceResponse })
-  selectedProductReference!: ProductReferenceResponse;
+  @ApiPropertyOptional({ type: ProductReferenceResponse, nullable: true })
+  selectedProductReference?: ProductReferenceResponse | null;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'True when this is a required customer-choice slot that is eligible but awaiting the customer’s final reference selection. The engine does not pick a reference for such a slot.',
+  })
+  selectionRequired?: boolean;
+
+  @ApiPropertyOptional({
+    type: [SelectableReferenceOptionResponse],
+    description:
+      'Valid, compatible, in-stock references the customer may choose from when selectionRequired is true.',
+  })
+  availableOptions?: SelectableReferenceOptionResponse[];
 }
 
 export class RecommendationPackResponse {
@@ -838,6 +872,18 @@ export class RecommendationPackResponse {
 
   @ApiProperty({ example: 'Strong match for your selected profile.' })
   reasonSummary!: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['Matches your makeup style', 'Fits your selected budget'],
+  })
+  customerReasons?: string[];
+
+  @ApiPropertyOptional({
+    enum: ['BEST_MATCH', 'ALTERNATIVE'],
+    example: 'BEST_MATCH',
+  })
+  recommendationType?: 'BEST_MATCH' | 'ALTERNATIVE';
 
   @ApiProperty({ type: PackResponse })
   pack!: PackResponse;

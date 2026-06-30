@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { MatchType, ProductStatus, SelectionMode } from '@prisma/client';
+import {
+  MatchType,
+  PackCompatibilityCriterion,
+  PackCompatibilityMode,
+  PriceMode,
+  Prisma,
+  ProductStatus,
+  SelectionMode,
+} from '@prisma/client';
 
 type AnswerMap = Record<string, string>;
 
@@ -21,6 +29,8 @@ export interface EngineReference {
   id: string;
   referenceCode: string;
   referenceName: string;
+  priceOverride?: Prisma.Decimal | number | null;
+  priceDelta?: Prisma.Decimal | number | null;
   stockQuantity: number;
   reservedQuantity: number;
   isActive: boolean;
@@ -31,6 +41,7 @@ export interface EngineReference {
 export interface EngineProduct {
   id: string;
   name: string;
+  basePrice?: Prisma.Decimal | number | null;
   isActive: boolean;
   status: ProductStatus;
   images?: unknown[];
@@ -47,6 +58,17 @@ export interface EnginePackItem {
   product: EngineProduct;
 }
 
+/**
+ * Pack Recommendation MVP — the Pack's compatibility profile for one criterion,
+ * loaded from the PackCompatibilityProfile foundation. Consumed only by the MVP
+ * matching layer; the engine itself ignores it (its scoring stays unchanged).
+ */
+export interface EngineCompatibilityProfile {
+  criterion: PackCompatibilityCriterion;
+  mode: PackCompatibilityMode;
+  values: Array<{ attributeOption: { code: string } }>;
+}
+
 export interface EnginePack {
   id: string;
   name: string;
@@ -54,20 +76,42 @@ export interface EnginePack {
   images?: unknown[];
   attributes: EngineAttribute[];
   items: EnginePackItem[];
+  // Pack Recommendation MVP — additive, optional inputs for the five-criterion
+  // algorithm. The legacy engine does not read these, so existing scoring is
+  // byte-identical when they are absent.
+  priceMode?: PriceMode;
+  fixedPrice?: Prisma.Decimal | number | null;
+  discountAmount?: Prisma.Decimal | number | null;
+  discountPercentage?: Prisma.Decimal | number | null;
+  compatibilityProfiles?: EngineCompatibilityProfile[];
+}
+
+export interface SelectableReferenceOption {
+  referenceId: string;
+  referenceName: string;
+  referenceImage?: unknown;
+  quantity: number;
 }
 
 export interface SelectedRecommendationItem {
   packItemId: string;
   productId: string;
   productName: string;
-  referenceId: string;
-  referenceName: string;
+  referenceId: string | null;
+  referenceName: string | null;
   productImages?: unknown[];
   referenceImage?: unknown;
   quantity: number;
   itemScore: number;
   itemMaxScore: number;
   scoredForAverage: boolean;
+  /**
+   * True for a required customer-choice slot that is eligible but awaiting the
+   * customer's final reference selection. The engine intentionally does not pick
+   * a concrete reference for such a slot; `availableOptions` lists the valid ones.
+   */
+  selectionRequired?: boolean;
+  availableOptions?: SelectableReferenceOption[];
   reason: Record<string, unknown>;
 }
 
@@ -98,8 +142,16 @@ export interface EngineRecommendation {
       }
     >;
     details: Record<string, unknown>;
+    // Pack Recommendation MVP — per-criterion compatibility breakdown, set by the
+    // use-case for the final ranked results (absent in the raw engine output).
+    compatibility?: Record<string, unknown>;
   };
   selectedItems: SelectedRecommendationItem[];
+  // Pack Recommendation MVP — set by RecommendationUseCaseService on the final,
+  // re-ranked top results. Undefined on raw engine output.
+  compatibilityScore?: number;
+  customerReasons?: string[];
+  recommendationType?: 'BEST_MATCH' | 'ALTERNATIVE';
 }
 
 interface AttributeScore {
@@ -306,10 +358,6 @@ export class RecommendationEngineService {
     answers: AnswerMap,
     ruleScores: RuleScores,
   ): SelectedRecommendationItem | null {
-    if (item.selectionMode === SelectionMode.CUSTOMER_CHOICE) {
-      return null;
-    }
-
     const productScore = this.scoreAttributes(
       item.product.attributes ?? [],
       answers,
@@ -318,6 +366,10 @@ export class RecommendationEngineService {
 
     if (!productScore) {
       return null;
+    }
+
+    if (item.selectionMode === SelectionMode.CUSTOMER_CHOICE) {
+      return this.selectCustomerChoice(item, productScore, answers, ruleScores);
     }
 
     if (item.selectionMode === SelectionMode.FIXED_REFERENCE) {
@@ -363,10 +415,83 @@ export class RecommendationEngineService {
           return right.itemScore - left.itemScore;
         }
 
-        return left.referenceName.localeCompare(right.referenceName);
+        return (left.referenceName ?? '').localeCompare(
+          right.referenceName ?? '',
+        );
       })[0];
 
     return bestReference ?? null;
+  }
+
+  /**
+   * A required customer-choice slot stays eligible as long as at least one
+   * compatible, active, in-stock reference exists. The engine never commits to a
+   * concrete reference here (that is the customer's decision); it only confirms
+   * eligibility and surfaces the valid options. Returns `null` only when there is
+   * zero valid candidate, in which case the slot fails and the pack is excluded.
+   */
+  private selectCustomerChoice(
+    item: EnginePackItem,
+    productScore: AttributeScore,
+    answers: AnswerMap,
+    ruleScores: RuleScores,
+  ): SelectedRecommendationItem | null {
+    const candidates = item.product.references
+      .filter((reference) => this.isReferenceAvailable(reference))
+      .filter((reference) =>
+        this.isReferenceCompatibleWithAnswers(item.product, reference, answers),
+      )
+      .map((reference) =>
+        this.scoreReference(
+          item,
+          reference,
+          productScore,
+          answers,
+          ruleScores,
+          'CUSTOMER_CHOICE',
+        ),
+      )
+      .filter(
+        (selectedReference): selectedReference is SelectedRecommendationItem =>
+          selectedReference !== null,
+      );
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    const availableOptions: SelectableReferenceOption[] = candidates
+      .slice()
+      .sort((left, right) =>
+        (left.referenceName ?? '').localeCompare(right.referenceName ?? ''),
+      )
+      .map((candidate) => ({
+        referenceId: candidate.referenceId as string,
+        referenceName: candidate.referenceName as string,
+        referenceImage: candidate.referenceImage,
+        quantity: candidate.quantity,
+      }));
+
+    return {
+      packItemId: item.id,
+      productId: item.product.id,
+      productName: item.product.name,
+      referenceId: null,
+      referenceName: null,
+      productImages: item.product.images,
+      referenceImage: null,
+      quantity: item.quantity,
+      itemScore: 0,
+      itemMaxScore: 0,
+      scoredForAverage: false,
+      selectionRequired: true,
+      availableOptions,
+      reason: {
+        selectionMode: 'CUSTOMER_CHOICE',
+        selectionRequired: true,
+        availableOptionCount: availableOptions.length,
+      },
+    };
   }
 
   private scoreReference(

@@ -125,6 +125,8 @@ export class AttributesService {
             imageUrl: true,
             sortOrder: true,
             isActive: true,
+            minNumericValue: true,
+            maxNumericValue: true,
           },
         },
         quizQuestions: {
@@ -145,7 +147,11 @@ export class AttributesService {
 
     return {
       ...this.toAdminGroupListResponse(group),
-      options: group.options,
+      options: group.options.map((option) => ({
+        ...option,
+        minNumericValue: this.toNullableNumber(option.minNumericValue),
+        maxNumericValue: this.toNullableNumber(option.maxNumericValue),
+      })),
       quizQuestions: group.quizQuestions,
       productReferenceAttributeUsageCount:
         group._count.productReferenceAttributes,
@@ -266,7 +272,7 @@ export class AttributesService {
   ) {
     const group = await this.prisma.attributeGroup.findUnique({
       where: { id: attributeGroupId },
-      select: { id: true, isActive: true },
+      select: { id: true, code: true, isActive: true },
     });
 
     if (!group) {
@@ -282,6 +288,12 @@ export class AttributesService {
     }
 
     await this.ensureUniqueOptionCode(attributeGroupId, dto.code);
+    this.validateOptionNumericRange({
+      groupCode: group.code,
+      isActive: dto.isActive ?? true,
+      minNumericValue: dto.minNumericValue,
+      maxNumericValue: dto.maxNumericValue,
+    });
 
     const option = await this.prisma.attributeOption.create({
       data: {
@@ -292,6 +304,10 @@ export class AttributesService {
         imageUrl: dto.imageUrl ?? null,
         sortOrder: dto.sortOrder ?? 0,
         isActive: dto.isActive ?? true,
+        minNumericValue:
+          group.code === 'BUDGET' ? (dto.minNumericValue ?? null) : null,
+        maxNumericValue:
+          group.code === 'BUDGET' ? (dto.maxNumericValue ?? null) : null,
       },
       select: this.adminOptionSelect(true),
     });
@@ -304,8 +320,12 @@ export class AttributesService {
       where: { id },
       select: {
         id: true,
+        minNumericValue: true,
+        maxNumericValue: true,
+        isActive: true,
         attributeGroup: {
           select: {
+            code: true,
             isActive: true,
           },
         },
@@ -322,6 +342,27 @@ export class AttributesService {
       );
     }
 
+    const nextIsActive = dto.isActive ?? option.isActive;
+    const nextMinNumericValue = Object.prototype.hasOwnProperty.call(
+      dto,
+      'minNumericValue',
+    )
+      ? (dto.minNumericValue ?? null)
+      : option.minNumericValue;
+    const nextMaxNumericValue = Object.prototype.hasOwnProperty.call(
+      dto,
+      'maxNumericValue',
+    )
+      ? (dto.maxNumericValue ?? null)
+      : option.maxNumericValue;
+
+    this.validateOptionNumericRange({
+      groupCode: option.attributeGroup.code,
+      isActive: nextIsActive,
+      minNumericValue: nextMinNumericValue,
+      maxNumericValue: nextMaxNumericValue,
+    });
+
     const updated = await this.prisma.attributeOption.update({
       where: { id },
       data: {
@@ -334,6 +375,12 @@ export class AttributesService {
           : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'minNumericValue')
+          ? { minNumericValue: dto.minNumericValue ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(dto, 'maxNumericValue')
+          ? { maxNumericValue: dto.maxNumericValue ?? null }
+          : {}),
       },
       select: this.adminOptionSelect(true),
     });
@@ -391,6 +438,8 @@ export class AttributesService {
       imageUrl: true,
       sortOrder: true,
       isActive: true,
+      minNumericValue: true,
+      maxNumericValue: true,
       ...(includeGroup
         ? {
             attributeGroup: {
@@ -442,6 +491,8 @@ export class AttributesService {
       imageUrl: option.imageUrl,
       sortOrder: option.sortOrder,
       isActive: option.isActive,
+      minNumericValue: this.toNullableNumber(option.minNumericValue),
+      maxNumericValue: this.toNullableNumber(option.maxNumericValue),
       attributeGroup: option.attributeGroup,
       quizQuestionUsageCount: option._count.quizQuestionOptions,
       profileAnswerUsageCount: option._count.customerProfileAnswers,
@@ -501,5 +552,64 @@ export class AttributesService {
         `Attribute option code ${code} already exists in this group.`,
       );
     }
+  }
+
+  private validateOptionNumericRange(input: {
+    groupCode?: string;
+    isActive: boolean;
+    minNumericValue?: Prisma.Decimal | number | string | null;
+    maxNumericValue?: Prisma.Decimal | number | string | null;
+  }) {
+    const min = this.toNullableNumber(input.minNumericValue);
+    const max = this.toNullableNumber(input.maxNumericValue);
+
+    if (input.groupCode !== 'BUDGET') {
+      if (min !== null || max !== null) {
+        throw new BadRequestException(
+          'Budget numeric values can only be set on BUDGET options.',
+        );
+      }
+
+      return;
+    }
+
+    if (input.isActive && (min === null || max === null)) {
+      throw new BadRequestException(
+        'Active BUDGET options require minNumericValue and maxNumericValue.',
+      );
+    }
+
+    if (
+      (min !== null && !Number.isFinite(min)) ||
+      (max !== null && !Number.isFinite(max))
+    ) {
+      throw new BadRequestException('Budget numeric values must be finite.');
+    }
+
+    if ((min !== null && min < 0) || (max !== null && max < 0)) {
+      throw new BadRequestException(
+        'Budget numeric values must be greater than or equal to 0.',
+      );
+    }
+
+    if (min !== null && max !== null && max < min) {
+      throw new BadRequestException(
+        'maxNumericValue must be greater than or equal to minNumericValue.',
+      );
+    }
+  }
+
+  private toNullableNumber(
+    value: Prisma.Decimal | number | string | null | undefined,
+  ) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (value instanceof Prisma.Decimal) {
+      return value.toNumber();
+    }
+
+    return Number(value);
   }
 }

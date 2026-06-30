@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
   Max,
   Min,
@@ -22,6 +23,7 @@ import {
   optionalUppercase,
 } from '../../../common/transforms/query.transforms';
 import { PackAttributeInputDto } from './pack-attribute-input.dto';
+import { PackCompatibilityInputDto } from './pack-compatibility-input.dto';
 import { PackItemInputDto } from './pack-item-input.dto';
 
 export class CreatePackDto {
@@ -111,6 +113,52 @@ export class CreatePackDto {
   @IsBoolean()
   isActive?: boolean;
 
+  /**
+   * Pack Core Evolution (Phase 2) — additive customization foundation fields.
+   * Foundation-only: persisted and returned, but inert in current runtime
+   * logic. Existing Packs default to a fixed (non-customizable) Pack.
+   */
+  @ApiPropertyOptional({
+    example: false,
+    default: false,
+    description:
+      'Foundation-only flag. Does NOT activate customization in Phase 2.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCustomizable?: boolean;
+
+  @ApiPropertyOptional({ example: 2 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minRequiredItems?: number | null;
+
+  @ApiPropertyOptional({ example: 6 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxItemCount?: number | null;
+
+  @ApiPropertyOptional({ example: 150 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minAllowedPrice?: number | null;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Foundation-only set of allowed add-on Product IDs. Inert in Phase 2.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  allowedAddOnIds?: string[];
+
   @ApiPropertyOptional({ type: [PackItemInputDto] })
   @IsOptional()
   @IsArray()
@@ -124,4 +172,22 @@ export class CreatePackDto {
   @ValidateNested({ each: true })
   @Type(() => PackAttributeInputDto)
   attributes?: PackAttributeInputDto[];
+
+  /**
+   * Pack Core Evolution (Phase 2.5) — Pack Compatibility Profile foundation.
+   * Declares which canonical customer-answer values the Pack is suitable for,
+   * across the five supported dimensions. Foundation-only: persisted and
+   * returned, but NOT consumed by recommendation/scoring/pricing in this phase.
+   * Omitting a criterion leaves it UNCONFIGURED.
+   */
+  @ApiPropertyOptional({
+    type: [PackCompatibilityInputDto],
+    description:
+      'Per-criterion compatibility profile (skin tone, skin type, makeup style, budget, occasion). Foundation-only; not consumed by recommendation in this phase.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PackCompatibilityInputDto)
+  compatibility?: PackCompatibilityInputDto[];
 }
