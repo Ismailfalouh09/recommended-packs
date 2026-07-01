@@ -16,6 +16,8 @@ import { MediaService } from '../media/media.service';
 import type { ValidatedImageFile } from '../media/pipes/image-file-validation.pipe';
 import { buildMaskedDisplayName } from './author-display-name';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { ModerateReviewDto } from './dto/moderate-review.dto';
+import { QueryAdminReviewsDto } from './dto/query-admin-reviews.dto';
 import { QueryPublicReviewsDto } from './dto/query-public-reviews.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { assertReviewEligibility } from './review-eligibility';
@@ -81,11 +83,46 @@ export class ReviewsService {
     images: this.reviewImagesInclude,
   } satisfies Prisma.ReviewSelect;
 
+  private readonly adminReviewSelect = {
+    id: true,
+    targetType: true,
+    productId: true,
+    packId: true,
+    rating: true,
+    title: true,
+    comment: true,
+    status: true,
+    moderationNote: true,
+    isVerifiedPurchase: true,
+    authorDisplayName: true,
+    createdAt: true,
+    updatedAt: true,
+    product: {
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+      },
+    },
+    pack: {
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+      },
+    },
+    images: this.reviewImagesInclude,
+  } satisfies Prisma.ReviewSelect;
+
   async create(dto: CreateReviewDto) {
     // Ownership is derived from the order, never accepted from the client.
     const order = await this.prisma.order.findUnique({
       where: { id: dto.orderId },
-      select: { id: true, customerId: true, customer: { select: { fullName: true } } },
+      select: {
+        id: true,
+        customerId: true,
+        customer: { select: { fullName: true } },
+      },
     });
 
     if (!order) {
@@ -222,6 +259,62 @@ export class ReviewsService {
     );
   }
 
+  async adminFindAll(query: QueryAdminReviewsDto) {
+    const page = query.page ?? DEFAULT_PAGE;
+    const limit = query.limit ?? DEFAULT_LIMIT;
+    const where = this.buildAdminReviewWhere(query);
+
+    const [reviews, totalItems] = await this.prisma.$transaction([
+      this.prisma.review.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: this.adminReviewSelect,
+      }),
+      this.prisma.review.count({ where }),
+    ]);
+
+    return {
+      data: reviews.map((review) => this.toAdminResponse(review)),
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+      },
+    };
+  }
+
+  async adminModerate(reviewId: string, dto: ModerateReviewDto) {
+    const review = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+      select: { id: true, status: true },
+    });
+
+    if (!review) {
+      throw new NotFoundException('Review was not found.');
+    }
+
+    if (review.status !== ReviewStatus.PENDING) {
+      throw new ConflictException('Only PENDING reviews can be moderated.');
+    }
+
+    const updated = await this.prisma.review.update({
+      where: { id: review.id },
+      data: {
+        status: dto.status,
+        moderationNote:
+          dto.status === ReviewStatus.REJECTED
+            ? (dto.moderationNote ?? null)
+            : null,
+      },
+      select: this.adminReviewSelect,
+    });
+
+    return this.toAdminResponse(updated);
+  }
+
   private readonly ownerReviewSelect = {
     id: true,
     targetType: true,
@@ -317,6 +410,17 @@ export class ReviewsService {
     };
   }
 
+  private buildAdminReviewWhere(
+    query: QueryAdminReviewsDto,
+  ): Prisma.ReviewWhereInput {
+    return {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.targetType ? { targetType: query.targetType } : {}),
+      ...(query.productId ? { productId: query.productId } : {}),
+      ...(query.packId ? { packId: query.packId } : {}),
+    };
+  }
+
   private toPublicResponse(review: {
     rating: number;
     title: string | null;
@@ -370,8 +474,28 @@ export class ReviewsService {
     };
   }
 
+  private toAdminResponse(review: AdminReviewRow) {
+    return {
+      id: review.id,
+      targetType: review.targetType,
+      target: review.product ?? review.pack,
+      rating: review.rating,
+      title: review.title,
+      comment: review.comment,
+      status: review.status,
+      moderationNote: review.moderationNote,
+      isVerifiedPurchase: review.isVerifiedPurchase,
+      authorDisplayName: review.authorDisplayName,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      images: this.toImageResponses(review.images),
+    };
+  }
+
   private toImageResponses(images: ReviewImageRow[]) {
-    return images.map((image) => this.mediaService.toReviewImageResponse(image));
+    return images.map((image) =>
+      this.mediaService.toReviewImageResponse(image),
+    );
   }
 }
 
@@ -387,4 +511,31 @@ type ReviewImageRow = {
     width: number | null;
     height: number | null;
   };
+};
+
+type AdminReviewRow = {
+  id: string;
+  targetType: ReviewTargetType;
+  productId: string | null;
+  packId: string | null;
+  rating: number;
+  title: string | null;
+  comment: string | null;
+  status: ReviewStatus;
+  moderationNote: string | null;
+  isVerifiedPurchase: boolean;
+  authorDisplayName: string;
+  createdAt: Date;
+  updatedAt: Date;
+  product: {
+    id: string;
+    slug: string;
+    name: string;
+  } | null;
+  pack: {
+    id: string;
+    slug: string;
+    name: string;
+  } | null;
+  images: ReviewImageRow[];
 };

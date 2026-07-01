@@ -99,12 +99,44 @@ Implemented (`src/modules/reviews/` + `src/modules/media/`):
   and no private storage detail leakage. Existing review/media suites updated for
   the new relation (48/48 review+media tests pass).
 
+## Phase R3 - Admin Review Moderation
+- Admin-only endpoints (`admin-reviews.controller.ts`):
+  - `GET /admin/reviews` - authenticated admin review queue with filters:
+    `status`, `targetType`, `productId`, `packId`, `page`, `limit`.
+  - `PATCH /admin/reviews/:reviewId/moderation` - OWNER/ADMIN approve or reject
+    a PENDING review with body `{ "status": "APPROVED" }` or
+    `{ "status": "REJECTED", "moderationNote": "..." }`.
+- Authorization:
+  - OWNER, ADMIN, and STAFF can list reviews for moderation.
+  - OWNER and ADMIN can moderate reviews. STAFF remains read-only.
+  - Requests without an admin user are rejected by the existing admin guards.
+- Moderation behavior:
+  - Only PENDING reviews can be moderated; attempting to re-moderate an
+    APPROVED or REJECTED review returns conflict.
+  - APPROVED reviews become public. Their attached review images become public
+    at the same time because public review reads only return APPROVED reviews.
+  - REJECTED reviews stay hidden, and attached review images stay hidden with
+    the rejected parent review.
+  - `moderationNote` is admin-only and is never returned from public product or
+    pack review reads.
+- Privacy:
+  - Public review APIs remain unchanged and still omit customer phone, address,
+    orderId, customerId, target foreign keys, storage keys, internal media
+    details, costs, margins, quiz data, status, and moderation notes.
+  - Admin review image responses reuse the review-image display mapper, so raw
+    `publicId`, `folder`, `providerAssetId`, `secureUrl`, and `mediaId` are not
+    exposed by the moderation API.
+- Tests:
+  - Added focused R3 tests for non-admin rejection, admin role policy,
+    admin list/filter, approving a pending review with images, approved review
+    images appearing publicly, rejecting a pending review with images, rejected
+    review/images staying hidden, moderation note public leak prevention, and
+    approved-only rating average/count after moderation.
+
 ## Next
-- Phase R3: admin moderation (approve/reject) — must approve/reject the review
-  and its images together — and cached rating aggregates.
+- Cached rating aggregates.
 
 ## Deferred
-- Admin moderation APIs
 - Rating aggregate cache
 - Frontend stars/review form
 - Review videos / reels / audio / external media URLs (Phase R2.5 is images only)

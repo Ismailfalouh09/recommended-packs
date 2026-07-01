@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { ReviewTargetType } from '@prisma/client';
+import { ReviewStatus, ReviewTargetType } from '@prisma/client';
 import { MediaService } from '../media/media.service';
 import { MediaUrlService } from '../media/media-url.service';
 import type { ValidatedImageFile } from '../media/pipes/image-file-validation.pipe';
@@ -78,9 +78,22 @@ function buildEnv() {
       items: [],
     },
   ];
-  const products = [{ id: 'prod-1', slug: 'product-one', status: 'ACTIVE' }];
+  const products = [
+    {
+      id: 'prod-1',
+      slug: 'product-one',
+      name: 'Product One',
+      status: 'ACTIVE',
+    },
+  ];
   const packs = [
-    { id: 'pack-1', slug: 'pack-one', status: 'ACTIVE', isActive: true },
+    {
+      id: 'pack-1',
+      slug: 'pack-one',
+      name: 'Pack One',
+      status: 'ACTIVE',
+      isActive: true,
+    },
   ];
 
   const reviews: any[] = [];
@@ -146,12 +159,32 @@ function buildEnv() {
       },
       findUnique: async ({ where }: any) =>
         reviews.find((r) => r.id === where.id) ?? null,
+      update: async ({ where, data }: any) => {
+        const row = reviews.find((r) => r.id === where.id)!;
+        for (const [key, value] of Object.entries(data)) {
+          if (value !== undefined) row[key] = value;
+        }
+        row.updatedAt = new Date();
+        return {
+          ...row,
+          product: productFor(row),
+          pack: packFor(row),
+          images: imagesFor(row.id),
+        };
+      },
       findMany: async ({ where, skip = 0, take = 20 }: any) =>
         reviews
           .filter((r) => matchesWhere(r, where))
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .slice(skip, skip + take)
-          .map((r) => ({ ...r, images: imagesFor(r.id) })),
+          .map((r) => ({
+            ...r,
+            product: productFor(r),
+            pack: packFor(r),
+            images: imagesFor(r.id),
+          })),
+      count: async ({ where }: any) =>
+        reviews.filter((r) => matchesWhere(r, where)).length,
       aggregate: async ({ where }: any) => {
         const matched = reviews.filter((r) => matchesWhere(r, where));
         const sum = matched.reduce((acc, r) => acc + r.rating, 0);
@@ -170,7 +203,9 @@ function buildEnv() {
       delete: async ({ where, select }: any) => {
         const index = mediaAssets.findIndex((m) => m.id === where.id);
         const [removed] = mediaAssets.splice(index, 1);
-        return select ? { id: removed.id, publicId: removed.publicId } : removed;
+        return select
+          ? { id: removed.id, publicId: removed.publicId }
+          : removed;
       },
     },
     reviewImage: {
@@ -181,7 +216,9 @@ function buildEnv() {
             (where.mediaId ? ri.mediaId === where.mediaId : true),
         ).length,
       aggregate: async ({ where }: any) => {
-        const rows = reviewImages.filter((ri) => ri.reviewId === where.reviewId);
+        const rows = reviewImages.filter(
+          (ri) => ri.reviewId === where.reviewId,
+        );
         return {
           _max: {
             position: rows.length
@@ -200,7 +237,10 @@ function buildEnv() {
         };
         reviewImages.push(row);
         if (include?.media) {
-          return { ...row, media: mediaAssets.find((m) => m.id === row.mediaId) };
+          return {
+            ...row,
+            media: mediaAssets.find((m) => m.id === row.mediaId),
+          };
         }
         return row;
       },
@@ -222,11 +262,25 @@ function buildEnv() {
     packImage: zeroCount,
     categoryImage: zeroCount,
     productReferenceImage: zeroCount,
-    $transaction: async (fn: any) => fn(prisma),
+    $transaction: async (arg: any) =>
+      Array.isArray(arg) ? Promise.all(arg) : arg(prisma),
   };
+
+  function productFor(row: any) {
+    return row.productId
+      ? (products.find((product) => product.id === row.productId) ?? null)
+      : null;
+  }
+
+  function packFor(row: any) {
+    return row.packId
+      ? (packs.find((pack) => pack.id === row.packId) ?? null)
+      : null;
+  }
 
   function matchesWhere(row: any, where: any) {
     if (where.status && row.status !== where.status) return false;
+    if (where.targetType && row.targetType !== where.targetType) return false;
     if (where.productId !== undefined && row.productId !== where.productId) {
       return false;
     }
@@ -366,7 +420,16 @@ describe('Review images — upload', () => {
       expect(image).not.toHaveProperty(forbidden);
     }
     expect(Object.keys(image).sort()).toEqual(
-      ['createdAt', 'format', 'height', 'id', 'mimeType', 'position', 'urls', 'width'].sort(),
+      [
+        'createdAt',
+        'format',
+        'height',
+        'id',
+        'mimeType',
+        'position',
+        'urls',
+        'width',
+      ].sort(),
     );
   });
 });
@@ -485,5 +548,141 @@ describe('Review images — public visibility', () => {
     expect(image).not.toHaveProperty('publicId');
     expect(image).not.toHaveProperty('mediaId');
     expect(image).not.toHaveProperty('secureUrl');
+  });
+});
+
+describe('Review moderation - admin workflow', () => {
+  it('lets an admin list and filter reviews', async () => {
+    const env = buildEnv();
+    await seedPendingProductReview(env);
+    await seedPendingPackReview(env);
+
+    const page = await env.service.adminFindAll({
+      status: ReviewStatus.PENDING,
+      targetType: ReviewTargetType.PRODUCT,
+      productId: 'prod-1',
+    });
+
+    expect(page.data).toHaveLength(1);
+    expect(page.data[0]).toMatchObject({
+      targetType: ReviewTargetType.PRODUCT,
+      status: ReviewStatus.PENDING,
+      target: { id: 'prod-1', slug: 'product-one', name: 'Product One' },
+    });
+    expect(page.pagination.totalItems).toBe(1);
+  });
+
+  it('approves a pending review with images', async () => {
+    const env = buildEnv();
+    const reviewId = await seedPendingProductReview(env);
+    await env.service.addImage(reviewId, 'order-product', imageFile());
+
+    const moderated = await env.service.adminModerate(reviewId, {
+      status: ReviewStatus.APPROVED,
+    });
+
+    expect(moderated.status).toBe(ReviewStatus.APPROVED);
+    expect(moderated.moderationNote).toBeNull();
+    expect(moderated.images).toHaveLength(1);
+    expect(env.prisma._reviews[0].status).toBe(ReviewStatus.APPROVED);
+  });
+
+  it('shows approved review images publicly', async () => {
+    const env = buildEnv();
+    const reviewId = await seedPendingProductReview(env);
+    await env.service.addImage(reviewId, 'order-product', imageFile());
+    await env.service.adminModerate(reviewId, {
+      status: ReviewStatus.APPROVED,
+    });
+
+    const page = await env.service.listProductReviews('product-one', {});
+
+    expect(page.reviews).toHaveLength(1);
+    expect(page.reviews[0].images).toHaveLength(1);
+    expect(page.reviews[0].images[0].urls.original).toContain(
+      'https://cdn.test/',
+    );
+  });
+
+  it('rejects a pending review with images and keeps them hidden', async () => {
+    const env = buildEnv();
+    const reviewId = await seedPendingProductReview(env);
+    await env.service.addImage(reviewId, 'order-product', imageFile());
+
+    const moderated = await env.service.adminModerate(reviewId, {
+      status: ReviewStatus.REJECTED,
+      moderationNote: 'Admin-only reason',
+    });
+    const page = await env.service.listProductReviews('product-one', {});
+
+    expect(moderated.status).toBe(ReviewStatus.REJECTED);
+    expect(moderated.moderationNote).toBe('Admin-only reason');
+    expect(moderated.images).toHaveLength(1);
+    expect(page.reviews).toHaveLength(0);
+  });
+
+  it('never leaks moderation notes publicly', async () => {
+    const env = buildEnv();
+    const reviewId = await seedPendingProductReview(env);
+    await env.service.adminModerate(reviewId, {
+      status: ReviewStatus.APPROVED,
+    });
+    env.prisma._reviews[0].moderationNote = 'Internal context';
+
+    const page = await env.service.listProductReviews('product-one', {});
+
+    expect(page.reviews[0]).not.toHaveProperty('moderationNote');
+  });
+
+  it('keeps approved-only rating average and count correct after moderation', async () => {
+    const env = buildEnv();
+    const approvedReviewId = await seedPendingProductReview(env);
+    await env.service.adminModerate(approvedReviewId, {
+      status: ReviewStatus.APPROVED,
+    });
+
+    env.prisma._reviews.push(
+      {
+        id: 'rejected-low-rating',
+        targetType: ReviewTargetType.PRODUCT,
+        productId: 'prod-1',
+        packId: null,
+        customerId: 'cust-1',
+        orderId: 'other-order',
+        rating: 1,
+        title: null,
+        comment: null,
+        status: ReviewStatus.REJECTED,
+        moderationNote: 'Not public',
+        isVerifiedPurchase: true,
+        authorDisplayName: 'Sara B.',
+        images: [],
+        createdAt: new Date(2026, 1, 1),
+        updatedAt: new Date(2026, 1, 1),
+      },
+      {
+        id: 'pending-mid-rating',
+        targetType: ReviewTargetType.PRODUCT,
+        productId: 'prod-1',
+        packId: null,
+        customerId: 'cust-1',
+        orderId: 'third-order',
+        rating: 3,
+        title: null,
+        comment: null,
+        status: ReviewStatus.PENDING,
+        moderationNote: null,
+        isVerifiedPurchase: true,
+        authorDisplayName: 'Nora K.',
+        images: [],
+        createdAt: new Date(2026, 1, 2),
+        updatedAt: new Date(2026, 1, 2),
+      },
+    );
+
+    const page = await env.service.listProductReviews('product-one', {});
+
+    expect(page.ratingAverage).toBe(5);
+    expect(page.reviewCount).toBe(1);
   });
 });

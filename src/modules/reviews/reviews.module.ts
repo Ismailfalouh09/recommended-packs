@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { MediaModule } from '../media/media.module';
+import { AdminReviewsController } from './admin-reviews.controller';
 import { PublicReviewsController } from './public-reviews.controller';
 import { ReviewsController } from './reviews.controller';
 import { ReviewsService } from './reviews.service';
@@ -13,7 +14,11 @@ import { ReviewsService } from './reviews.service';
  */
 @Module({
   imports: [PrismaModule, MediaModule],
-  controllers: [ReviewsController, PublicReviewsController],
+  controllers: [
+    ReviewsController,
+    PublicReviewsController,
+    AdminReviewsController,
+  ],
   providers: [ReviewsService],
 })
 export class ReviewsModule {}

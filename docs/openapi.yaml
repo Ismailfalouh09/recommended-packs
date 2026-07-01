@@ -3856,6 +3856,113 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: List approved reviews for a pack
       tags: *a68
+  /admin/reviews:
+    get:
+      description: OWNER, ADMIN, and STAFF can filter and paginate reviews for
+        moderation. Customer phone/address, order internals, and storage keys
+        are not returned.
+      operationId: AdminReviewsController_findAll
+      parameters:
+        - name: status
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - APPROVED
+              - REJECTED
+        - name: targetType
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - PRODUCT
+              - PACK
+        - name: productId
+          required: false
+          in: query
+          schema:
+            example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
+            type: string
+        - name: packId
+          required: false
+          in: query
+          schema:
+            example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
+            type: string
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+      responses:
+        "200":
+          description: Paginated admin review list.
+        "401": &a69
+          description: Authentication required.
+        "403": &a70
+          description: Insufficient admin role.
+      security: &a71
+        - bearer: []
+      summary: List reviews for moderation
+      tags: &a72
+        - Admin Reviews
+  /admin/reviews/{reviewId}/moderation:
+    patch:
+      description: OWNER and ADMIN can approve or reject a PENDING review. Attached
+        images become public only when the parent review is APPROVED; rejected
+        review images remain hidden with the review.
+      operationId: AdminReviewsController_moderate
+      parameters:
+        - name: reviewId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModerateReviewDto"
+      responses:
+        "200":
+          description: The moderated review.
+        "400":
+          description: Invalid moderation body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401": *a69
+        "403": *a70
+        "404":
+          description: Review not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: Only PENDING reviews can be moderated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      security: *a71
+      summary: Approve or reject a pending review
+      tags: *a72
 info:
   title: Beauty Pack Recommendation API
   description: Backend API for beauty-pack personalization, recommendations, COD
@@ -3953,7 +4060,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: &a69
+          enum: &a73
             - OWNER
             - ADMIN
             - STAFF
@@ -3996,7 +4103,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: *a69
+          enum: *a73
           example: ADMIN
         isActive:
           type: boolean
@@ -4849,7 +4956,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: &a70
+          enum: &a74
             - SINGLE
             - MULTIPLE
           default: SINGLE
@@ -4886,7 +4993,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: *a70
+          enum: *a74
           default: SINGLE
         isRequired:
           type: boolean
@@ -5530,7 +5637,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: &a71
+          enum: &a75
             - DRAFT
             - ACTIVE
             - HIDDEN
@@ -5610,7 +5717,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: *a71
+          enum: *a75
           default: DRAFT
         isActive:
           type: boolean
@@ -5675,7 +5782,7 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: &a72
+          enum: &a76
             - SHADE
             - SIZE
             - BUNDLE
@@ -5748,7 +5855,7 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: *a72
+          enum: *a76
           description: Single variation axis for this reference.
         barcode:
           type: object
@@ -6047,7 +6154,7 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: &a79
+          enum: &a83
             - PENDING_CONFIRMATION
             - CONFIRMED
             - PREPARING
@@ -6058,7 +6165,7 @@ components:
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: &a80
+          enum: &a84
             - UNPAID
             - PAID
             - REFUNDED
@@ -6670,7 +6777,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: &a73
+          enum: &a77
             - FIXED
             - SUM_ITEMS
             - SUM_ITEMS_WITH_DISCOUNT
@@ -6700,7 +6807,7 @@ components:
           default: 0
         status:
           type: string
-          enum: &a74
+          enum: &a78
             - DRAFT
             - ACTIVE
             - ARCHIVED
@@ -6741,14 +6848,14 @@ components:
           nullable: true
         tier:
           type: string
-          enum: &a75
+          enum: &a79
             - ESSENTIAL
             - PREMIUM
             - LUXE
           nullable: true
         occasion:
           type: string
-          enum: &a76
+          enum: &a80
             - EVERYDAY
             - WORK
             - EVENING
@@ -6758,7 +6865,7 @@ components:
           nullable: true
         experienceLevel:
           type: string
-          enum: &a77
+          enum: &a81
             - BEGINNER
             - INTERMEDIATE
             - EXPERT
@@ -6776,7 +6883,7 @@ components:
           example: false
           default: false
         tags:
-          example: &a78
+          example: &a82
             - bridal
             - glam
           description: Free-form discovery tags used by the public catalog filter.
@@ -6824,7 +6931,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: *a73
+          enum: *a77
           example: FIXED
         fixedPrice:
           type: object
@@ -6851,7 +6958,7 @@ components:
           default: 0
         status:
           type: string
-          enum: *a74
+          enum: *a78
           default: DRAFT
         isActive:
           type: boolean
@@ -6889,15 +6996,15 @@ components:
           nullable: true
         tier:
           type: string
-          enum: *a75
+          enum: *a79
           nullable: true
         occasion:
           type: string
-          enum: *a76
+          enum: *a80
           nullable: true
         experienceLevel:
           type: string
-          enum: *a77
+          enum: *a81
           nullable: true
         isFeatured:
           type: boolean
@@ -6912,7 +7019,7 @@ components:
           example: false
           default: false
         tags:
-          example: *a78
+          example: *a82
           description: Free-form discovery tags used by the public catalog filter.
           type: array
           items:
@@ -7185,11 +7292,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a79
+          enum: *a83
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a80
+          enum: *a84
           example: UNPAID
         totalAmount:
           type: number
@@ -7311,11 +7418,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a79
+          enum: *a83
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a80
+          enum: *a84
           example: UNPAID
         totalAmount:
           type: number
@@ -7581,7 +7688,7 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: &a81
+          enum: &a85
             - PACK
             - PRODUCT
             - REFERENCE
@@ -7590,7 +7697,7 @@ components:
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: &a82
+          enum: &a86
             - MUST_MATCH
             - SHOULD_MATCH
             - EXCLUDE_IF_MATCH
@@ -7619,13 +7726,13 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: *a81
+          enum: *a85
         attributeGroupId:
           type: object
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: *a82
+          enum: *a86
         scoreValue:
           type: number
           example: 15
@@ -7712,3 +7819,18 @@ components:
           nullable: true
       required:
         - orderId
+    ModerateReviewDto:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - APPROVED
+            - REJECTED
+          example: APPROVED
+        moderationNote:
+          type: string
+          example: Admin-only reason
+          description: Internal note for rejected reviews. Never returned publicly.
+      required:
+        - status

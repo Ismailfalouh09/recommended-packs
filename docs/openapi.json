@@ -6168,6 +6168,174 @@
           "Reviews"
         ]
       }
+    },
+    "/admin/reviews": {
+      "get": {
+        "description": "OWNER, ADMIN, and STAFF can filter and paginate reviews for moderation. Customer phone/address, order internals, and storage keys are not returned.",
+        "operationId": "AdminReviewsController_findAll",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PRODUCT",
+                "PACK"
+              ]
+            }
+          },
+          {
+            "name": "productId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "9f72caaa-f55b-4423-b805-911e3e7f61bb",
+              "type": "string"
+            }
+          },
+          {
+            "name": "packId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "9f72caaa-f55b-4423-b805-911e3e7f61bb",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated admin review list."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List reviews for moderation",
+        "tags": [
+          "Admin Reviews"
+        ]
+      }
+    },
+    "/admin/reviews/{reviewId}/moderation": {
+      "patch": {
+        "description": "OWNER and ADMIN can approve or reject a PENDING review. Attached images become public only when the parent review is APPROVED; rejected review images remain hidden with the review.",
+        "operationId": "AdminReviewsController_moderate",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The moderated review."
+          },
+          "400": {
+            "description": "Invalid moderation body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Review not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Only PENDING reviews can be moderated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Approve or reject a pending review",
+        "tags": [
+          "Admin Reviews"
+        ]
+      }
     }
   },
   "info": {
@@ -11372,6 +11540,27 @@
         },
         "required": [
           "orderId"
+        ]
+      },
+      "ModerateReviewDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ],
+            "example": "APPROVED"
+          },
+          "moderationNote": {
+            "type": "string",
+            "example": "Admin-only reason",
+            "description": "Internal note for rejected reviews. Never returned publicly."
+          }
+        },
+        "required": [
+          "status"
         ]
       }
     }
