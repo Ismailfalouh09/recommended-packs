@@ -6,6 +6,7 @@ import { AdminPacksController } from './admin-packs.controller';
 import { PackConfigurationsController } from './pack-configurations.controller';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
+import { RecommendationConfigurationsController } from './recommendation-configurations.controller';
 import { SharedConfigurationsController } from './shared-configurations.controller';
 
 @Module({
@@ -13,6 +14,7 @@ import { SharedConfigurationsController } from './shared-configurations.controll
   controllers: [
     PacksController,
     PackConfigurationsController,
+    RecommendationConfigurationsController,
     SharedConfigurationsController,
     AdminPacksController,
   ],

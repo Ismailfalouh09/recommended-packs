@@ -29,6 +29,7 @@ import {
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MediaUrlService } from '../media/media-url.service';
+import { ConfigureFromRecommendationDto } from './dto/configure-from-recommendation.dto';
 import { CreatePackDto } from './dto/create-pack.dto';
 import { PackAttributeInputDto } from './dto/pack-attribute-input.dto';
 import { PackCompatibilityInputDto } from './dto/pack-compatibility-input.dto';
@@ -664,6 +665,133 @@ export class PacksService {
   }
 
   /**
+   * Pack Core Evolution (Phase 9) — persist a QUIZ_RECOMMENDED configuration from
+   * an existing recommended Pack.
+   *
+   * The Pack is resolved server-side from the persisted `RecommendationResult`
+   * (never from the client): the recommended Pack is reloaded and its fixed /
+   * auto-selected items are carried over exactly as the recommendation resolved
+   * them. The customer only supplies selections for the Pack's REQUIRED_SELECTABLE
+   * (customer-choice) slots. The same Phase 5 validator recomputes price/stock and
+   * enforces every rule — no client price is trusted.
+   *
+   * Unlike {@link createConfiguration}, a configuration may be persisted while
+   * still **pending**: a REQUIRED_SELECTABLE slot with no valid selection yet is
+   * stored with a null reference (a dedicated configuration-pending representation)
+   * so the configured checkout keeps rejecting it until the customer chooses. Any
+   * *hard* problem (disallowed / inactive / out-of-stock reference, below-floor
+   * price, unknown slot, bad quantity, …) is still rejected with `400` and nothing
+   * is written. Quiz answers and internal recommendation scores are never copied
+   * into the configuration.
+   */
+  async configureFromRecommendation(
+    resultId: string,
+    dto: ConfigureFromRecommendationDto,
+  ) {
+    const recommendationResult =
+      await this.prisma.recommendationResult.findUnique({
+        where: { id: resultId },
+        select: { id: true, packId: true },
+      });
+
+    if (!recommendationResult) {
+      throw new NotFoundException(
+        `Recommendation result ${resultId} was not found.`,
+      );
+    }
+
+    const pack = await this.loadConfigurablePack(recommendationResult.packId);
+
+    if (!pack) {
+      throw new NotFoundException(
+        `Pack ${recommendationResult.packId} was not found.`,
+      );
+    }
+
+    // The recommended Pack must still be sellable. It need NOT be customizable:
+    // a recommended fixed Pack yields a fully-resolved QUIZ_RECOMMENDED config.
+    if (pack.status !== PackStatus.ACTIVE || !pack.isActive) {
+      throw new BadRequestException(
+        'The recommended pack is inactive or archived.',
+      );
+    }
+
+    const result = validatePackConfiguration(this.toValidatorPack(pack), {
+      items: dto.selections,
+      addOns: dto.addOns,
+    });
+
+    // A missing customer-choice selection is a *pending* slot, not a hard failure:
+    // it is expected for a freshly recommended customizable Pack. Every other
+    // validation error (disallowed / inactive / out-of-stock reference, below-floor
+    // price, unknown slot, invalid quantity/removal) is a hard rejection.
+    const pendingItemIds = new Set(
+      result.validationErrors
+        .filter((error) => error.code === 'MISSING_REQUIRED_SELECTION')
+        .map((error) => error.packItemId)
+        .filter((packItemId): packItemId is string => Boolean(packItemId)),
+    );
+    const hardErrors = result.validationErrors.filter(
+      (error) => error.code !== 'MISSING_REQUIRED_SELECTION',
+    );
+
+    if (hardErrors.length > 0) {
+      throw new BadRequestException({
+        message: 'The recommended configuration is invalid and was not saved.',
+        validationErrors: hardErrors,
+      });
+    }
+
+    const isPending = pendingItemIds.size > 0;
+
+    const created = await this.prisma.packConfiguration.create({
+      data: {
+        sourcePackId: pack.id,
+        sourceType: PackConfigurationSourceType.QUIZ_RECOMMENDED,
+        recommendationResultId: recommendationResult.id,
+        finalPrice: new Prisma.Decimal(result.computedPrice),
+        currency: pack.currency,
+        minAllowedPrice:
+          pack.minAllowedPrice != null
+            ? new Prisma.Decimal(pack.minAllowedPrice)
+            : null,
+        // A pending configuration is not yet orderable; it becomes valid once the
+        // customer selects every required option and re-configures.
+        isValid: !isPending,
+        stockStatus: result.stockStatus,
+        validationResult: result as unknown as Prisma.InputJsonValue,
+        items: {
+          create: result.normalizedItems.map((item) => {
+            const pending =
+              item.packItemId != null && pendingItemIds.has(item.packItemId);
+
+            return {
+              packItemId: item.packItemId,
+              productId: item.productId,
+              // Pending required slots persist with a null reference so checkout
+              // revalidation keeps failing until a real selection is made. Never
+              // store the validator's fallback pick as if it were chosen.
+              productReferenceId: pending ? null : item.productReferenceId,
+              role: item.role,
+              quantity: item.quantity,
+              unitPrice: new Prisma.Decimal(item.unitPrice),
+              lineTotal: new Prisma.Decimal(item.lineTotal),
+              isAddOn: item.isAddOn,
+              removed: item.removed,
+            };
+          }),
+        },
+      },
+      select: this.configurationSelect(),
+    });
+
+    return {
+      ...this.toConfigurationResponse(created),
+      pendingSelections: [...pendingItemIds],
+    };
+  }
+
+  /**
    * Pack Core Evolution (Phase 6) — read a persisted Pack configuration by id.
    */
   async findConfiguration(id: string) {
@@ -915,6 +1043,7 @@ export class PacksService {
       id: true,
       sourcePackId: true,
       sourceType: true,
+      recommendationResultId: true,
       finalPrice: true,
       currency: true,
       minAllowedPrice: true,
@@ -946,6 +1075,7 @@ export class PacksService {
       id: configuration.id,
       sourcePackId: configuration.sourcePackId,
       sourceType: configuration.sourceType,
+      recommendationResultId: configuration.recommendationResultId ?? null,
       finalPrice: toMoneyNumber(configuration.finalPrice) ?? 0,
       currency: configuration.currency,
       minAllowedPrice: toMoneyNumber(configuration.minAllowedPrice),

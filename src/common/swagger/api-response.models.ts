@@ -1023,8 +1023,22 @@ export class PackConfigurationResponse {
   @ApiProperty({ example: uuidExample })
   sourcePackId!: string;
 
-  @ApiProperty({ example: 'CUSTOMIZED' })
+  @ApiProperty({
+    example: 'CUSTOMIZED',
+    description:
+      'How the configuration originated. QUIZ_RECOMMENDED for a configuration ' +
+      'created from a recommended pack (Phase 9).',
+  })
   sourceType!: string;
+
+  @ApiPropertyOptional({
+    example: null,
+    nullable: true,
+    description:
+      'For a QUIZ_RECOMMENDED configuration, the recommendation result it was ' +
+      'created from. Null for CUSTOMIZED configurations.',
+  })
+  recommendationResultId?: string | null;
 
   @ApiProperty({
     example: 349,
@@ -1052,6 +1066,15 @@ export class PackConfigurationResponse {
 
   @ApiProperty({ type: [PackConfigurationItemLineResponse] })
   items!: PackConfigurationItemLineResponse[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: [],
+    description:
+      'Pack item ids still awaiting a customer selection (QUIZ_RECOMMENDED ' +
+      'configurations only). Empty when the configuration is ready to check out.',
+  })
+  pendingSelections?: string[];
 
   @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
   createdAt!: string;

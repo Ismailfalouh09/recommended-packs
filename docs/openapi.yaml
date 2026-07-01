@@ -2633,6 +2633,57 @@ paths:
           description: Configuration not found.
       summary: Place a Cash on Delivery order from a pack configuration
       tags: *a50
+  /recommendations/{resultId}/configure:
+    post:
+      description: Creates a persisted PackConfiguration (sourceType QUIZ_RECOMMENDED)
+        from an existing recommended Pack, resolved server-side from the
+        recommendation result id. Fixed and auto-selected items are prefilled
+        from the recommendation; the body only carries the customer’s selections
+        for the pack’s required customer-choice slots (and optional allowed
+        add-ons). The Phase 5 validator recomputes price and stock server-side —
+        no client price is trusted. Required slots left without a valid
+        selection are stored as pending (null reference) and keep blocking
+        checkout until chosen; disallowed, inactive, out-of-stock, or
+        below-floor selections are rejected and nothing is written. Quiz answers
+        and recommendation scores are never copied into the configuration. The
+        result can be checked out with the existing POST
+        /configurations/:id/checkout.
+      operationId: RecommendationConfigurationsController_configure
+      parameters:
+        - name: resultId
+          required: true
+          in: path
+          description: Persisted recommendation result id (the recommended pack).
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfigureFromRecommendationDto"
+      responses:
+        "201":
+          description: Persisted QUIZ_RECOMMENDED configuration. `pendingSelections` lists
+            the pack item ids still awaiting a customer selection (empty when
+            ready to check out).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackConfigurationResponse"
+        "400":
+          description: A selection is disallowed, inactive, out of stock, below the price
+            floor, or the recommended pack is inactive/archived.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Recommendation result or its pack not found.
+      summary: Configure a recommended pack into a checkout-ready configuration
+      tags:
+        - Recommendations
   /shared/configurations/{shareToken}:
     get:
       description: "Returns the read-only, customer-safe view of a shared pack
@@ -5961,6 +6012,14 @@ components:
         sourceType:
           type: string
           example: CUSTOMIZED
+          description: How the configuration originated. QUIZ_RECOMMENDED for a
+            configuration created from a recommended pack (Phase 9).
+        recommendationResultId:
+          type: object
+          example: null
+          nullable: true
+          description: For a QUIZ_RECOMMENDED configuration, the recommendation result it
+            was created from. Null for CUSTOMIZED configurations.
         finalPrice:
           type: number
           example: 349
@@ -5989,6 +6048,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PackConfigurationItemLineResponse"
+        pendingSelections:
+          example: []
+          description: Pack item ids still awaiting a customer selection (QUIZ_RECOMMENDED
+            configurations only). Empty when the configuration is ready to check
+            out.
+          type: array
+          items:
+            type: string
         createdAt:
           type: string
           example: 2026-07-01T10:00:00.000Z
@@ -6027,6 +6094,22 @@ components:
         - id
         - shareToken
         - shareUrl
+    ConfigureFromRecommendationDto:
+      type: object
+      properties:
+        selections:
+          description: Customer selections for the recommended pack’s required-selectable
+            (customer-choice) slots. Each is validated against the slot’s
+            allowed references. Slots omitted here stay pending and block
+            checkout.
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidateConfigurationItemDto"
+        addOns:
+          description: Optional add-ons, each validated against PackAllowedAddOn.
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidateConfigurationAddOnDto"
     SharedConfigurationSourcePackResponse:
       type: object
       properties:

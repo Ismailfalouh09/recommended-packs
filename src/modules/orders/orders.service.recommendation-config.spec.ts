@@ -1,11 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import {
-  OrderStatus,
   PackConfigurationSourceType,
   PackItemRole,
   PackStatus,
-  PaymentMethod,
-  PaymentStatus,
   PriceMode,
   Prisma,
   ProductStatus,
@@ -13,6 +10,15 @@ import {
 } from '@prisma/client';
 import { CreatePackOrderDto } from './dto/create-pack-order.dto';
 import { OrdersService } from './orders.service';
+
+/**
+ * Pack Core Evolution (Phase 9) — configured checkout of a QUIZ_RECOMMENDED
+ * configuration. The existing Phase 6 configured checkout is reused verbatim; it
+ * must revalidate everything, block a pending required selection, allow a valid
+ * one (including from a fixed recommended pack), and freeze sourceType
+ * QUIZ_RECOMMENDED onto the immutable order snapshot — all without changing the
+ * behavior of a CUSTOMIZED configuration.
+ */
 
 const dto: CreatePackOrderDto = {
   fullName: 'Sara',
@@ -39,9 +45,7 @@ function referenceFixture(overrides: Record<string, any> = {}) {
     priceOverride: decimal(120),
     priceDelta: decimal(0),
     imageUrl: 'https://cdn.example/reference.jpg',
-    image: {
-      media: { secureUrl: 'https://cdn.example/ref.jpg', url: null },
-    },
+    image: { media: { secureUrl: 'https://cdn.example/ref.jpg', url: null } },
     stockQuantity: 10,
     reservedQuantity: 0,
     isActive: true,
@@ -59,15 +63,14 @@ function productFixture(overrides: Record<string, any> = {}) {
     isActive: true,
     status: ProductStatus.ACTIVE,
     brand: { name: 'Glow Brand' },
-    images: [
-      { media: { secureUrl: 'https://cdn.example/cover.jpg', url: null } },
-    ],
+    images: [{ media: { secureUrl: 'https://cdn.example/cover.jpg', url: null } }],
     references: [referenceFixture()],
     ...overrides,
   };
 }
 
-function sourcePackFixture(overrides: Record<string, any> = {}) {
+/** Customizable recommended pack: one required customer-choice slot. */
+function customizablePack(overrides: Record<string, any> = {}) {
   return {
     id: 'pack-1',
     name: 'Natural Glow Pack',
@@ -102,10 +105,29 @@ function sourcePackFixture(overrides: Record<string, any> = {}) {
   };
 }
 
+/** Fixed (non-customizable) recommended pack: one pinned FIXED item. */
+function fixedPack(overrides: Record<string, any> = {}) {
+  return {
+    ...customizablePack(),
+    isCustomizable: false,
+    items: [
+      {
+        ...customizablePack().items[0],
+        id: 'pack-item-1',
+        role: PackItemRole.FIXED,
+        selectionMode: SelectionMode.FIXED_REFERENCE,
+        productReferenceId: 'reference-1',
+        allowedReferences: [],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function configurationFixture(overrides: Record<string, any> = {}) {
   return {
     id: 'config-1',
-    sourceType: PackConfigurationSourceType.CUSTOMIZED,
+    sourceType: PackConfigurationSourceType.QUIZ_RECOMMENDED,
     items: [
       {
         packItemId: 'pack-item-1',
@@ -117,12 +139,12 @@ function configurationFixture(overrides: Record<string, any> = {}) {
         removed: false,
       },
     ],
-    sourcePack: sourcePackFixture(),
+    sourcePack: customizablePack(),
     ...overrides,
   };
 }
 
-describe('OrdersService — configured checkout (Phase 6)', () => {
+describe('OrdersService — QUIZ_RECOMMENDED configured checkout (Phase 9)', () => {
   let prisma: any;
   let tx: any;
   let orderStockService: any;
@@ -135,101 +157,70 @@ describe('OrdersService — configured checkout (Phase 6)', () => {
     };
     prisma = {
       packConfiguration: tx.packConfiguration,
-      order: { findUnique: jest.fn() },
-      $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
-        callback(tx),
-      ),
+      $transaction: jest.fn((cb: (t: unknown) => unknown) => cb(tx)),
     };
     service = new OrdersService(prisma, orderStockService);
   });
 
-  it('creates a COD order from a valid configuration', async () => {
+  it('allows checkout of a valid selection and freezes sourceType QUIZ_RECOMMENDED', async () => {
     tx.packConfiguration.findUnique.mockResolvedValue(configurationFixture());
 
     const result = await service.createFromConfiguration('config-1', dto);
 
     expect(result.orderId).toBe('order-1');
-    expect(result.orderStatus).toBe(OrderStatus.PENDING_CONFIRMATION);
-    expect(result.paymentMethod).toBe(PaymentMethod.CASH_ON_DELIVERY);
-    expect(result.paymentStatus).toBe(PaymentStatus.UNPAID);
-    expect(result.pack).toEqual({ id: 'pack-1', name: 'Natural Glow Pack' });
     expect(result.totalAmount).toBe(120);
-
-    const createArg = tx.order.create.mock.calls[0][0];
-    expect(createArg.data).toEqual(
-      expect.objectContaining({
-        selectedPackId: 'pack-1',
-        packConfigurationId: 'config-1',
-        customerProfileId: null,
-        recommendationResultId: null,
-        currency: 'MAD',
-      }),
-    );
-    // Order items are normal OrderItems carrying the source packId.
-    expect(tx.orderItem.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          orderId: 'order-1',
-          packId: 'pack-1',
-          productId: 'product-1',
-          productReferenceId: 'reference-1',
-          quantity: 1,
-        }),
-      ],
-    });
-    // Reuses the atomic stock reservation flow.
-    expect(orderStockService.reserveForNewOrder).toHaveBeenCalledWith(tx, [
-      expect.objectContaining({ productReferenceId: 'reference-1' }),
-    ]);
-  });
-
-  it('writes an immutable pack configuration snapshot that survives later pack changes', async () => {
-    const configuration = configurationFixture();
-    tx.packConfiguration.findUnique.mockResolvedValue(configuration);
-
-    await service.createFromConfiguration('config-1', dto);
-
     const snapshot =
       tx.order.create.mock.calls[0][0].data.packConfigurationSnapshot;
-    expect(snapshot.sourcePackId).toBe('pack-1');
-    expect(snapshot.sourceType).toBe('CUSTOMIZED');
-    expect(snapshot.finalPrice).toBe(120);
+    expect(snapshot.sourceType).toBe('QUIZ_RECOMMENDED');
     expect(snapshot.selectedItems).toEqual([
       expect.objectContaining({
         productId: 'product-1',
         productReferenceId: 'reference-1',
-        productName: 'Foundation X',
         quantity: 1,
-        unitPrice: 120,
       }),
     ]);
-
-    // Simulate the source pack changing after the order was placed.
-    configuration.sourcePack.name = 'Renamed Pack';
-    configuration.sourcePack.items[0].product.name = 'Different Product';
-    configuration.sourcePack.items[0].product.references[0].priceOverride =
-      decimal(999);
-
-    // The frozen snapshot on the order is unaffected.
-    expect(snapshot.finalPrice).toBe(120);
-    expect(snapshot.selectedItems[0].productName).toBe('Foundation X');
   });
 
-  it('rejects a configuration whose reference is out of stock (stale)', async () => {
+  it('allows checkout of a recommended fixed (non-customizable) pack', async () => {
     tx.packConfiguration.findUnique.mockResolvedValue(
       configurationFixture({
-        sourcePack: sourcePackFixture({
-          items: [
-            {
-              ...sourcePackFixture().items[0],
-              product: productFixture({
-                references: [
-                  referenceFixture({ stockQuantity: 0, reservedQuantity: 0 }),
-                ],
-              }),
-            },
-          ],
-        }),
+        sourcePack: fixedPack(),
+        items: [
+          {
+            packItemId: 'pack-item-1',
+            productId: 'product-1',
+            productReferenceId: 'reference-1',
+            role: PackItemRole.FIXED,
+            quantity: 1,
+            isAddOn: false,
+            removed: false,
+          },
+        ],
+      }),
+    );
+
+    const result = await service.createFromConfiguration('config-1', dto);
+
+    expect(result.orderId).toBe('order-1');
+    expect(
+      tx.order.create.mock.calls[0][0].data.packConfigurationSnapshot.sourceType,
+    ).toBe('QUIZ_RECOMMENDED');
+  });
+
+  it('blocks checkout while a required selection is still pending (null reference)', async () => {
+    tx.packConfiguration.findUnique.mockResolvedValue(
+      configurationFixture({
+        items: [
+          {
+            packItemId: 'pack-item-1',
+            productId: 'product-1',
+            productReferenceId: null,
+            role: PackItemRole.REQUIRED_SELECTABLE,
+            quantity: 1,
+            isAddOn: false,
+            removed: false,
+          },
+        ],
       }),
     );
 
@@ -240,61 +231,18 @@ describe('OrdersService — configured checkout (Phase 6)', () => {
     expect(tx.order.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a configuration priced below the pack floor', async () => {
+  it('still requires a customizable source pack for a CUSTOMIZED configuration (unchanged)', async () => {
     tx.packConfiguration.findUnique.mockResolvedValue(
       configurationFixture({
-        sourcePack: sourcePackFixture({ minAllowedPrice: decimal(200) }),
+        sourceType: PackConfigurationSourceType.CUSTOMIZED,
+        sourcePack: customizablePack({ isCustomizable: false }),
       }),
     );
 
     await expect(
       service.createFromConfiguration('config-1', dto),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(orderStockService.reserveForNewOrder).not.toHaveBeenCalled();
     expect(tx.order.create).not.toHaveBeenCalled();
-  });
-
-  it('rejects a configuration whose saved reference is no longer allowed', async () => {
-    tx.packConfiguration.findUnique.mockResolvedValue(
-      configurationFixture({
-        sourcePack: sourcePackFixture({
-          items: [
-            {
-              ...sourcePackFixture().items[0],
-              allowedReferences: [{ productReferenceId: 'other-reference' }],
-            },
-          ],
-        }),
-      }),
-    );
-
-    await expect(
-      service.createFromConfiguration('config-1', dto),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(orderStockService.reserveForNewOrder).not.toHaveBeenCalled();
-    expect(tx.order.create).not.toHaveBeenCalled();
-  });
-
-  it('rejects a configuration whose source pack became inactive', async () => {
-    tx.packConfiguration.findUnique.mockResolvedValue(
-      configurationFixture({
-        sourcePack: sourcePackFixture({ status: PackStatus.ARCHIVED }),
-      }),
-    );
-
-    await expect(
-      service.createFromConfiguration('config-1', dto),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(orderStockService.reserveForNewOrder).not.toHaveBeenCalled();
-    expect(tx.order.create).not.toHaveBeenCalled();
-  });
-
-  it('throws NotFoundException when the configuration does not exist', async () => {
-    tx.packConfiguration.findUnique.mockResolvedValue(null);
-
-    await expect(
-      service.createFromConfiguration('missing', dto),
-    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

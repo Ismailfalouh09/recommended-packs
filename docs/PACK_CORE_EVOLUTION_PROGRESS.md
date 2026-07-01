@@ -286,6 +286,54 @@
   two owners saving the same target independently.
 - Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
 
+### Phase 9 — Quiz-Recommended Existing Packs
+
+- Added one additive endpoint `POST /recommendations/:resultId/configure` that
+  turns an existing **recommended** Pack into a checkout-ready
+  `PackConfiguration` — see [QUIZ_RECOMMENDED_PACK_FLOW.md](./QUIZ_RECOMMENDED_PACK_FLOW.md).
+  The Pack is resolved server-side from the persisted `RecommendationResult`
+  (`:resultId`), never from the client.
+- Sets `sourceType = QUIZ_RECOMMENDED` and links the new, additive
+  `PackConfiguration.recommendationResultId` (migration
+  `20260701160000_pack_configuration_quiz_recommended`: nullable, indexed,
+  `ON DELETE SET NULL` FK; null for every Phase 6 CUSTOMIZED configuration). No
+  existing table/column was altered.
+- `RecommendationResultItem.selectedProductReferenceId` is **left NOT NULL and
+  untouched**. Pending customer-choice slots are represented in the
+  *configuration* (a null `PackConfigurationItem.productReferenceId` —
+  a dedicated configuration-pending representation), so no historical
+  recommendation result is broken.
+- Reuses the Phase 5 validator: fixed/auto-selected items are prefilled from the
+  recommended Pack; the body carries only the customer's selections for
+  `REQUIRED_SELECTABLE`/`CUSTOMER_CHOICE` slots (and optional allowed add-ons).
+  Price and stock are recomputed server-side; no client price is trusted. Quiz
+  answers and internal recommendation scores are never copied into the
+  configuration.
+- Pending vs. reject: a missing required selection persists the configuration as
+  pending (`isValid = false`, null reference on the slot); any other problem
+  (disallowed/inactive/out-of-stock reference, below-floor price, unknown slot,
+  bad quantity) is rejected with `400` and nothing is written.
+- Reuses the existing configured checkout (`POST /configurations/:id/checkout`)
+  unchanged in shape; it still revalidates everything. Two faithful adjustments:
+  the `isCustomizable` gate now exempts `QUIZ_RECOMMENDED` configurations (a
+  recommended *fixed* pack is not customizable) while still fully revalidating
+  the composition, and the immutable order snapshot records the configuration's
+  real `sourceType` (so a QUIZ_RECOMMENDED order freezes
+  `sourceType = QUIZ_RECOMMENDED`). A CUSTOMIZED configuration still requires a
+  customizable source pack — unchanged.
+- Existing `POST /orders`, `POST /orders/checkout`, fixed Pack purchase
+  (`POST /packs/:packId/order`), and the recommendation generation/read APIs
+  remain unchanged. Quiz-*generated* packs are not implemented.
+- Focused tests added
+  ([packs.service.recommendation-config.spec.ts](../src/modules/packs/packs.service.recommendation-config.spec.ts),
+  [orders.service.recommendation-config.spec.ts](../src/modules/orders/orders.service.recommendation-config.spec.ts)):
+  recommended fixed Pack → valid QUIZ_RECOMMENDED config; customer-choice slot →
+  pending config; pending selection blocks checkout; valid selection allows
+  checkout; disallowed/out-of-stock rejected; no quiz answers/scores persisted;
+  order snapshot carries QUIZ_RECOMMENDED; existing recommendation and CUSTOMIZED
+  configuration flows unchanged. Prisma validate/generate + build + full test
+  suite (433) + Swagger generate/check pass.
+
 ### Budget Range Foundation
 
 - Added canonical Budget option numeric ranges:
@@ -364,10 +412,18 @@
      (`POST /configurations/:id/share`) resolved by a public, customer-safe read
      (`GET /shared/configurations/:shareToken`). Share analytics, social login,
      Open Graph pages, and checkout-from-share remain out of scope.
+   - Phase 9 is **complete**: quiz-recommended existing packs — an existing
+     recommended Pack is configured into a `QUIZ_RECOMMENDED` `PackConfiguration`
+     via `POST /recommendations/:resultId/configure` and checked out through the
+     existing configured checkout
+     ([QUIZ_RECOMMENDED_PACK_FLOW.md](./QUIZ_RECOMMENDED_PACK_FLOW.md)).
+     Quiz-generated packs remain deferred.
 
 ## Explicitly Deferred
 
-- Phase 9 and later Pack business flows
+- Phase 10 and later Pack business flows (Phase 9 —
+  [quiz-recommended existing packs](./QUIZ_RECOMMENDED_PACK_FLOW.md) — is
+  **complete**)
 - Wishlist sharing and PackConfiguration wishlisting (Phase 8A shipped
   Product/Pack wishlisting only)
 - Share analytics, social login, and checkout from a shared link (Phase 8B

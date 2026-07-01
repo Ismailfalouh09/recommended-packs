@@ -6,6 +6,7 @@ import {
 import {
   MediaRole,
   OrderStatus,
+  PackConfigurationSourceType,
   PackItemRole,
   PackStatus,
   PaymentMethod,
@@ -464,7 +465,15 @@ export class OrdersService {
         throw new BadRequestException('The pack is inactive or archived.');
       }
 
-      if (!pack.isCustomizable) {
+      // A CUSTOMIZED configuration still requires a customizable source pack. A
+      // Phase 9 QUIZ_RECOMMENDED configuration may come from a fixed (non-
+      // customizable) recommended pack, so it is exempt from this gate; its
+      // composition is still fully revalidated by the shared validator below.
+      if (
+        !pack.isCustomizable &&
+        configuration.sourceType !==
+          PackConfigurationSourceType.QUIZ_RECOMMENDED
+      ) {
         throw new BadRequestException(
           'The source pack is no longer customizable.',
         );
@@ -498,7 +507,9 @@ export class OrdersService {
       const snapshot = buildPackConfigurationSnapshot({
         sourcePackId: pack.id,
         sourcePackName: pack.name,
-        sourceType: 'CUSTOMIZED',
+        // Freeze the configuration's real origin (CUSTOMIZED or, for Phase 9,
+        // QUIZ_RECOMMENDED) onto the immutable order snapshot.
+        sourceType: configuration.sourceType,
         currency: pack.currency,
         finalPrice: result.computedPrice,
         minAllowedPrice: result.minAllowedPrice,
@@ -1553,6 +1564,7 @@ export class OrdersService {
       where: { id: configurationId },
       select: {
         id: true,
+        sourceType: true,
         items: {
           orderBy: [{ createdAt: 'asc' }],
           select: {

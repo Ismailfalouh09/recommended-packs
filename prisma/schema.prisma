@@ -782,6 +782,11 @@ model PackConfiguration {
   id               String                      @id @default(uuid()) @db.Uuid
   sourcePackId     String                      @map("source_pack_id") @db.Uuid
   sourceType       PackConfigurationSourceType @default(CUSTOMIZED) @map("source_type")
+  // Pack Core Evolution (Phase 9) — additive, nullable link to the persisted
+  // RecommendationResult a QUIZ_RECOMMENDED configuration was created from. Null
+  // for all CUSTOMIZED (Phase 6) configurations. SetNull on delete so historical
+  // configurations survive if the recommendation session is later pruned.
+  recommendationResultId String?                @map("recommendation_result_id") @db.Uuid
   finalPrice       Decimal                     @map("final_price") @db.Decimal(10, 2)
   currency         String                      @default("MAD") @db.Char(3)
   minAllowedPrice  Decimal?                    @map("min_allowed_price") @db.Decimal(10, 2)
@@ -796,12 +801,14 @@ model PackConfiguration {
   createdAt        DateTime                    @default(now()) @map("created_at")
   updatedAt        DateTime                    @updatedAt @map("updated_at")
 
-  sourcePack Pack                    @relation("PackConfigurations", fields: [sourcePackId], references: [id], onDelete: Restrict)
-  items      PackConfigurationItem[]
-  orders     Order[]                 @relation("PackConfigurationOrders")
+  sourcePack           Pack                    @relation("PackConfigurations", fields: [sourcePackId], references: [id], onDelete: Restrict)
+  recommendationResult RecommendationResult?   @relation("RecommendedConfigurations", fields: [recommendationResultId], references: [id], onDelete: SetNull)
+  items                PackConfigurationItem[]
+  orders               Order[]                 @relation("PackConfigurationOrders")
 
   @@index([sourcePackId])
   @@index([sourceType])
+  @@index([recommendationResultId])
   @@map("pack_configurations")
 }
 
@@ -897,8 +904,12 @@ model RecommendationResult {
   recommendationSession RecommendationSession @relation(fields: [recommendationSessionId], references: [id], onDelete: Cascade)
   pack                  Pack                  @relation(fields: [packId], references: [id], onDelete: Restrict)
 
-  items  RecommendationResultItem[]
-  orders Order[]
+  items          RecommendationResultItem[]
+  orders         Order[]
+  // Pack Core Evolution (Phase 9) — QUIZ_RECOMMENDED configurations created from
+  // this recommendation result (customer selected required options, then this
+  // recommended Pack was persisted as a configuration).
+  configurations PackConfiguration[]        @relation("RecommendedConfigurations")
 
   @@unique([recommendationSessionId, packId])
   @@index([recommendationSessionId, rank])
