@@ -117,7 +117,35 @@
   `availableNow` true/false, no-filter backward compatibility, optional-items-do-
   not-block, required-unavailable-blocks, pagination, reserved-stock non-leak.
 - Swagger/OpenAPI regenerated and verified. Prisma validate/generate + build pass.
-- **Direct Pack purchase is NOT implemented** (Phase 4B — see below).
+
+### Phase 4B — Fixed Pack Direct Purchase
+- Added one additive endpoint `POST /packs/:packId/order` for a Cash-on-Delivery
+  order of a single **fixed, non-customizable** Pack as one unit — see
+  [PACK_FIXED_PURCHASE_FLOW.md](./PACK_FIXED_PURCHASE_FLOW.md).
+- Reuses existing order machinery (customer upsert, address, atomic stock
+  reservation, per-line snapshots, status history). **No order logic duplicated.**
+  The price-mode logic was extracted into a shared `applyPackPriceMode` helper
+  used by both the funnel path and the new fixed-pack path.
+- Server-authoritative throughout: the Pack is identified only by `:packId`; items
+  and prices are never taken from the client (`CreatePackOrderDto` carries only
+  customer/delivery fields).
+- Validation gate: accepts only active, available, non-customizable Packs; rejects
+  customizable Packs, Packs with `REQUIRED_SELECTABLE`/`CUSTOMER_CHOICE` items, and
+  packs that are not available now (reuses `isPackAvailableNow`).
+- Expansion: only `FIXED`-role items form the composition (exactly matches the
+  availability blocking set), each resolved to one concrete reference server-side
+  (`FIXED_REFERENCE` → pinned; `AUTO_BEST_REFERENCE` → first active in-stock).
+  Expanded into normal `OrderItem`s with `OrderItem.packId` set.
+- Applies Pack `priceMode` correctly: `FIXED`, `SUM_ITEMS`,
+  `SUM_ITEMS_WITH_DISCOUNT`.
+- `Order.packConfigurationSnapshot` remains `null` in this phase.
+- Existing `POST /orders` and `POST /orders/checkout` behavior preserved unchanged.
+- Focused tests added ([orders.service.pack.spec.ts](../src/modules/orders/orders.service.pack.spec.ts));
+  Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
+
+### Phase 4 — COMPLETE
+- Both Phase 4A (public catalog discovery, filtering, browsing availability) and
+  Phase 4B (fixed Pack direct purchase) are done. Phase 4 is complete.
 
 ### Budget Range Foundation
 - Added canonical Budget option numeric ranges:
@@ -171,12 +199,12 @@
    - Keep Occasion matcher coverage in automated tests.
    - Add the public quiz question only in a separate intentional quiz evolution.
 
-4. Next Pack business phase — Phase 4B (direct fixed-Pack purchase):
-   - Phase 4A (catalog discovery, filtering, and browsing availability) is
-     **completed** — see [PACK_PUBLIC_DISCOVERY.md](./PACK_PUBLIC_DISCOVERY.md).
-   - Remaining: `POST /packs/:id/order` (expand a fixed pack into priced lines,
-     apply the pack price mode, reserve stock, snapshot lines, set
-     `OrderItem.packId`), gated to non-customizable packs. Not started.
+4. Next Pack business phase — Phase 5 (controlled customization):
+   - Phase 4 is **complete**: Phase 4A (catalog discovery, filtering, browsing
+     availability — [PACK_PUBLIC_DISCOVERY.md](./PACK_PUBLIC_DISCOVERY.md)) and
+     Phase 4B (fixed Pack direct purchase via `POST /packs/:packId/order` —
+     [PACK_FIXED_PURCHASE_FLOW.md](./PACK_FIXED_PURCHASE_FLOW.md)).
+   - Next: Phase 5 customizable Pack rules & configuration validator.
 
 ## Explicitly Deferred
 

@@ -6,12 +6,14 @@ import {
 import {
   MediaRole,
   OrderStatus,
+  PackItemRole,
   PackStatus,
   PaymentMethod,
   PaymentStatus,
   PriceMode,
   Prisma,
   ProductStatus,
+  SelectionMode,
 } from '@prisma/client';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
@@ -19,8 +21,10 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isPackAvailableNow } from '../packs/pack-availability.util';
 import { CreateCartOrderDto } from './dto/create-cart-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CreatePackOrderDto } from './dto/create-pack-order.dto';
 import { QueryAdminOrdersDto } from './dto/query-admin-orders.dto';
 import { OrderStockService } from './order-stock.service';
 
@@ -29,6 +33,14 @@ type Money = InstanceType<typeof Prisma.Decimal>;
 type LoadedRecommendationResult = NonNullable<
   Awaited<ReturnType<OrdersService['loadRecommendationResult']>>
 >;
+
+type LoadedFixedPurchasePack = NonNullable<
+  Awaited<ReturnType<OrdersService['loadFixedPurchasePack']>>
+>;
+
+type LoadedFixedPackItem = LoadedFixedPurchasePack['items'][number];
+type LoadedFixedPackReference =
+  LoadedFixedPackItem['product']['references'][number];
 
 interface PricedOrderItem {
   packId: string | null;
@@ -273,6 +285,123 @@ export class OrdersService {
       order: created.order,
       customer: created.customer,
       address: created.address,
+      items: created.items,
+    });
+  }
+
+  /**
+   * Pack Core Evolution (Phase 4B) — direct Cash-on-Delivery purchase of a
+   * single fixed, non-customizable Pack as one unit.
+   *
+   * The Pack is loaded, validated (active, available, non-customizable, no
+   * required-selectable / customer-choice slots), and expanded server-side into
+   * normal priced OrderItems (each carrying `packId`). The Pack's own price mode
+   * is applied through the shared {@link applyPackPriceMode} helper and stock is
+   * reserved through the existing atomic {@link OrderStockService.reserveForNewOrder}
+   * flow. No client-supplied item or price is ever trusted. The customer /
+   * address / order-line snapshot logic is the same as the other order paths.
+   * `packConfigurationSnapshot` stays null in this phase.
+   */
+  async createFromFixedPack(packId: string, dto: CreatePackOrderDto) {
+    const orderNumber = this.generateOrderNumber();
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const pack = await this.loadFixedPurchasePack(packId, tx);
+
+      if (!pack) {
+        throw new NotFoundException(`Pack ${packId} was not found.`);
+      }
+
+      this.validateFixedPurchasePack(pack);
+
+      const itemSnapshots = this.buildFixedPackItemSnapshots(pack);
+      const priceSummary = this.applyPackPriceMode(pack, itemSnapshots);
+      await this.orderStockService.reserveForNewOrder(tx, priceSummary.items);
+
+      const customer = await this.upsertCustomer(tx, dto);
+
+      await tx.customerAddress.updateMany({
+        where: {
+          customerId: customer.id,
+          isDefault: true,
+        },
+        data: {
+          isDefault: false,
+        },
+      });
+
+      const address = await tx.customerAddress.create({
+        data: {
+          customerId: customer.id,
+          city: dto.city,
+          addressLine: dto.addressLine,
+          extraInfo: dto.extraInfo || null,
+          isDefault: true,
+        },
+      });
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          customerId: customer.id,
+          customerProfileId: null,
+          recommendationResultId: null,
+          selectedPackId: pack.id,
+          customerAddressId: address.id,
+          paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+          paymentStatus: PaymentStatus.UNPAID,
+          orderStatus: OrderStatus.PENDING_CONFIRMATION,
+          subtotalAmount: priceSummary.subtotalAmount,
+          discountAmount: priceSummary.discountAmount,
+          deliveryFee: priceSummary.deliveryFee,
+          totalAmount: priceSummary.totalAmount,
+          currency: pack.currency,
+          notes: dto.notes || null,
+        },
+      });
+
+      await tx.orderItem.createMany({
+        data: priceSummary.items.map((item) => ({
+          orderId: order.id,
+          packId: item.packId,
+          productId: item.productId,
+          productReferenceId: item.productReferenceId,
+          productNameSnapshot: item.productNameSnapshot,
+          referenceNameSnapshot: item.referenceNameSnapshot,
+          skuSnapshot: item.skuSnapshot,
+          variationSnapshot: item.variationSnapshot,
+          productImageUrlSnapshot: item.productImageUrlSnapshot,
+          brandNameSnapshot: item.brandNameSnapshot,
+          unitPriceSnapshot: item.unitPriceSnapshot,
+          originalUnitPriceSnapshot: item.originalUnitPriceSnapshot,
+          quantity: item.quantity,
+          totalPrice: item.totalPrice,
+        })),
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          oldStatus: null,
+          newStatus: OrderStatus.PENDING_CONFIRMATION,
+          comment: 'Order created',
+        },
+      });
+
+      return {
+        order,
+        customer,
+        address,
+        pack,
+        items: priceSummary.items,
+      };
+    });
+
+    return this.toOrderResponse({
+      order: created.order,
+      customer: created.customer,
+      address: created.address,
+      pack: created.pack,
       items: created.items,
     });
   }
@@ -872,17 +1001,37 @@ export class OrdersService {
       };
     });
 
+    return this.applyPackPriceMode(recommendationResult.pack, itemSnapshots);
+  }
+
+  /**
+   * Applies a Pack's price mode to already-priced line snapshots. Shared by the
+   * recommendation-funnel order path and the direct fixed-Pack purchase path so
+   * both compute `FIXED` / `SUM_ITEMS` / `SUM_ITEMS_WITH_DISCOUNT` identically.
+   * Prices are always derived server-side from the line snapshots and the Pack's
+   * own pricing fields — never from any client input.
+   */
+  private applyPackPriceMode(
+    pack: {
+      priceMode: PriceMode;
+      fixedPrice: Prisma.Decimal | null;
+      discountAmount: Prisma.Decimal | null;
+      discountPercentage: Prisma.Decimal | null;
+    },
+    itemSnapshots: PricedOrderItem[],
+  ): PriceSummary {
+    const zero = this.decimal(0);
     const itemSubtotal = itemSnapshots.reduce(
       (sum, item) => sum.plus(item.totalPrice),
       zero,
     );
 
-    if (recommendationResult.pack.priceMode === PriceMode.FIXED) {
-      if (!recommendationResult.pack.fixedPrice) {
+    if (pack.priceMode === PriceMode.FIXED) {
+      if (!pack.fixedPrice) {
         throw new BadRequestException('Selected pack has no fixed price.');
       }
 
-      const subtotalAmount = this.decimal(recommendationResult.pack.fixedPrice);
+      const subtotalAmount = this.decimal(pack.fixedPrice);
 
       return {
         subtotalAmount,
@@ -893,7 +1042,7 @@ export class OrdersService {
       };
     }
 
-    if (recommendationResult.pack.priceMode === PriceMode.SUM_ITEMS) {
+    if (pack.priceMode === PriceMode.SUM_ITEMS) {
       return {
         subtotalAmount: itemSubtotal,
         discountAmount: zero,
@@ -905,8 +1054,8 @@ export class OrdersService {
 
     const discountAmount = this.calculateDiscount(
       itemSubtotal,
-      recommendationResult.pack.discountAmount,
-      recommendationResult.pack.discountPercentage,
+      pack.discountAmount,
+      pack.discountPercentage,
     );
     const totalAmount = Prisma.Decimal.max(
       itemSubtotal.minus(discountAmount),
@@ -920,6 +1069,258 @@ export class OrdersService {
       totalAmount,
       items: itemSnapshots,
     };
+  }
+
+  /**
+   * Loads a Pack with everything needed to expand it into priced order lines:
+   * its pricing fields, its items (role / selection mode / quantity), and each
+   * item's product + product references (for reference resolution, pricing,
+   * snapshots, and availability).
+   */
+  private loadFixedPurchasePack(
+    packId: string,
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ) {
+    return client.pack.findUnique({
+      where: { id: packId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        isActive: true,
+        isCustomizable: true,
+        priceMode: true,
+        fixedPrice: true,
+        discountAmount: true,
+        discountPercentage: true,
+        currency: true,
+        items: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            role: true,
+            selectionMode: true,
+            quantity: true,
+            productReferenceId: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                basePrice: true,
+                compareAtPrice: true,
+                mainImageUrl: true,
+                isActive: true,
+                status: true,
+                brand: {
+                  select: {
+                    name: true,
+                  },
+                },
+                images: {
+                  where: { role: MediaRole.COVER },
+                  orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                  take: 1,
+                  select: {
+                    media: {
+                      select: {
+                        secureUrl: true,
+                        url: true,
+                      },
+                    },
+                  },
+                },
+                references: {
+                  orderBy: [{ referenceCode: 'asc' }, { createdAt: 'asc' }],
+                  select: {
+                    id: true,
+                    referenceCode: true,
+                    referenceName: true,
+                    shadeName: true,
+                    measurement: true,
+                    sku: true,
+                    priceOverride: true,
+                    priceDelta: true,
+                    imageUrl: true,
+                    image: {
+                      select: {
+                        media: {
+                          select: {
+                            secureUrl: true,
+                            url: true,
+                          },
+                        },
+                      },
+                    },
+                    stockQuantity: true,
+                    reservedQuantity: true,
+                    isActive: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Guards the direct fixed-Pack purchase path. Only active, available,
+   * non-customizable Packs whose items are all fixed (no required-selectable or
+   * customer-choice slots) may be bought as one unit in this phase.
+   */
+  private validateFixedPurchasePack(pack: LoadedFixedPurchasePack) {
+    if (!pack.isActive || pack.status !== PackStatus.ACTIVE) {
+      throw new BadRequestException('The pack is inactive or archived.');
+    }
+
+    if (pack.isCustomizable) {
+      throw new BadRequestException(
+        'Customizable packs cannot be purchased directly. Use the pack configuration flow.',
+      );
+    }
+
+    for (const item of pack.items) {
+      if (
+        item.role === PackItemRole.REQUIRED_SELECTABLE ||
+        item.selectionMode === SelectionMode.CUSTOMER_CHOICE
+      ) {
+        throw new BadRequestException(
+          'This pack requires customer selections and cannot be purchased as a fixed pack.',
+        );
+      }
+    }
+
+    if (!isPackAvailableNow(this.toFixedPurchaseAvailabilityPack(pack))) {
+      throw new BadRequestException(
+        'The pack is not available for purchase right now.',
+      );
+    }
+  }
+
+  /**
+   * Maps the loaded pack onto the pure availability shape. A pinned
+   * FIXED_REFERENCE item is satisfied only by that reference; other items may be
+   * satisfied by any of the product's active in-stock references.
+   */
+  private toFixedPurchaseAvailabilityPack(pack: LoadedFixedPurchasePack) {
+    return {
+      status: pack.status,
+      isActive: pack.isActive,
+      items: pack.items.map((item) => {
+        const fixedReference =
+          item.selectionMode === SelectionMode.FIXED_REFERENCE
+            ? (item.product.references.find(
+                (reference) => reference.id === item.productReferenceId,
+              ) ?? null)
+            : null;
+
+        return {
+          role: item.role,
+          quantity: item.quantity,
+          fixedReference,
+          candidateReferences: item.product.references,
+        };
+      }),
+    };
+  }
+
+  /**
+   * Expands the fixed items of a Pack into priced order-line snapshots. Only
+   * `FIXED`-role items form the fixed pack composition (this exactly matches the
+   * availability blocking set once required-selectable items are rejected), so a
+   * Pack deemed available always reserves cleanly. Each item resolves to one
+   * concrete reference server-side.
+   */
+  private buildFixedPackItemSnapshots(
+    pack: LoadedFixedPurchasePack,
+  ): PricedOrderItem[] {
+    const fixedItems = pack.items.filter(
+      (item) => item.role === PackItemRole.FIXED,
+    );
+
+    if (fixedItems.length === 0) {
+      throw new BadRequestException('The pack has no purchasable items.');
+    }
+
+    return fixedItems.map((item) => {
+      const product = item.product;
+      const reference = this.resolveFixedPackReference(item);
+      const unitPrice = this.effectiveProductReferencePrice(product, reference);
+
+      return {
+        packId: pack.id,
+        productId: product.id,
+        productReferenceId: reference.id,
+        productNameSnapshot: product.name,
+        referenceNameSnapshot: this.referenceSnapshotName(reference),
+        skuSnapshot: reference.sku,
+        variationSnapshot: this.variationSnapshot(reference),
+        productImageUrlSnapshot: this.snapshotImageUrl(product, reference),
+        brandNameSnapshot: product.brand?.name ?? null,
+        unitPriceSnapshot: unitPrice,
+        originalUnitPriceSnapshot: this.originalUnitPriceSnapshot(
+          product,
+          unitPrice,
+        ),
+        quantity: item.quantity,
+        totalPrice: unitPrice.times(item.quantity),
+      };
+    });
+  }
+
+  /**
+   * Resolves the single concrete reference used for a fixed pack item. A
+   * FIXED_REFERENCE item uses its pinned reference; an AUTO_BEST_REFERENCE item
+   * uses the first active, in-stock reference in the product's deterministic
+   * (referenceCode) order. Availability was validated beforehand, so a missing
+   * usable reference is treated as a hard error.
+   */
+  private resolveFixedPackReference(
+    item: LoadedFixedPackItem,
+  ): LoadedFixedPackReference {
+    const product = item.product;
+
+    if (item.selectionMode === SelectionMode.FIXED_REFERENCE) {
+      const reference = product.references.find(
+        (candidate) =>
+          candidate.id === item.productReferenceId &&
+          candidate.isActive &&
+          this.availableReferenceStock(candidate) >= item.quantity,
+      );
+
+      if (!reference) {
+        throw new BadRequestException(
+          `Fixed reference for product ${product.name} is inactive or out of stock.`,
+        );
+      }
+
+      return reference;
+    }
+
+    const reference = product.references.find(
+      (candidate) =>
+        candidate.isActive &&
+        this.availableReferenceStock(candidate) >= item.quantity,
+    );
+
+    if (!reference) {
+      throw new BadRequestException(
+        `Product ${product.name} has no active in-stock reference.`,
+      );
+    }
+
+    return reference;
+  }
+
+  private availableReferenceStock(reference: {
+    stockQuantity: number;
+    reservedQuantity?: number | null;
+  }): number {
+    return Math.max(
+      reference.stockQuantity - (reference.reservedQuantity ?? 0),
+      0,
+    );
   }
 
   private calculateDiscount(

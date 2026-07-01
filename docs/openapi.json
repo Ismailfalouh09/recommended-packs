@@ -3860,6 +3860,77 @@
         ]
       }
     },
+    "/packs/{packId}/order": {
+      "post": {
+        "description": "Buys a single fixed, non-customizable pack as one unit. The server validates that the pack is active, available, and non-customizable with no required-selectable/customer-choice items, expands its fixed items into priced order lines (each carrying packId), applies the pack price mode (FIXED / SUM_ITEMS / SUM_ITEMS_WITH_DISCOUNT), and reserves stock atomically. No client-supplied item or price is accepted. This route is additive and does not affect POST /orders or POST /orders/checkout.",
+        "operationId": "PacksController_orderFixedPack",
+        "parameters": [
+          {
+            "name": "packId",
+            "required": true,
+            "in": "path",
+            "description": "Pack ID to purchase.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePackOrderDto"
+              },
+              "examples": {
+                "fixedPackOrder": {
+                  "summary": "Fixed pack direct purchase",
+                  "value": {
+                    "fullName": "Test Customer",
+                    "phone": "0600000000",
+                    "whatsappPhone": "0600000000",
+                    "city": "Casablanca",
+                    "addressLine": "Maarif",
+                    "extraInfo": "Near the pharmacy",
+                    "notes": "Call before delivery"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Fixed pack order created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pack inactive/archived, customizable, requires customer selection, unavailable, or has no purchasable items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pack not found."
+          }
+        },
+        "summary": "Place a Cash on Delivery order for a fixed pack",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
     "/packs/slug/{slug}": {
       "get": {
         "description": "Returns the same public pack detail response shape as GET /packs/:id.",
@@ -4246,403 +4317,6 @@
         "summary": "Archive pack",
         "tags": [
           "Admin Packs"
-        ]
-      }
-    },
-    "/recommendations": {
-      "post": {
-        "description": "Loads profile answers and active packs/products/references, selects best references, stores the recommendation session/results/items, and returns ranked packs with score details.",
-        "operationId": "RecommendationsController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecommendationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Recommendations generated and stored.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Profile has no answers or request validation failed."
-          },
-          "404": {
-            "description": "Customer profile not found."
-          }
-        },
-        "summary": "Generate recommendations for a customer profile",
-        "tags": [
-          "Recommendations"
-        ]
-      }
-    },
-    "/recommendations/{sessionId}": {
-      "get": {
-        "description": "Returns a previously generated recommendation session and ranked results.",
-        "operationId": "RecommendationsController_findOne",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "required": true,
-            "in": "path",
-            "description": "Recommendation session ID.",
-            "schema": {
-              "example": "00000000-0000-4000-8000-000000000001",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Stored recommendation session.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Recommendation session not found."
-          }
-        },
-        "summary": "Get a stored recommendation session",
-        "tags": [
-          "Recommendations"
-        ]
-      }
-    },
-    "/admin/recommendation-rules": {
-      "get": {
-        "description": "OWNER, ADMIN, and STAFF can read paginated recommendation scoring rules.",
-        "operationId": "AdminRecommendationRulesController_findAll",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": 1,
-              "example": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "pageSize",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maximum": 100,
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "search",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "example": "skin",
-              "type": "string"
-            }
-          },
-          {
-            "name": "targetType",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "PACK",
-                "PRODUCT",
-                "REFERENCE"
-              ]
-            }
-          },
-          {
-            "name": "conditionType",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "MUST_MATCH",
-                "SHOULD_MATCH",
-                "EXCLUDE_IF_MATCH"
-              ]
-            }
-          },
-          {
-            "name": "attributeGroupId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "example": "9f72caaa-f55b-4423-b805-911e3e7f61bb",
-              "type": "string"
-            }
-          },
-          {
-            "name": "isActive",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "example": true,
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated recommendation rules.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationRuleResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required."
-          },
-          "403": {
-            "description": "Insufficient admin role."
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "List recommendation rules",
-        "tags": [
-          "Admin Recommendation Rules"
-        ]
-      },
-      "post": {
-        "description": "OWNER and ADMIN can create scoring rules. Rule codes are immutable after creation.",
-        "operationId": "AdminRecommendationRulesController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecommendationRuleDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Recommendation rule created."
-          },
-          "401": {
-            "description": "Authentication required."
-          },
-          "403": {
-            "description": "Insufficient admin role."
-          },
-          "409": {
-            "description": "Recommendation rule code already exists."
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Create recommendation rule",
-        "tags": [
-          "Admin Recommendation Rules"
-        ]
-      }
-    },
-    "/admin/recommendation-rules/preview": {
-      "post": {
-        "description": "OWNER, ADMIN, and STAFF can preview current rule effects. This endpoint does not create recommendation sessions, results, or items.",
-        "operationId": "AdminRecommendationRulesController_preview",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecommendationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Preview recommendations without persisting a session.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required."
-          },
-          "403": {
-            "description": "Insufficient admin role."
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Preview recommendations without persistence",
-        "tags": [
-          "Admin Recommendation Rules"
-        ]
-      }
-    },
-    "/admin/recommendation-rules/{id}": {
-      "get": {
-        "description": "OWNER, ADMIN, and STAFF can read recommendation rule details.",
-        "operationId": "AdminRecommendationRulesController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Recommendation rule details.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecommendationRuleResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required."
-          },
-          "403": {
-            "description": "Insufficient admin role."
-          },
-          "404": {
-            "description": "Recommendation rule not found."
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get recommendation rule details",
-        "tags": [
-          "Admin Recommendation Rules"
-        ]
-      },
-      "patch": {
-        "description": "OWNER and ADMIN can update mutable recommendation rule fields.",
-        "operationId": "AdminRecommendationRulesController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRecommendationRuleDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Recommendation rule updated."
-          },
-          "401": {
-            "description": "Authentication required."
-          },
-          "403": {
-            "description": "Insufficient admin role."
-          },
-          "404": {
-            "description": "Recommendation rule not found."
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Update recommendation rule",
-        "tags": [
-          "Admin Recommendation Rules"
-        ]
-      },
-      "delete": {
-        "description": "OWNER and ADMIN can soft-deactivate recommendation rules.",
-        "operationId": "AdminRecommendationRulesController_deactivate",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Recommendation rule deactivated."
-          },
-          "401": {
-            "description": "Authentication required."
-          },
-          "403": {
-            "description": "Insufficient admin role."
-          },
-          "404": {
-            "description": "Recommendation rule not found."
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Deactivate recommendation rule",
-        "tags": [
-          "Admin Recommendation Rules"
         ]
       }
     },
@@ -5088,6 +4762,403 @@
         "summary": "Update order status",
         "tags": [
           "Admin Orders"
+        ]
+      }
+    },
+    "/recommendations": {
+      "post": {
+        "description": "Loads profile answers and active packs/products/references, selects best references, stores the recommendation session/results/items, and returns ranked packs with score details.",
+        "operationId": "RecommendationsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecommendationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recommendations generated and stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Profile has no answers or request validation failed."
+          },
+          "404": {
+            "description": "Customer profile not found."
+          }
+        },
+        "summary": "Generate recommendations for a customer profile",
+        "tags": [
+          "Recommendations"
+        ]
+      }
+    },
+    "/recommendations/{sessionId}": {
+      "get": {
+        "description": "Returns a previously generated recommendation session and ranked results.",
+        "operationId": "RecommendationsController_findOne",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "description": "Recommendation session ID.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored recommendation session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recommendation session not found."
+          }
+        },
+        "summary": "Get a stored recommendation session",
+        "tags": [
+          "Recommendations"
+        ]
+      }
+    },
+    "/admin/recommendation-rules": {
+      "get": {
+        "description": "OWNER, ADMIN, and STAFF can read paginated recommendation scoring rules.",
+        "operationId": "AdminRecommendationRulesController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "skin",
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PACK",
+                "PRODUCT",
+                "REFERENCE"
+              ]
+            }
+          },
+          {
+            "name": "conditionType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "MUST_MATCH",
+                "SHOULD_MATCH",
+                "EXCLUDE_IF_MATCH"
+              ]
+            }
+          },
+          {
+            "name": "attributeGroupId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "9f72caaa-f55b-4423-b805-911e3e7f61bb",
+              "type": "string"
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated recommendation rules.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationRuleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List recommendation rules",
+        "tags": [
+          "Admin Recommendation Rules"
+        ]
+      },
+      "post": {
+        "description": "OWNER and ADMIN can create scoring rules. Rule codes are immutable after creation.",
+        "operationId": "AdminRecommendationRulesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecommendationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recommendation rule created."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "409": {
+            "description": "Recommendation rule code already exists."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create recommendation rule",
+        "tags": [
+          "Admin Recommendation Rules"
+        ]
+      }
+    },
+    "/admin/recommendation-rules/preview": {
+      "post": {
+        "description": "OWNER, ADMIN, and STAFF can preview current rule effects. This endpoint does not create recommendation sessions, results, or items.",
+        "operationId": "AdminRecommendationRulesController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecommendationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview recommendations without persisting a session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preview recommendations without persistence",
+        "tags": [
+          "Admin Recommendation Rules"
+        ]
+      }
+    },
+    "/admin/recommendation-rules/{id}": {
+      "get": {
+        "description": "OWNER, ADMIN, and STAFF can read recommendation rule details.",
+        "operationId": "AdminRecommendationRulesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recommendation rule details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationRuleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Recommendation rule not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get recommendation rule details",
+        "tags": [
+          "Admin Recommendation Rules"
+        ]
+      },
+      "patch": {
+        "description": "OWNER and ADMIN can update mutable recommendation rule fields.",
+        "operationId": "AdminRecommendationRulesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecommendationRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recommendation rule updated."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Recommendation rule not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update recommendation rule",
+        "tags": [
+          "Admin Recommendation Rules"
+        ]
+      },
+      "delete": {
+        "description": "OWNER and ADMIN can soft-deactivate recommendation rules.",
+        "operationId": "AdminRecommendationRulesController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recommendation rule deactivated."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Recommendation rule not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Deactivate recommendation rule",
+        "tags": [
+          "Admin Recommendation Rules"
         ]
       }
     }
@@ -7923,6 +7994,215 @@
           "images"
         ]
       },
+      "CreatePackOrderDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "description": "Customer display name for order fulfillment.",
+            "example": "Demo Customer"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Customer phone number used to create or reuse a customer.",
+            "example": "0600000000"
+          },
+          "whatsappPhone": {
+            "type": "string",
+            "description": "Optional WhatsApp phone number for future customer contact.",
+            "example": "0600000000"
+          },
+          "city": {
+            "type": "string",
+            "description": "Delivery city.",
+            "example": "Casablanca"
+          },
+          "addressLine": {
+            "type": "string",
+            "description": "Delivery street/address line.",
+            "example": "Maarif"
+          },
+          "extraInfo": {
+            "type": "string",
+            "description": "Additional delivery directions.",
+            "example": "Near the pharmacy"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional order note for admin fulfillment.",
+            "example": "Call before delivery"
+          }
+        },
+        "required": [
+          "fullName",
+          "phone",
+          "city",
+          "addressLine"
+        ]
+      },
+      "OrderItemResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "productNameSnapshot": {
+            "type": "string",
+            "example": "Foundation X"
+          },
+          "referenceNameSnapshot": {
+            "type": "string",
+            "example": "Medium Warm"
+          },
+          "skuSnapshot": {
+            "type": "object",
+            "example": "FOUNDATION-X-RF2",
+            "nullable": true
+          },
+          "variationSnapshot": {
+            "type": "object",
+            "example": "Medium Warm",
+            "nullable": true
+          },
+          "productImageUrlSnapshot": {
+            "type": "object",
+            "example": "https://example.com/product.jpg",
+            "nullable": true
+          },
+          "brandNameSnapshot": {
+            "type": "object",
+            "example": "Demo Beauty",
+            "nullable": true
+          },
+          "unitPriceSnapshot": {
+            "type": "number",
+            "example": 120
+          },
+          "quantity": {
+            "type": "number",
+            "example": 1
+          },
+          "totalPrice": {
+            "type": "number",
+            "example": 120
+          }
+        },
+        "required": [
+          "id",
+          "productNameSnapshot",
+          "referenceNameSnapshot",
+          "unitPriceSnapshot",
+          "quantity",
+          "totalPrice"
+        ]
+      },
+      "OrderCreateResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORD-20260612-0001"
+          },
+          "orderStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "example": "PENDING_CONFIRMATION"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "REFUNDED"
+            ],
+            "example": "UNPAID"
+          },
+          "totalAmount": {
+            "type": "number",
+            "example": 299
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "packName": {
+            "type": "string",
+            "example": "Natural Glow Pack"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponse"
+            }
+          }
+        },
+        "required": [
+          "orderId",
+          "orderNumber",
+          "orderStatus",
+          "paymentStatus",
+          "totalAmount",
+          "currency",
+          "packName",
+          "createdAt",
+          "updatedAt",
+          "items"
+        ]
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 400
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "example": [
+              "attributeGroupCode must not be empty"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "example": "Bad Request"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
       "PackItemInputDto": {
         "type": "object",
         "properties": {
@@ -8456,6 +8736,615 @@
           }
         }
       },
+      "CartOrderItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "description": "Product being ordered from the normal store cart.",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "referenceId": {
+            "type": "string",
+            "description": "Selected product reference or variant.",
+            "example": "00000000-0000-4000-8000-000000000002"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Quantity requested for this cart line.",
+            "example": 2,
+            "minimum": 1
+          }
+        },
+        "required": [
+          "productId",
+          "referenceId",
+          "quantity"
+        ]
+      },
+      "CreateCartOrderDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Normal store cart lines selected by the customer.",
+            "example": [
+              {
+                "productId": "00000000-0000-4000-8000-000000000001",
+                "referenceId": "00000000-0000-4000-8000-000000000002",
+                "quantity": 2
+              }
+            ],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartOrderItemDto"
+            }
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Customer display name for order fulfillment.",
+            "example": "Demo Customer"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Customer phone number used to create or reuse a customer.",
+            "example": "0600000000"
+          },
+          "whatsappPhone": {
+            "type": "string",
+            "description": "Optional WhatsApp phone number for future customer contact.",
+            "example": "0600000000"
+          },
+          "city": {
+            "type": "string",
+            "description": "Delivery city.",
+            "example": "Casablanca"
+          },
+          "addressLine": {
+            "type": "string",
+            "description": "Delivery street/address line.",
+            "example": "Maarif"
+          },
+          "extraInfo": {
+            "type": "string",
+            "description": "Additional delivery directions.",
+            "example": "Near the pharmacy"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional order note for admin fulfillment.",
+            "example": "Call before delivery"
+          }
+        },
+        "required": [
+          "items",
+          "fullName",
+          "phone",
+          "city",
+          "addressLine"
+        ]
+      },
+      "CartOrderCustomerResponse": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "Demo Customer"
+          },
+          "phone": {
+            "type": "string",
+            "example": "0600000000"
+          }
+        },
+        "required": [
+          "fullName",
+          "phone"
+        ]
+      },
+      "CartOrderAddressResponse": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "example": "Casablanca"
+          },
+          "addressLine": {
+            "type": "string",
+            "example": "Maarif"
+          }
+        },
+        "required": [
+          "city",
+          "addressLine"
+        ]
+      },
+      "CartOrderLineResponse": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "productName": {
+            "type": "string",
+            "example": "Foundation X"
+          },
+          "referenceId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000002"
+          },
+          "referenceName": {
+            "type": "string",
+            "example": "RF2 Medium Warm"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 1
+          },
+          "unitPrice": {
+            "type": "number",
+            "example": 120
+          },
+          "totalPrice": {
+            "type": "number",
+            "example": 120
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "referenceId",
+          "referenceName",
+          "quantity",
+          "unitPrice",
+          "totalPrice"
+        ]
+      },
+      "CartOrderCreateResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORD-20260612-0001"
+          },
+          "orderStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "example": "PENDING_CONFIRMATION"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH_ON_DELIVERY"
+            ],
+            "example": "CASH_ON_DELIVERY"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "REFUNDED"
+            ],
+            "example": "UNPAID"
+          },
+          "subtotalAmount": {
+            "type": "number",
+            "example": 120
+          },
+          "discountAmount": {
+            "type": "number",
+            "example": 0
+          },
+          "deliveryFee": {
+            "type": "number",
+            "example": 0
+          },
+          "totalAmount": {
+            "type": "number",
+            "example": 120
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/CartOrderCustomerResponse"
+          },
+          "address": {
+            "$ref": "#/components/schemas/CartOrderAddressResponse"
+          },
+          "pack": {
+            "type": "object",
+            "nullable": true,
+            "example": null
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartOrderLineResponse"
+            }
+          }
+        },
+        "required": [
+          "orderId",
+          "orderNumber",
+          "orderStatus",
+          "paymentMethod",
+          "paymentStatus",
+          "subtotalAmount",
+          "discountAmount",
+          "deliveryFee",
+          "totalAmount",
+          "currency",
+          "customer",
+          "address",
+          "pack",
+          "items"
+        ]
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "recommendationResultId": {
+            "type": "string",
+            "description": "Recommendation result selected by the customer.",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Customer display name for order fulfillment.",
+            "example": "Demo Customer"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Customer phone number used to create or reuse a customer.",
+            "example": "0600000000"
+          },
+          "whatsappPhone": {
+            "type": "string",
+            "description": "Optional WhatsApp phone number for future customer contact.",
+            "example": "0600000000"
+          },
+          "city": {
+            "type": "string",
+            "description": "Delivery city.",
+            "example": "Casablanca"
+          },
+          "addressLine": {
+            "type": "string",
+            "description": "Delivery street/address line.",
+            "example": "Maarif"
+          },
+          "extraInfo": {
+            "type": "string",
+            "description": "Additional delivery directions.",
+            "example": "Near the pharmacy"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional order note for admin fulfillment.",
+            "example": "Call before delivery"
+          }
+        },
+        "required": [
+          "recommendationResultId",
+          "fullName",
+          "phone",
+          "city",
+          "addressLine"
+        ]
+      },
+      "PublicOrderResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORD-20260612-0001"
+          },
+          "orderStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "example": "PENDING_CONFIRMATION"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "REFUNDED"
+            ],
+            "example": "UNPAID"
+          },
+          "totalAmount": {
+            "type": "number",
+            "example": 299
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "packName": {
+            "type": "string",
+            "example": "Natural Glow Pack"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "orderId",
+          "orderNumber",
+          "orderStatus",
+          "paymentStatus",
+          "totalAmount",
+          "currency",
+          "packName",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AdminOrderCustomerResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Demo Customer"
+          },
+          "phone": {
+            "type": "string",
+            "example": "0600000000"
+          },
+          "whatsappPhone": {
+            "type": "object",
+            "example": "0600000000",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "phone"
+        ]
+      },
+      "AdminOrderAddressResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "city": {
+            "type": "string",
+            "example": "Casablanca"
+          },
+          "addressLine": {
+            "type": "string",
+            "example": "Maarif"
+          },
+          "extraInfo": {
+            "type": "object",
+            "example": "Near the pharmacy",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "city",
+          "addressLine"
+        ]
+      },
+      "AdminOrderStatusHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "oldStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "nullable": true
+          },
+          "newStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "example": "CONFIRMED"
+          },
+          "comment": {
+            "type": "object",
+            "example": "Customer confirmed by phone",
+            "nullable": true
+          },
+          "changedByAdmin": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminSummaryResponse"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "newStatus",
+          "createdAt"
+        ]
+      },
+      "AdminOrderDetailsResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORD-20260612-0001"
+          },
+          "orderStatus": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "example": "PENDING_CONFIRMATION"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "REFUNDED"
+            ],
+            "example": "UNPAID"
+          },
+          "totalAmount": {
+            "type": "number",
+            "example": 299
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "packName": {
+            "type": "string",
+            "example": "Natural Glow Pack"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-06-12T10:00:00.000Z"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "CASH_ON_DELIVERY"
+            ],
+            "example": "CASH_ON_DELIVERY"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/AdminOrderCustomerResponse"
+          },
+          "customerAddress": {
+            "$ref": "#/components/schemas/AdminOrderAddressResponse"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponse"
+            }
+          },
+          "statusHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminOrderStatusHistoryResponse"
+            }
+          }
+        },
+        "required": [
+          "orderId",
+          "orderNumber",
+          "orderStatus",
+          "paymentStatus",
+          "totalAmount",
+          "currency",
+          "packName",
+          "createdAt",
+          "updatedAt",
+          "paymentMethod",
+          "customer",
+          "customerAddress",
+          "items",
+          "statusHistory"
+        ]
+      },
+      "UpdateOrderStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "PREPARING",
+              "SHIPPED",
+              "DELIVERED",
+              "CANCELED",
+              "RETURNED"
+            ],
+            "example": "CONFIRMED"
+          },
+          "comment": {
+            "type": "string",
+            "example": "Customer confirmed by phone"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
       "CreateRecommendationDto": {
         "type": "object",
         "properties": {
@@ -8804,778 +9693,6 @@
             "default": true
           }
         }
-      },
-      "CartOrderItemDto": {
-        "type": "object",
-        "properties": {
-          "productId": {
-            "type": "string",
-            "description": "Product being ordered from the normal store cart.",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "referenceId": {
-            "type": "string",
-            "description": "Selected product reference or variant.",
-            "example": "00000000-0000-4000-8000-000000000002"
-          },
-          "quantity": {
-            "type": "number",
-            "description": "Quantity requested for this cart line.",
-            "example": 2,
-            "minimum": 1
-          }
-        },
-        "required": [
-          "productId",
-          "referenceId",
-          "quantity"
-        ]
-      },
-      "CreateCartOrderDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "description": "Normal store cart lines selected by the customer.",
-            "example": [
-              {
-                "productId": "00000000-0000-4000-8000-000000000001",
-                "referenceId": "00000000-0000-4000-8000-000000000002",
-                "quantity": 2
-              }
-            ],
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CartOrderItemDto"
-            }
-          },
-          "fullName": {
-            "type": "string",
-            "description": "Customer display name for order fulfillment.",
-            "example": "Demo Customer"
-          },
-          "phone": {
-            "type": "string",
-            "description": "Customer phone number used to create or reuse a customer.",
-            "example": "0600000000"
-          },
-          "whatsappPhone": {
-            "type": "string",
-            "description": "Optional WhatsApp phone number for future customer contact.",
-            "example": "0600000000"
-          },
-          "city": {
-            "type": "string",
-            "description": "Delivery city.",
-            "example": "Casablanca"
-          },
-          "addressLine": {
-            "type": "string",
-            "description": "Delivery street/address line.",
-            "example": "Maarif"
-          },
-          "extraInfo": {
-            "type": "string",
-            "description": "Additional delivery directions.",
-            "example": "Near the pharmacy"
-          },
-          "notes": {
-            "type": "string",
-            "description": "Optional order note for admin fulfillment.",
-            "example": "Call before delivery"
-          }
-        },
-        "required": [
-          "items",
-          "fullName",
-          "phone",
-          "city",
-          "addressLine"
-        ]
-      },
-      "CartOrderCustomerResponse": {
-        "type": "object",
-        "properties": {
-          "fullName": {
-            "type": "string",
-            "example": "Demo Customer"
-          },
-          "phone": {
-            "type": "string",
-            "example": "0600000000"
-          }
-        },
-        "required": [
-          "fullName",
-          "phone"
-        ]
-      },
-      "CartOrderAddressResponse": {
-        "type": "object",
-        "properties": {
-          "city": {
-            "type": "string",
-            "example": "Casablanca"
-          },
-          "addressLine": {
-            "type": "string",
-            "example": "Maarif"
-          }
-        },
-        "required": [
-          "city",
-          "addressLine"
-        ]
-      },
-      "CartOrderLineResponse": {
-        "type": "object",
-        "properties": {
-          "productId": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "productName": {
-            "type": "string",
-            "example": "Foundation X"
-          },
-          "referenceId": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000002"
-          },
-          "referenceName": {
-            "type": "string",
-            "example": "RF2 Medium Warm"
-          },
-          "quantity": {
-            "type": "number",
-            "example": 1
-          },
-          "unitPrice": {
-            "type": "number",
-            "example": 120
-          },
-          "totalPrice": {
-            "type": "number",
-            "example": 120
-          }
-        },
-        "required": [
-          "productId",
-          "productName",
-          "referenceId",
-          "referenceName",
-          "quantity",
-          "unitPrice",
-          "totalPrice"
-        ]
-      },
-      "CartOrderCreateResponse": {
-        "type": "object",
-        "properties": {
-          "orderId": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "orderNumber": {
-            "type": "string",
-            "example": "ORD-20260612-0001"
-          },
-          "orderStatus": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "example": "PENDING_CONFIRMATION"
-          },
-          "paymentMethod": {
-            "type": "string",
-            "enum": [
-              "CASH_ON_DELIVERY"
-            ],
-            "example": "CASH_ON_DELIVERY"
-          },
-          "paymentStatus": {
-            "type": "string",
-            "enum": [
-              "UNPAID",
-              "PAID",
-              "REFUNDED"
-            ],
-            "example": "UNPAID"
-          },
-          "subtotalAmount": {
-            "type": "number",
-            "example": 120
-          },
-          "discountAmount": {
-            "type": "number",
-            "example": 0
-          },
-          "deliveryFee": {
-            "type": "number",
-            "example": 0
-          },
-          "totalAmount": {
-            "type": "number",
-            "example": 120
-          },
-          "currency": {
-            "type": "string",
-            "example": "MAD"
-          },
-          "customer": {
-            "$ref": "#/components/schemas/CartOrderCustomerResponse"
-          },
-          "address": {
-            "$ref": "#/components/schemas/CartOrderAddressResponse"
-          },
-          "pack": {
-            "type": "object",
-            "nullable": true,
-            "example": null
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CartOrderLineResponse"
-            }
-          }
-        },
-        "required": [
-          "orderId",
-          "orderNumber",
-          "orderStatus",
-          "paymentMethod",
-          "paymentStatus",
-          "subtotalAmount",
-          "discountAmount",
-          "deliveryFee",
-          "totalAmount",
-          "currency",
-          "customer",
-          "address",
-          "pack",
-          "items"
-        ]
-      },
-      "ApiErrorResponse": {
-        "type": "object",
-        "properties": {
-          "statusCode": {
-            "type": "number",
-            "example": 400
-          },
-          "message": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            ],
-            "example": [
-              "attributeGroupCode must not be empty"
-            ]
-          },
-          "error": {
-            "type": "string",
-            "example": "Bad Request"
-          }
-        },
-        "required": [
-          "statusCode",
-          "message"
-        ]
-      },
-      "CreateOrderDto": {
-        "type": "object",
-        "properties": {
-          "recommendationResultId": {
-            "type": "string",
-            "description": "Recommendation result selected by the customer.",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "fullName": {
-            "type": "string",
-            "description": "Customer display name for order fulfillment.",
-            "example": "Demo Customer"
-          },
-          "phone": {
-            "type": "string",
-            "description": "Customer phone number used to create or reuse a customer.",
-            "example": "0600000000"
-          },
-          "whatsappPhone": {
-            "type": "string",
-            "description": "Optional WhatsApp phone number for future customer contact.",
-            "example": "0600000000"
-          },
-          "city": {
-            "type": "string",
-            "description": "Delivery city.",
-            "example": "Casablanca"
-          },
-          "addressLine": {
-            "type": "string",
-            "description": "Delivery street/address line.",
-            "example": "Maarif"
-          },
-          "extraInfo": {
-            "type": "string",
-            "description": "Additional delivery directions.",
-            "example": "Near the pharmacy"
-          },
-          "notes": {
-            "type": "string",
-            "description": "Optional order note for admin fulfillment.",
-            "example": "Call before delivery"
-          }
-        },
-        "required": [
-          "recommendationResultId",
-          "fullName",
-          "phone",
-          "city",
-          "addressLine"
-        ]
-      },
-      "OrderItemResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "productNameSnapshot": {
-            "type": "string",
-            "example": "Foundation X"
-          },
-          "referenceNameSnapshot": {
-            "type": "string",
-            "example": "Medium Warm"
-          },
-          "skuSnapshot": {
-            "type": "object",
-            "example": "FOUNDATION-X-RF2",
-            "nullable": true
-          },
-          "variationSnapshot": {
-            "type": "object",
-            "example": "Medium Warm",
-            "nullable": true
-          },
-          "productImageUrlSnapshot": {
-            "type": "object",
-            "example": "https://example.com/product.jpg",
-            "nullable": true
-          },
-          "brandNameSnapshot": {
-            "type": "object",
-            "example": "Demo Beauty",
-            "nullable": true
-          },
-          "unitPriceSnapshot": {
-            "type": "number",
-            "example": 120
-          },
-          "quantity": {
-            "type": "number",
-            "example": 1
-          },
-          "totalPrice": {
-            "type": "number",
-            "example": 120
-          }
-        },
-        "required": [
-          "id",
-          "productNameSnapshot",
-          "referenceNameSnapshot",
-          "unitPriceSnapshot",
-          "quantity",
-          "totalPrice"
-        ]
-      },
-      "OrderCreateResponse": {
-        "type": "object",
-        "properties": {
-          "orderId": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "orderNumber": {
-            "type": "string",
-            "example": "ORD-20260612-0001"
-          },
-          "orderStatus": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "example": "PENDING_CONFIRMATION"
-          },
-          "paymentStatus": {
-            "type": "string",
-            "enum": [
-              "UNPAID",
-              "PAID",
-              "REFUNDED"
-            ],
-            "example": "UNPAID"
-          },
-          "totalAmount": {
-            "type": "number",
-            "example": 299
-          },
-          "currency": {
-            "type": "string",
-            "example": "MAD"
-          },
-          "packName": {
-            "type": "string",
-            "example": "Natural Glow Pack"
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OrderItemResponse"
-            }
-          }
-        },
-        "required": [
-          "orderId",
-          "orderNumber",
-          "orderStatus",
-          "paymentStatus",
-          "totalAmount",
-          "currency",
-          "packName",
-          "createdAt",
-          "updatedAt",
-          "items"
-        ]
-      },
-      "PublicOrderResponse": {
-        "type": "object",
-        "properties": {
-          "orderId": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "orderNumber": {
-            "type": "string",
-            "example": "ORD-20260612-0001"
-          },
-          "orderStatus": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "example": "PENDING_CONFIRMATION"
-          },
-          "paymentStatus": {
-            "type": "string",
-            "enum": [
-              "UNPAID",
-              "PAID",
-              "REFUNDED"
-            ],
-            "example": "UNPAID"
-          },
-          "totalAmount": {
-            "type": "number",
-            "example": 299
-          },
-          "currency": {
-            "type": "string",
-            "example": "MAD"
-          },
-          "packName": {
-            "type": "string",
-            "example": "Natural Glow Pack"
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          }
-        },
-        "required": [
-          "orderId",
-          "orderNumber",
-          "orderStatus",
-          "paymentStatus",
-          "totalAmount",
-          "currency",
-          "packName",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "AdminOrderCustomerResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "fullName": {
-            "type": "string",
-            "example": "Demo Customer"
-          },
-          "phone": {
-            "type": "string",
-            "example": "0600000000"
-          },
-          "whatsappPhone": {
-            "type": "object",
-            "example": "0600000000",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "fullName",
-          "phone"
-        ]
-      },
-      "AdminOrderAddressResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "city": {
-            "type": "string",
-            "example": "Casablanca"
-          },
-          "addressLine": {
-            "type": "string",
-            "example": "Maarif"
-          },
-          "extraInfo": {
-            "type": "object",
-            "example": "Near the pharmacy",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "city",
-          "addressLine"
-        ]
-      },
-      "AdminOrderStatusHistoryResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "oldStatus": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "nullable": true
-          },
-          "newStatus": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "example": "CONFIRMED"
-          },
-          "comment": {
-            "type": "object",
-            "example": "Customer confirmed by phone",
-            "nullable": true
-          },
-          "changedByAdmin": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminSummaryResponse"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          }
-        },
-        "required": [
-          "id",
-          "newStatus",
-          "createdAt"
-        ]
-      },
-      "AdminOrderDetailsResponse": {
-        "type": "object",
-        "properties": {
-          "orderId": {
-            "type": "string",
-            "example": "00000000-0000-4000-8000-000000000001"
-          },
-          "orderNumber": {
-            "type": "string",
-            "example": "ORD-20260612-0001"
-          },
-          "orderStatus": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "example": "PENDING_CONFIRMATION"
-          },
-          "paymentStatus": {
-            "type": "string",
-            "enum": [
-              "UNPAID",
-              "PAID",
-              "REFUNDED"
-            ],
-            "example": "UNPAID"
-          },
-          "totalAmount": {
-            "type": "number",
-            "example": 299
-          },
-          "currency": {
-            "type": "string",
-            "example": "MAD"
-          },
-          "packName": {
-            "type": "string",
-            "example": "Natural Glow Pack"
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "example": "2026-06-12T10:00:00.000Z"
-          },
-          "paymentMethod": {
-            "type": "string",
-            "enum": [
-              "CASH_ON_DELIVERY"
-            ],
-            "example": "CASH_ON_DELIVERY"
-          },
-          "customer": {
-            "$ref": "#/components/schemas/AdminOrderCustomerResponse"
-          },
-          "customerAddress": {
-            "$ref": "#/components/schemas/AdminOrderAddressResponse"
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OrderItemResponse"
-            }
-          },
-          "statusHistory": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminOrderStatusHistoryResponse"
-            }
-          }
-        },
-        "required": [
-          "orderId",
-          "orderNumber",
-          "orderStatus",
-          "paymentStatus",
-          "totalAmount",
-          "currency",
-          "packName",
-          "createdAt",
-          "updatedAt",
-          "paymentMethod",
-          "customer",
-          "customerAddress",
-          "items",
-          "statusHistory"
-        ]
-      },
-      "UpdateOrderStatusDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING_CONFIRMATION",
-              "CONFIRMED",
-              "PREPARING",
-              "SHIPPED",
-              "DELIVERED",
-              "CANCELED",
-              "RETURNED"
-            ],
-            "example": "CONFIRMED"
-          },
-          "comment": {
-            "type": "string",
-            "example": "Customer confirmed by phone"
-          }
-        },
-        "required": [
-          "status"
-        ]
       }
     }
   }
