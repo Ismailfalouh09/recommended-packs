@@ -86,6 +86,17 @@ describe('OrdersService', () => {
     expect(tx.order.create).toHaveBeenCalled();
   });
 
+  it('leaves existing order creation unchanged (no pack-config snapshot written)', async () => {
+    prisma.recommendationResult.findUnique.mockResolvedValue(
+      recommendationResultFixture(),
+    );
+
+    await service.create(baseDto);
+
+    const createArg = tx.order.create.mock.calls[0][0];
+    expect(createArg.data).not.toHaveProperty('packConfigurationSnapshot');
+  });
+
   it('finds and updates an existing customer by phone', async () => {
     tx.customer.findUnique.mockResolvedValue({
       id: 'customer-existing',

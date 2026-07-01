@@ -821,6 +821,14 @@ model Order {
   totalAmount            Decimal       @default(0) @map("total_amount") @db.Decimal(10, 2)
   currency               String        @default("MAD") @db.Char(3)
   notes                  String?
+
+  // Pack Core Evolution (Phase 3) — additive, immutable pack-configuration
+  // snapshot. Frozen at order creation to preserve the configured composition,
+  // final validated price, floor, currency, and validation outcome even if the
+  // source pack/product later changes. Null for all legacy/non-configured orders.
+  // Never stores private quiz answers, internal scores, costs, or margins.
+  packConfigurationSnapshot Json? @map("pack_configuration_snapshot")
+
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 

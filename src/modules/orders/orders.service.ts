@@ -402,6 +402,7 @@ export class OrdersService {
         totalAmount: true,
         currency: true,
         notes: true,
+        packConfigurationSnapshot: true,
         createdAt: true,
         updatedAt: true,
         customer: {
@@ -1266,6 +1267,12 @@ export class OrdersService {
       totalAmount: toMoneyNumber(order.totalAmount),
       currency: order.currency,
       notes: order.notes,
+      // Pack Core Evolution (Phase 3) — surface the frozen pack-configuration
+      // snapshot only when the order actually carries one. Legacy/non-configured
+      // orders omit the field entirely (null snapshot).
+      ...(order.packConfigurationSnapshot != null
+        ? { packConfigurationSnapshot: order.packConfigurationSnapshot }
+        : {}),
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       customer: order.customer,

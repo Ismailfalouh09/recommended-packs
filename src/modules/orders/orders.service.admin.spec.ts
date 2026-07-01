@@ -123,6 +123,38 @@ describe('OrdersService admin reads and public safety', () => {
     expect(JSON.stringify(result)).not.toContain('passwordHash');
   });
 
+  it('omits packConfigurationSnapshot when the order has none (legacy order)', async () => {
+    prisma.order.findUnique.mockResolvedValue(orderDetailFixture());
+
+    const result = await service.adminFindOne('order-1');
+
+    expect(result).not.toHaveProperty('packConfigurationSnapshot');
+  });
+
+  it('returns packConfigurationSnapshot only when present', async () => {
+    const snapshot = {
+      version: 1,
+      sourcePackId: 'pack-1',
+      sourcePackName: 'Natural Glow Pack',
+      sourceType: 'FIXED',
+      currency: 'MAD',
+      finalPrice: 299,
+      minAllowedPrice: 150,
+      validation: { status: 'VALID', priceFloorRespected: true, messages: [] },
+      selectedItems: [],
+      removedItems: [],
+      addedItems: [],
+    };
+    prisma.order.findUnique.mockResolvedValue({
+      ...orderDetailFixture(),
+      packConfigurationSnapshot: snapshot,
+    });
+
+    const result = await service.adminFindOne('order-1');
+
+    expect(result).toHaveProperty('packConfigurationSnapshot', snapshot);
+  });
+
   it('throws NotFound for missing admin order details', async () => {
     prisma.order.findUnique.mockResolvedValue(null);
 

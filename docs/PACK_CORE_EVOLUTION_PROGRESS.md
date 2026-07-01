@@ -68,6 +68,21 @@
   - Budget: 15
   - Occasion: 10
 
+### Phase 3 — Pack Pricing Floor & Order Snapshot Safety
+- Added a reusable server-side price-floor guard (`assertAtOrAboveMinAllowedPrice` / `isAtOrAboveMinAllowedPrice`):
+  - Allows any price when `Pack.minAllowedPrice` is null.
+  - Allows a price equal to or above the floor.
+  - Rejects a price strictly below the floor with a `BadRequestException`.
+  - Uses `Prisma.Decimal` comparison (no float drift), consistent with existing money conventions.
+- Added additive, nullable `Order.packConfigurationSnapshot` (JSONB) storage:
+  - Migration `20260701120000_order_pack_configuration_snapshot`.
+  - Existing orders continue with a null snapshot (backward compatible).
+- Added a typed, reusable pack-configuration snapshot builder (`buildPackConfigurationSnapshot`):
+  - Captures source pack id/name, source type, final price, min price, currency, validation result, and selected/removed/added item data.
+  - Privacy-safe by construction: no private quiz answers, internal scores, costs, or margins.
+- Admin order detail now returns `packConfigurationSnapshot` only when the order actually carries one.
+- No change to checkout, cart, order creation, Pack pricing, or recommendation behavior (all inert plumbing until later phases).
+
 ### Budget Range Foundation
 - Added canonical Budget option numeric ranges:
   - LOW: 150–220 MAD
@@ -120,14 +135,14 @@
    - Keep Occasion matcher coverage in automated tests.
    - Add the public quiz question only in a separate intentional quiz evolution.
 
-4. Next Pack business phase:
-   - Fixed Pack catalog discovery, filters, and direct Pack purchase.
+4. Next Pack business phase — Phase 4:
+   - Fixed Pack catalog discovery and filtering, plus direct fixed-Pack purchase.
 
 ## Explicitly Deferred
 
 - Customer PackConfiguration persistence
 - Customer Pack customization checkout
-- Cart and order Pack snapshots
+- Writing pack-config snapshots during checkout (Phase 3 added storage + builder only; order creation does not yet populate it)
 - Wishlist and sharing
 - Add-on recommendations
 - Generated personalized Packs
