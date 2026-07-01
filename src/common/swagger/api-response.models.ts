@@ -676,6 +676,31 @@ export class ProductResponse {
   images!: MediaImageResponse[];
 }
 
+export class ShareMetadataResponse {
+  @ApiProperty({
+    example: '/products/foundation-x',
+    description:
+      'Canonical public share URL. Absolute when STORE_FRONTEND_ORIGIN is ' +
+      'configured; otherwise the canonical relative path.',
+  })
+  shareUrl!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  shareTitle!: string;
+
+  @ApiPropertyOptional({
+    example: 'Lightweight buildable foundation.',
+    nullable: true,
+  })
+  shareDescription?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/foundation-x.jpg',
+    nullable: true,
+  })
+  shareImageUrl?: string | null;
+}
+
 export class PublicProductDetailResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;
@@ -755,6 +780,10 @@ export class PublicProductDetailResponse {
 
   @ApiProperty({ type: [PublicMediaImageResponse] })
   mediaGallery!: PublicMediaImageResponse[];
+
+  // Phase 8B — storefront-safe share metadata for the active public product.
+  @ApiProperty({ type: ShareMetadataResponse })
+  share!: ShareMetadataResponse;
 }
 
 export class PackItemResponse {
@@ -856,6 +885,10 @@ export class PackResponse {
       'Browsing availability: true when every FIXED/REQUIRED_SELECTABLE item has an active reference with enough available stock. Present only on the filtered catalog response.',
   })
   availableNow?: boolean;
+
+  // Phase 8B — storefront-safe share metadata for the active public pack.
+  @ApiPropertyOptional({ type: ShareMetadataResponse })
+  share?: ShareMetadataResponse;
 }
 
 export class NormalizedConfigurationItemResponse {
@@ -1025,6 +1058,97 @@ export class PackConfigurationResponse {
 
   @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
   updatedAt!: string;
+}
+
+export class ConfigurationShareResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({
+    example: 'a3f1c2b4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081920a1b2c3d4e5f6',
+    description: 'Opaque, unique public share token for the configuration.',
+  })
+  shareToken!: string;
+
+  @ApiProperty({
+    example: '/shared/configurations/a3f1c2b4d5e6f7081920a1b2c3d4e5f6',
+    description:
+      'Public share link resolving the read-only shared configuration view. ' +
+      'Absolute when STORE_FRONTEND_ORIGIN is configured; otherwise relative.',
+  })
+  shareUrl!: string;
+}
+
+export class SharedConfigurationSourcePackResponse {
+  @ApiPropertyOptional({ example: 'Natural Glow Pack', nullable: true })
+  name?: string | null;
+
+  @ApiPropertyOptional({ example: 'natural-glow-pack', nullable: true })
+  slug?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/natural-glow.jpg',
+    nullable: true,
+  })
+  imageUrl?: string | null;
+}
+
+export class SharedConfigurationItemResponse {
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiPropertyOptional({ example: 'Foundation X', nullable: true })
+  productName?: string | null;
+
+  @ApiPropertyOptional({ example: 'foundation-x', nullable: true })
+  productSlug?: string | null;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productReferenceId?: string | null;
+
+  @ApiPropertyOptional({ example: 'RF2 Medium Warm', nullable: true })
+  referenceName?: string | null;
+
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'RF2', nullable: true })
+  shadeCode?: string | null;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({
+    example: 120,
+    description: 'Customer-facing displayed line price (selling price).',
+  })
+  lineTotal!: number;
+
+  @ApiProperty({ example: false })
+  isAddOn!: boolean;
+}
+
+export class SharedPackConfigurationResponse {
+  @ApiProperty({ type: SharedConfigurationSourcePackResponse })
+  sourcePack!: SharedConfigurationSourcePackResponse;
+
+  @ApiProperty({ type: [SharedConfigurationItemResponse] })
+  items!: SharedConfigurationItemResponse[];
+
+  @ApiProperty({
+    example: 349,
+    description: 'Final displayed price (server-recomputed; never client-set).',
+  })
+  finalPrice!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ type: ShareMetadataResponse })
+  share!: ShareMetadataResponse;
 }
 
 export class SelectableReferenceOptionResponse {

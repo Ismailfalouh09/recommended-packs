@@ -314,6 +314,7 @@ model CustomerProfile {
   recommendationSessions RecommendationSession[]
   orders                 Order[]
   events                 CustomerEvent[]
+  wishlistItems          WishlistItem[]
 
   @@index([sourceChannel])
   @@index([createdAt])
@@ -339,6 +340,46 @@ model CustomerProfileAnswer {
   @@index([attributeGroupId])
   @@index([attributeOptionId])
   @@map("customer_profile_answers")
+}
+
+/**
+ * Pack Core Evolution (Phase 8A) — Universal Wishlist foundation.
+ *
+ * A WishlistItem is owned by the anonymous session (`CustomerProfile`, the same
+ * `sessionToken` identity produced by the quiz). It saves exactly one of a public
+ * PRODUCT or a public PACK; `targetType` records which. `productId`/`packId` are
+ * real, cascading foreign keys (only one is ever set per row), so the wishlist
+ * stays consistent if the underlying catalog entry is later removed.
+ *
+ * Duplicate protection is enforced at the database level per owner + target via
+ * two composite unique indexes. Postgres treats NULLs as distinct, so a
+ * `(profile, productId)` unique never conflicts across the NULL productId of
+ * PACK rows (and vice versa). PackConfiguration wishlisting is intentionally out
+ * of scope for this phase.
+ */
+enum WishlistTargetType {
+  PRODUCT
+  PACK
+}
+
+model WishlistItem {
+  id                String             @id @default(uuid()) @db.Uuid
+  customerProfileId String             @map("customer_profile_id") @db.Uuid
+  targetType        WishlistTargetType @map("target_type")
+  productId         String?            @map("product_id") @db.Uuid
+  packId            String?            @map("pack_id") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  product         Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pack            Pack?           @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([customerProfileId, productId])
+  @@unique([customerProfileId, packId])
+  @@index([customerProfileId])
+  @@index([productId])
+  @@index([packId])
+  @@map("wishlist_items")
 }
 
 /**
@@ -418,6 +459,7 @@ model Product {
   packAllowedAddOns         PackAllowedAddOn[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
+  wishlistItems             WishlistItem[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -569,6 +611,7 @@ model Pack {
   orders                Order[]                    @relation("SelectedPackOrders")
   orderItems            OrderItem[]                @relation("PackOrderItems")
   configurations        PackConfiguration[]        @relation("PackConfigurations")
+  wishlistItems         WishlistItem[]
 
   @@index([status])
   @@index([isActive])
@@ -745,6 +788,11 @@ model PackConfiguration {
   isValid          Boolean                     @default(true) @map("is_valid")
   stockStatus      String                      @map("stock_status") @db.VarChar(20)
   validationResult Json                        @map("validation_result")
+  // Pack Core Evolution (Phase 8B) — opt-in public share capability. Null until
+  // the configuration is explicitly shared; once minted it is a unique, opaque
+  // token that resolves the read-only, customer-safe shared view. No customer,
+  // quiz, validation, or cost data is ever exposed through it.
+  shareToken       String?                     @unique @map("share_token") @db.VarChar(64)
   createdAt        DateTime                    @default(now()) @map("created_at")
   updatedAt        DateTime                    @updatedAt @map("updated_at")
 

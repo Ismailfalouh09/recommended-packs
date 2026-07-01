@@ -4176,6 +4176,43 @@
         ]
       }
     },
+    "/configurations/{id}/share": {
+      "post": {
+        "description": "Mints an opaque, unique share token for a persisted configuration and returns a public share link that resolves the read-only, customer-safe shared view (GET /shared/configurations/:shareToken). Idempotent: a configuration keeps a single stable token, so re-sharing returns the same link. Possession of the configuration id is the capability (mirroring the already-public GET /configurations/:id) — a persisted configuration has no session owner in the data model. The shared view never exposes customer, quiz, validation, price-floor, stock, or cost data.",
+        "operationId": "PackConfigurationsController_share",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Pack configuration ID to share.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The share token and public share link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationShareResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Configuration not found."
+          }
+        },
+        "summary": "Create (or return) a public share link for a pack configuration",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
     "/configurations/{id}/checkout": {
       "post": {
         "description": "Revalidates the persisted configuration against the current pack (stock, price, allowed composition, and minimum price) and, on success, creates a normal Cash-on-Delivery order: normal OrderItems carrying the source packId, atomic stock reservation, and an immutable packConfigurationSnapshot frozen on the order. Stale, unavailable, disallowed, or below-floor configurations are rejected and no order is created. Prices are always server-recomputed; no client price is trusted. Additive: does not affect POST /orders or POST /orders/checkout.",
@@ -4228,6 +4265,42 @@
           }
         },
         "summary": "Place a Cash on Delivery order from a pack configuration",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
+    "/shared/configurations/{shareToken}": {
+      "get": {
+        "description": "Returns the read-only, customer-safe view of a shared pack configuration: the source Pack name/image, the selected products/references, quantities, add-ons, and the final displayed price + currency. No customer, quiz, validation, price-floor, stock, or cost data is ever included.",
+        "operationId": "SharedConfigurationsController_findShared",
+        "parameters": [
+          {
+            "name": "shareToken",
+            "required": true,
+            "in": "path",
+            "description": "Opaque share token minted by POST /configurations/:id/share.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The customer-safe shared configuration view.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedPackConfigurationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Shared configuration not found."
+          }
+        },
+        "summary": "Get a shared pack configuration by its share token",
         "tags": [
           "Packs"
         ]
@@ -5387,6 +5460,187 @@
         "summary": "Deactivate recommendation rule",
         "tags": [
           "Admin Recommendation Rules"
+        ]
+      }
+    },
+    "/wishlist/items": {
+      "post": {
+        "description": "Adds an active, public Product or an active, public Pack to the session's wishlist. The owning session is taken from the X-Session-Token header. The operation is idempotent: re-adding the same target returns the existing entry with `created: false` rather than erroring. Only PRODUCT and PACK targets are supported (PackConfiguration is not saveable yet).",
+        "operationId": "WishlistController_addItem",
+        "parameters": [
+          {
+            "name": "X-Session-Token",
+            "in": "header",
+            "description": "Anonymous session token returned by POST /quiz/profiles. Identifies the owning session; the wishlist is always scoped to it.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-session-token",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWishlistItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved wishlist item plus a `created` flag (false when it already existed)."
+          },
+          "400": {
+            "description": "Missing session token or invalid request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found, or the target Product/Pack does not exist or is not active/public.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Save a Product or Pack to the wishlist",
+        "tags": [
+          "Wishlist"
+        ]
+      }
+    },
+    "/wishlist": {
+      "get": {
+        "description": "Returns the wishlist for the session identified by X-Session-Token, as customer-safe Product and Pack summaries only. A session can only ever read its own wishlist.",
+        "operationId": "WishlistController_list",
+        "parameters": [
+          {
+            "name": "X-Session-Token",
+            "in": "header",
+            "description": "Anonymous session token returned by POST /quiz/profiles. Identifies the owning session; the wishlist is always scoped to it.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-session-token",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The wishlist items for the session."
+          },
+          "400": {
+            "description": "Missing session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List the session wishlist",
+        "tags": [
+          "Wishlist"
+        ]
+      }
+    },
+    "/wishlist/items/{itemId}": {
+      "delete": {
+        "description": "Removes a wishlist item owned by the session identified by X-Session-Token. Removing an item that does not belong to the session returns 404 (a session can never remove another owner’s item).",
+        "operationId": "WishlistController_removeItem",
+        "parameters": [
+          {
+            "name": "X-Session-Token",
+            "in": "header",
+            "description": "Anonymous session token returned by POST /quiz/profiles. Identifies the owning session; the wishlist is always scoped to it.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-session-token",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "description": "Wishlist item ID to remove.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The item was removed."
+          },
+          "400": {
+            "description": "Missing session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found, or the item does not belong to the session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Remove an item from the wishlist",
+        "tags": [
+          "Wishlist"
         ]
       }
     }
@@ -7136,6 +7390,34 @@
           "availability"
         ]
       },
+      "ShareMetadataResponse": {
+        "type": "object",
+        "properties": {
+          "shareUrl": {
+            "type": "string",
+            "example": "/products/foundation-x",
+            "description": "Canonical public share URL. Absolute when STORE_FRONTEND_ORIGIN is configured; otherwise the canonical relative path."
+          },
+          "shareTitle": {
+            "type": "string",
+            "example": "Foundation X"
+          },
+          "shareDescription": {
+            "type": "object",
+            "example": "Lightweight buildable foundation.",
+            "nullable": true
+          },
+          "shareImageUrl": {
+            "type": "object",
+            "example": "https://cdn.example.com/foundation-x.jpg",
+            "nullable": true
+          }
+        },
+        "required": [
+          "shareUrl",
+          "shareTitle"
+        ]
+      },
       "PublicProductDetailResponse": {
         "type": "object",
         "properties": {
@@ -7247,6 +7529,9 @@
             "items": {
               "$ref": "#/components/schemas/PublicMediaImageResponse"
             }
+          },
+          "share": {
+            "$ref": "#/components/schemas/ShareMetadataResponse"
           }
         },
         "required": [
@@ -7260,7 +7545,8 @@
           "category",
           "selectableReferences",
           "addToCart",
-          "mediaGallery"
+          "mediaGallery",
+          "share"
         ]
       },
       "AttributeMatchResponse": {
@@ -8208,6 +8494,9 @@
             "type": "boolean",
             "example": true,
             "description": "Browsing availability: true when every FIXED/REQUIRED_SELECTABLE item has an active reference with enough available stock. Present only on the filtered catalog response."
+          },
+          "share": {
+            "$ref": "#/components/schemas/ShareMetadataResponse"
           }
         },
         "required": [
@@ -8766,6 +9055,146 @@
           "items",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "ConfigurationShareResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "shareToken": {
+            "type": "string",
+            "example": "a3f1c2b4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081920a1b2c3d4e5f6",
+            "description": "Opaque, unique public share token for the configuration."
+          },
+          "shareUrl": {
+            "type": "string",
+            "example": "/shared/configurations/a3f1c2b4d5e6f7081920a1b2c3d4e5f6",
+            "description": "Public share link resolving the read-only shared configuration view. Absolute when STORE_FRONTEND_ORIGIN is configured; otherwise relative."
+          }
+        },
+        "required": [
+          "id",
+          "shareToken",
+          "shareUrl"
+        ]
+      },
+      "SharedConfigurationSourcePackResponse": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "object",
+            "example": "Natural Glow Pack",
+            "nullable": true
+          },
+          "slug": {
+            "type": "object",
+            "example": "natural-glow-pack",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "object",
+            "example": "https://cdn.example.com/natural-glow.jpg",
+            "nullable": true
+          }
+        }
+      },
+      "SharedConfigurationItemResponse": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "productName": {
+            "type": "object",
+            "example": "Foundation X",
+            "nullable": true
+          },
+          "productSlug": {
+            "type": "object",
+            "example": "foundation-x",
+            "nullable": true
+          },
+          "productReferenceId": {
+            "type": "object",
+            "example": "00000000-0000-4000-8000-000000000001",
+            "nullable": true
+          },
+          "referenceName": {
+            "type": "object",
+            "example": "RF2 Medium Warm",
+            "nullable": true
+          },
+          "shadeName": {
+            "type": "object",
+            "example": "Medium Warm",
+            "nullable": true
+          },
+          "shadeCode": {
+            "type": "object",
+            "example": "RF2",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "example": 1
+          },
+          "lineTotal": {
+            "type": "number",
+            "example": 120,
+            "description": "Customer-facing displayed line price (selling price)."
+          },
+          "isAddOn": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "productId",
+          "quantity",
+          "lineTotal",
+          "isAddOn"
+        ]
+      },
+      "SharedPackConfigurationResponse": {
+        "type": "object",
+        "properties": {
+          "sourcePack": {
+            "$ref": "#/components/schemas/SharedConfigurationSourcePackResponse"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedConfigurationItemResponse"
+            }
+          },
+          "finalPrice": {
+            "type": "number",
+            "example": 349,
+            "description": "Final displayed price (server-recomputed; never client-set)."
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-01T10:00:00.000Z"
+          },
+          "share": {
+            "$ref": "#/components/schemas/ShareMetadataResponse"
+          }
+        },
+        "required": [
+          "sourcePack",
+          "items",
+          "finalPrice",
+          "currency",
+          "createdAt",
+          "share"
         ]
       },
       "PackAllowedAddOnInputDto": {
@@ -10291,6 +10720,29 @@
             "default": true
           }
         }
+      },
+      "AddWishlistItemDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "description": "Which kind of catalog entry to save.",
+            "enum": [
+              "PRODUCT",
+              "PACK"
+            ],
+            "example": "PRODUCT"
+          },
+          "targetId": {
+            "type": "string",
+            "description": "ID of the target to save. Must be an active, public Product when targetType is PRODUCT, or an active, public Pack when targetType is PACK.",
+            "example": "00000000-0000-4000-8000-000000000001"
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId"
+        ]
       }
     }
   }

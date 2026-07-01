@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -20,6 +21,7 @@ import {
   ProductStatus,
   SelectionMode,
 } from '@prisma/client';
+import { buildShareMetadata } from '../../common/share/share-metadata.util';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
   paginatedResponse,
@@ -675,6 +677,212 @@ export class PacksService {
     }
 
     return this.toConfigurationResponse(configuration);
+  }
+
+  /**
+   * Pack Core Evolution (Phase 8B) — mint (or return the existing) opaque public
+   * share token for a persisted configuration. Idempotent: a configuration keeps
+   * a single stable token, so re-sharing returns the same link. Possession of the
+   * configuration id is the capability here — mirroring the already-public
+   * `GET /configurations/:id` read — since a persisted configuration carries no
+   * session owner in the data model. The token resolves only the read-only,
+   * customer-safe shared view (never customer, quiz, validation, or cost data).
+   */
+  async shareConfiguration(id: string) {
+    const configuration = await this.prisma.packConfiguration.findUnique({
+      where: { id },
+      select: { id: true, shareToken: true },
+    });
+
+    if (!configuration) {
+      throw new NotFoundException(`Pack configuration ${id} was not found.`);
+    }
+
+    const shareToken =
+      configuration.shareToken ??
+      (
+        await this.prisma.packConfiguration.update({
+          where: { id },
+          data: { shareToken: randomBytes(32).toString('hex') },
+          select: { shareToken: true },
+        })
+      ).shareToken!;
+
+    return {
+      id: configuration.id,
+      shareToken,
+      shareUrl: buildShareMetadata({
+        path: `/shared/configurations/${shareToken}`,
+        title: 'Shared pack configuration',
+      }).shareUrl,
+    };
+  }
+
+  /**
+   * Pack Core Evolution (Phase 8B) — public read of a shared configuration by its
+   * opaque token. Uses a dedicated, customer-safe mapper: it exposes only the
+   * source Pack name/image, the selected products/references, quantities,
+   * add-ons, and the final displayed price + currency. It never exposes customer
+   * name/phone/address, session token, quiz answers, recommendation scores,
+   * validation details, price floor, stock internals, or admin rules.
+   */
+  async findSharedConfiguration(shareToken: string | undefined) {
+    const token = shareToken?.trim();
+    if (!token) {
+      throw new NotFoundException('Shared configuration was not found.');
+    }
+
+    const configuration = await this.prisma.packConfiguration.findUnique({
+      where: { shareToken: token },
+      select: this.sharedConfigurationSelect(),
+    });
+
+    if (!configuration) {
+      throw new NotFoundException('Shared configuration was not found.');
+    }
+
+    // Only the final composition is shown; removed optional lines are dropped.
+    const visibleItems = (configuration.items ?? []).filter(
+      (item: any) => !item.removed,
+    );
+
+    const productIds = [
+      ...new Set(visibleItems.map((item: any) => item.productId)),
+    ] as string[];
+    const referenceIds = [
+      ...new Set(
+        visibleItems
+          .map((item: any) => item.productReferenceId)
+          .filter((value: any): value is string => Boolean(value)),
+      ),
+    ] as string[];
+
+    const [products, references] = await Promise.all([
+      productIds.length
+        ? this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, name: true, slug: true, mainImageUrl: true },
+          })
+        : Promise.resolve([]),
+      referenceIds.length
+        ? this.prisma.productReference.findMany({
+            where: { id: { in: referenceIds } },
+            select: {
+              id: true,
+              referenceName: true,
+              shadeName: true,
+              shadeCode: true,
+              imageUrl: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const productById = new Map<string, any>(
+      products.map((p: any) => [p.id, p] as [string, any]),
+    );
+    const referenceById = new Map<string, any>(
+      references.map((r: any) => [r.id, r] as [string, any]),
+    );
+
+    return this.toSharedConfigurationResponse(
+      configuration,
+      visibleItems,
+      productById,
+      referenceById,
+    );
+  }
+
+  private sharedConfigurationSelect() {
+    return {
+      id: true,
+      shareToken: true,
+      finalPrice: true,
+      currency: true,
+      createdAt: true,
+      sourcePack: {
+        select: {
+          name: true,
+          slug: true,
+          mainImageUrl: true,
+          images: {
+            orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }],
+            select: {
+              role: true,
+              position: true,
+              altText: true,
+              media: true,
+            },
+          },
+        },
+      },
+      items: {
+        orderBy: [{ createdAt: 'asc' as const }],
+        select: {
+          productId: true,
+          productReferenceId: true,
+          role: true,
+          quantity: true,
+          lineTotal: true,
+          isAddOn: true,
+          removed: true,
+        },
+      },
+    } satisfies Prisma.PackConfigurationSelect;
+  }
+
+  private toSharedConfigurationResponse(
+    configuration: any,
+    visibleItems: any[],
+    productById: Map<string, any>,
+    referenceById: Map<string, any>,
+  ) {
+    const cover = (configuration.sourcePack?.images ?? []).find(
+      (image: any) => image.role === MediaRole.COVER,
+    );
+    const packImageUrl =
+      (cover ? (this.buildUrls(cover.media)?.detail ?? null) : null) ??
+      configuration.sourcePack?.mainImageUrl ??
+      null;
+
+    return {
+      sourcePack: {
+        name: configuration.sourcePack?.name ?? null,
+        slug: configuration.sourcePack?.slug ?? null,
+        imageUrl: packImageUrl,
+      },
+      items: visibleItems.map((item) => {
+        const product = productById.get(item.productId);
+        const reference = item.productReferenceId
+          ? referenceById.get(item.productReferenceId)
+          : null;
+
+        return {
+          productId: item.productId,
+          productName: product?.name ?? null,
+          productSlug: product?.slug ?? null,
+          productReferenceId: item.productReferenceId ?? null,
+          referenceName: reference?.referenceName ?? null,
+          shadeName: reference?.shadeName ?? null,
+          shadeCode: reference?.shadeCode ?? null,
+          quantity: item.quantity,
+          // Customer-facing displayed line price (selling price, not cost).
+          lineTotal: toMoneyNumber(item.lineTotal) ?? 0,
+          isAddOn: item.isAddOn,
+        };
+      }),
+      finalPrice: toMoneyNumber(configuration.finalPrice) ?? 0,
+      currency: configuration.currency,
+      createdAt: configuration.createdAt,
+      share: buildShareMetadata({
+        path: `/shared/configurations/${configuration.shareToken ?? ''}`,
+        title: configuration.sourcePack?.name
+          ? `${configuration.sourcePack.name} — shared configuration`
+          : 'Shared pack configuration',
+        description: null,
+        imageUrl: packImageUrl,
+      }),
+    };
   }
 
   /**
@@ -1556,6 +1764,9 @@ export class PacksService {
   }
 
   private toPublicPackResponse(pack: any) {
+    const coverImage = this.coverImage(pack.images);
+    const coverImageUrl = coverImage?.urls?.detail ?? pack.mainImageUrl ?? null;
+
     return {
       ...pack,
       fixedPrice: toMoneyNumber(pack.fixedPrice),
@@ -1563,8 +1774,19 @@ export class PacksService {
       discountPercentage: toMoneyNumber(pack.discountPercentage),
       minBudget: toMoneyNumber(pack.minBudget),
       maxBudget: toMoneyNumber(pack.maxBudget),
-      coverImage: this.coverImage(pack.images),
+      coverImage,
+      coverImageUrl,
       images: pack.images.map((image: any) => this.toImageResponse(image)),
+      // Phase 8B — storefront-safe share metadata. toPublicPackResponse is only
+      // ever fed active, public packs (findOne/findBySlug/findAllPublic all
+      // filter on status ACTIVE + isActive), so no inactive/archived pack is
+      // shareable. Reuses the canonical public slug path.
+      share: buildShareMetadata({
+        path: `/packs/${pack.slug}`,
+        title: pack.name,
+        description: pack.description,
+        imageUrl: coverImageUrl,
+      }),
       items: pack.items.map((item: any) => ({
         ...item,
         product: {

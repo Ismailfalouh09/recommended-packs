@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MatchType, MediaRole, Prisma, ProductStatus } from '@prisma/client';
+import { buildShareMetadata } from '../../common/share/share-metadata.util';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
   paginatedResponse,
@@ -962,6 +963,8 @@ export class ProductsService {
     const images = product.images.map((image: any) =>
       this.toPublicImageResponse(image),
     );
+    const coverImageUrl =
+      coverImage?.urls?.detail ?? product.mainImageUrl ?? null;
 
     return {
       id: product.id,
@@ -1001,9 +1004,21 @@ export class ProductsService {
       },
       addToCart: this.addToCartConstraints(selectedPublicReference),
       coverImage,
-      coverImageUrl: coverImage?.urls?.detail ?? product.mainImageUrl ?? null,
+      coverImageUrl,
       mediaGallery: images,
       images,
+      // Phase 8B — storefront-safe share metadata. Only reachable for ACTIVE
+      // public products (findOne/findBySlug filter on status), so no inactive or
+      // private product is ever shareable. Reuses the canonical public slug path.
+      share: buildShareMetadata({
+        path: `/products/${product.slug}`,
+        title: product.metaTitle ?? product.name,
+        description:
+          product.metaDescription ??
+          product.shortDescription ??
+          product.description,
+        imageUrl: coverImageUrl,
+      }),
     };
   }
 

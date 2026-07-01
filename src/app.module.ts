@@ -13,6 +13,7 @@ import { ProductReferencesModule } from './modules/product-references/product-re
 import { ProductsModule } from './modules/products/products.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { PrismaModule } from './prisma/prisma.module';
     RecommendationsModule,
     OrdersModule,
     MediaModule,
+    WishlistModule,
   ],
   controllers: [AppController],
   providers: [AppService],

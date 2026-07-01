@@ -248,6 +248,44 @@
 - Admin guide added:
   [ADMIN_PACK_CUSTOMIZATION_GUIDE.md](./ADMIN_PACK_CUSTOMIZATION_GUIDE.md).
 
+### Phase 8A - Universal Wishlist (Products & Packs)
+
+- Added a session-scoped wishlist for public Products and Packs — see
+  [WISHLIST_FOUNDATION.md](./WISHLIST_FOUNDATION.md).
+- New additive `WishlistItem` model / `wishlist_items` table (migration
+  `20260701140000_wishlist_foundation`) with a `WishlistTargetType`
+  (`PRODUCT` | `PACK`) enum and real, cascading foreign keys to
+  `customer_profiles`, `products`, and `packs` (exactly one of `productId` /
+  `packId` set per row). No existing table was altered.
+- Ownership reuses the existing anonymous-session identity: the
+  `CustomerProfile.sessionToken` (from `POST /quiz/profiles`), supplied via the
+  `X-Session-Token` header. Every read/write is scoped to the resolved profile,
+  so a session can only ever see or mutate its own wishlist. No new account
+  system was introduced.
+- Duplicate protection is enforced at the DB level via two composite unique
+  indexes (`[customerProfileId, productId]`, `[customerProfileId, packId]`);
+  Postgres NULL-distinctness keeps the two target types independent. Add is
+  idempotent (`created: false` on repeat), with a `P2002` guard folding
+  concurrent duplicates into the same path.
+- Added three additive public endpoints:
+  - `POST /wishlist/items` — save a PRODUCT or PACK by `{ targetType, targetId }`.
+  - `GET /wishlist` — list the session's saved items (customer-safe summaries).
+  - `DELETE /wishlist/items/:itemId` — remove an owned item (404 for foreign ids).
+- Save-time gate: only active/public Products (`status = ACTIVE`) and
+  active/public Packs (`status = ACTIVE` and `isActive = true`) can be saved.
+- List/add responses return customer-safe Product/Pack summaries only — no
+  stock counts, reserved quantities, costs, margins, admin/customization rules,
+  quiz answers, or recommendation data.
+- Products, Packs, recommendations, checkout, cart, and orders remain unchanged.
+  No sharing and no PackConfiguration wishlisting (both intentionally deferred).
+- Focused tests added
+  ([wishlist.service.spec.ts](../src/modules/wishlist/wishlist.service.spec.ts),
+  12 passing): add Product, add Pack, list mixed wishlist, remove item,
+  idempotent duplicate add, inactive/non-public Product rejected,
+  inactive/non-public Pack rejected, cross-owner list/remove isolation, and
+  two owners saving the same target independently.
+- Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
+
 ### Budget Range Foundation
 
 - Added canonical Budget option numeric ranges:
@@ -315,12 +353,25 @@
      checkout are implemented and documented.
    - Phase 7 is **complete**: admin Pack customization management is implemented
      and documented.
-   - Next: Phase 8 remains intentionally unstarted.
+   - Phase 8A is **complete**: universal wishlist for Products and Packs
+     ([WISHLIST_FOUNDATION.md](./WISHLIST_FOUNDATION.md)). Sharing and
+     PackConfiguration wishlisting remain intentionally deferred.
+   - Phase 8B is **complete**: universal share support
+     ([SHARING_FOUNDATION.md](./SHARING_FOUNDATION.md)). Active public Products
+     and Packs expose storefront-safe share metadata on their existing public
+     detail responses (no share tokens or DB records are created for them).
+     Persisted `PackConfiguration`s gain an opt-in, unique `shareToken`
+     (`POST /configurations/:id/share`) resolved by a public, customer-safe read
+     (`GET /shared/configurations/:shareToken`). Share analytics, social login,
+     Open Graph pages, and checkout-from-share remain out of scope.
 
 ## Explicitly Deferred
 
-- Phase 8 and later Pack business flows
-- Wishlist and sharing
+- Phase 9 and later Pack business flows
+- Wishlist sharing and PackConfiguration wishlisting (Phase 8A shipped
+  Product/Pack wishlisting only)
+- Share analytics, social login, and checkout from a shared link (Phase 8B
+  shipped the share foundation only)
 - Add-on recommendations
 - Generated personalized Packs
 - Margin-based ranking
