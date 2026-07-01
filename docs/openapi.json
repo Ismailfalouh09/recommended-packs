@@ -8768,6 +8768,25 @@
           "updatedAt"
         ]
       },
+      "PackAllowedAddOnInputDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "description": "Allowed add-on Product ID.",
+            "example": "00000000-0000-4000-8000-000000000030"
+          },
+          "productReferenceId": {
+            "type": "string",
+            "description": "Optional pinned ProductReference ID. When omitted, any active reference of the product may be chosen.",
+            "example": "00000000-0000-4000-8000-000000000031",
+            "nullable": true
+          }
+        },
+        "required": [
+          "productId"
+        ]
+      },
       "PackItemInputDto": {
         "type": "object",
         "properties": {
@@ -9017,10 +9036,17 @@
             "example": 150
           },
           "allowedAddOnIds": {
-            "description": "Foundation-only set of allowed add-on Product IDs. Inert in Phase 2.",
+            "description": "Legacy allowed add-on Product IDs. Prefer allowedAddOns when a pinned reference is needed.",
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "allowedAddOns": {
+            "description": "Allowed add-ons for configurable packs. Each entry may allow a whole product or pin one product reference.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackAllowedAddOnInputDto"
             }
           },
           "categoryId": {
@@ -9207,10 +9233,17 @@
             "example": 150
           },
           "allowedAddOnIds": {
-            "description": "Foundation-only set of allowed add-on Product IDs. Inert in Phase 2.",
+            "description": "Legacy allowed add-on Product IDs. Prefer allowedAddOns when a pinned reference is needed.",
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "allowedAddOns": {
+            "description": "Allowed add-ons for configurable packs. Each entry may allow a whole product or pin one product reference.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackAllowedAddOnInputDto"
             }
           },
           "categoryId": {

@@ -39,10 +39,7 @@ import {
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { ValidatePackConfigurationDto } from './dto/validate-pack-configuration.dto';
 import { PACK_COMPATIBILITY_GROUP_CODE } from './pack-compatibility.constants';
-import {
-  AvailabilityPack,
-  isPackAvailableNow,
-} from './pack-availability.util';
+import { AvailabilityPack, isPackAvailableNow } from './pack-availability.util';
 import {
   PackConfigurationValidationResult,
   ValidatorPack,
@@ -51,6 +48,10 @@ import {
 
 interface ResolvedPackItem {
   productId: string;
+  productName: string;
+  productIsActive: boolean;
+  productStatus: ProductStatus;
+  productBasePrice: Prisma.Decimal;
   productReferenceId: string | null;
   quantity: number;
   selectionMode: SelectionMode;
@@ -64,6 +65,7 @@ interface ResolvedPackItem {
   removalAllowed: boolean;
   replacementAllowed: boolean;
   allowedReferenceIds: string[];
+  references: ResolvedPackItemReference[];
 }
 
 interface ResolvedPackAttribute {
@@ -80,6 +82,20 @@ interface ResolvedPackCompatibility {
   criterion: PackCompatibilityCriterion;
   mode: PackCompatibilityMode;
   optionIds: string[];
+}
+
+interface ResolvedPackItemReference {
+  id: string;
+  stockQuantity: number;
+  reservedQuantity: number | null;
+  isActive: boolean;
+  priceOverride: Prisma.Decimal | null;
+  priceDelta: Prisma.Decimal;
+}
+
+interface PackAllowedAddOnState {
+  productId: string;
+  productReferenceId: string | null;
 }
 
 interface PackScalarState {
@@ -102,7 +118,7 @@ interface PackScalarState {
   minRequiredItems: number | null;
   maxItemCount: number | null;
   minAllowedPrice: number | null;
-  allowedAddOnIds: string[];
+  allowedAddOns: PackAllowedAddOnState[];
   // Pack Core Evolution (Phase 4A) — additive public discovery fields.
   categoryId: string | null;
   tier: PackTier | null;
@@ -397,7 +413,9 @@ export class PacksService {
     const filtered =
       query.availableNow === undefined
         ? evaluated
-        : evaluated.filter((entry) => entry.availableNow === query.availableNow);
+        : evaluated.filter(
+            (entry) => entry.availableNow === query.availableNow,
+          );
 
     const page = query.page ?? 1;
     const pageSize = Math.min(query.limit ?? 20, 100);
@@ -430,9 +448,7 @@ export class PacksService {
     );
   }
 
-  private buildPublicWhere(
-    query: QueryPublicPacksDto,
-  ): Prisma.PackWhereInput {
+  private buildPublicWhere(query: QueryPublicPacksDto): Prisma.PackWhereInput {
     return {
       isActive: true,
       status: PackStatus.ACTIVE,
@@ -817,7 +833,9 @@ export class PacksService {
 
   /** Maps the loaded configurable Pack onto the pure validator input shape. */
   private toValidatorPack(
-    pack: NonNullable<Awaited<ReturnType<PacksService['loadConfigurablePack']>>>,
+    pack: NonNullable<
+      Awaited<ReturnType<PacksService['loadConfigurablePack']>>
+    >,
   ): ValidatorPack {
     return {
       id: pack.id,
@@ -929,15 +947,19 @@ export class PacksService {
     this.validatePricing(state);
     this.validatePackRules(state);
     await this.ensureCategoryExists(state.categoryId);
-    const items = await this.resolveItems(
-      dto.items ?? [],
-      this.isActivating(state),
-    );
+    const items = await this.resolveItems(dto.items ?? [], state);
     const attributes = await this.resolveAttributes(dto.attributes ?? []);
-    const allowedAddOns = await this.resolveAllowedAddOns(state.allowedAddOnIds);
-    const compatibility = await this.resolveCompatibility(dto.compatibility ?? []);
+    const allowedAddOns = await this.resolveAllowedAddOns(
+      state.allowedAddOns,
+      state.isCustomizable,
+    );
+    const compatibility = await this.resolveCompatibility(
+      dto.compatibility ?? [],
+    );
 
     this.validatePackConfiguration(state, items);
+    this.validateAdminCustomizationRules(state, items);
+    this.validateMinAllowedPrice(state, items);
 
     const pack = await this.prisma.$transaction(async (tx) =>
       tx.pack.create({
@@ -1003,10 +1025,7 @@ export class PacksService {
       dto,
       'attributes',
     );
-    const allowedAddOnsIncluded = Object.prototype.hasOwnProperty.call(
-      dto,
-      'allowedAddOnIds',
-    );
+    const allowedAddOnsIncluded = this.hasAllowedAddOnInput(dto);
     const compatibilityIncluded = Object.prototype.hasOwnProperty.call(
       dto,
       'compatibility',
@@ -1026,6 +1045,9 @@ export class PacksService {
           quantityEditable: item.quantityEditable,
           removalAllowed: item.removalAllowed,
           replacementAllowed: item.replacementAllowed,
+          allowedReferenceIds: (item.allowedReferences ?? []).map(
+            (allowed: any) => allowed.productReferenceId,
+          ),
         }));
     const requestedAttributes = attributesIncluded
       ? (dto.attributes ?? [])
@@ -1048,16 +1070,18 @@ export class PacksService {
             ),
           }));
 
-    const items = await this.resolveItems(
-      requestedItems,
-      this.isActivating(state),
-    );
+    const items = await this.resolveItems(requestedItems, state);
     const attributes = await this.resolveAttributes(requestedAttributes);
-    const allowedAddOns = allowedAddOnsIncluded
-      ? await this.resolveAllowedAddOns(state.allowedAddOnIds)
-      : [];
-    const compatibility = await this.resolveCompatibility(requestedCompatibility);
+    const allowedAddOns = await this.resolveAllowedAddOns(
+      state.allowedAddOns,
+      state.isCustomizable,
+    );
+    const compatibility = await this.resolveCompatibility(
+      requestedCompatibility,
+    );
     this.validatePackConfiguration(state, items);
+    this.validateAdminCustomizationRules(state, items);
+    this.validateMinAllowedPrice(state, items);
 
     const pack = await this.prisma.$transaction(async (tx) => {
       if (itemsIncluded) {
@@ -1363,6 +1387,17 @@ export class PacksService {
           quantityEditable: true,
           removalAllowed: true,
           replacementAllowed: true,
+          allowedReferences: {
+            select: {
+              productReferenceId: true,
+            },
+          },
+        },
+      },
+      allowedAddOns: {
+        select: {
+          productId: true,
+          productReferenceId: true,
         },
       },
       attributes: {
@@ -1450,6 +1485,11 @@ export class PacksService {
       hasValidConfiguration: structural.validationIssues.length === 0,
       validationIssues: structural.validationIssues,
       attributes: pack.attributes,
+      allowedAddOns: (pack.allowedAddOns ?? []).map((addOn: any) => ({
+        id: addOn.id,
+        productId: addOn.productId,
+        productReferenceId: addOn.productReferenceId ?? null,
+      })),
       allowedAddOnIds: (pack.allowedAddOns ?? []).map(
         (addOn: any) => addOn.productId,
       ),
@@ -1637,7 +1677,7 @@ export class PacksService {
       minRequiredItems: dto.minRequiredItems ?? null,
       maxItemCount: dto.maxItemCount ?? null,
       minAllowedPrice: dto.minAllowedPrice ?? null,
-      allowedAddOnIds: dto.allowedAddOnIds ?? [],
+      allowedAddOns: this.normalizedAllowedAddOns(dto),
       categoryId: dto.categoryId ?? null,
       tier: dto.tier ?? null,
       occasion: dto.occasion ?? null,
@@ -1694,23 +1734,26 @@ export class PacksService {
         status === PackStatus.ARCHIVED
           ? false
           : (dto.isActive ?? existing.isActive),
-      isCustomizable: dto.isCustomizable ?? existing.isCustomizable,
+      isCustomizable: dto.isCustomizable ?? existing.isCustomizable ?? false,
       minRequiredItems: Object.prototype.hasOwnProperty.call(
         dto,
         'minRequiredItems',
       )
         ? (dto.minRequiredItems ?? null)
-        : existing.minRequiredItems,
+        : (existing.minRequiredItems ?? null),
       maxItemCount: Object.prototype.hasOwnProperty.call(dto, 'maxItemCount')
         ? (dto.maxItemCount ?? null)
-        : existing.maxItemCount,
+        : (existing.maxItemCount ?? null),
       minAllowedPrice: Object.prototype.hasOwnProperty.call(
         dto,
         'minAllowedPrice',
       )
         ? (dto.minAllowedPrice ?? null)
-        : toMoneyNumber(existing.minAllowedPrice),
-      allowedAddOnIds: dto.allowedAddOnIds ?? [],
+        : toMoneyNumber(existing.minAllowedPrice ?? null),
+      allowedAddOns: this.normalizedAllowedAddOns(
+        dto,
+        existing.allowedAddOns ?? [],
+      ),
       categoryId: Object.prototype.hasOwnProperty.call(dto, 'categoryId')
         ? (dto.categoryId ?? null)
         : existing.categoryId,
@@ -1739,6 +1782,52 @@ export class PacksService {
         ? (dto.searchKeywords ?? null)
         : existing.searchKeywords,
     };
+  }
+
+  private hasAllowedAddOnInput(
+    dto: Pick<CreatePackDto, 'allowedAddOnIds' | 'allowedAddOns'>,
+  ) {
+    return (
+      Object.prototype.hasOwnProperty.call(dto, 'allowedAddOnIds') ||
+      Object.prototype.hasOwnProperty.call(dto, 'allowedAddOns')
+    );
+  }
+
+  private normalizedAllowedAddOns(
+    dto: Pick<CreatePackDto, 'allowedAddOnIds' | 'allowedAddOns'>,
+    existing: PackAllowedAddOnState[] = [],
+  ): PackAllowedAddOnState[] {
+    if (!this.hasAllowedAddOnInput(dto)) {
+      return existing.map((addOn) => ({
+        productId: addOn.productId,
+        productReferenceId: addOn.productReferenceId ?? null,
+      }));
+    }
+
+    const inputs: PackAllowedAddOnState[] = [
+      ...(dto.allowedAddOnIds ?? []).map((productId) => ({
+        productId,
+        productReferenceId: null,
+      })),
+      ...(dto.allowedAddOns ?? []).map((addOn) => ({
+        productId: addOn.productId,
+        productReferenceId: addOn.productReferenceId ?? null,
+      })),
+    ];
+
+    const seen = new Set<string>();
+    const normalized: PackAllowedAddOnState[] = [];
+    for (const input of inputs) {
+      const key = `${input.productId}:${input.productReferenceId ?? ''}`;
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      normalized.push(input);
+    }
+
+    return normalized;
   }
 
   private validatePricing(state: PackScalarState) {
@@ -1809,34 +1898,91 @@ export class PacksService {
   }
 
   /**
-   * Pack Core Evolution (Phase 2) — resolve the additive, foundation-only
-   * allowed add-on product set. Validates referential integrity only; the
-   * relation is not consumed by any runtime business logic in this phase.
+   * Pack Core Evolution (Phase 7) - resolve allowed add-ons and validate that
+   * customizable packs only expose purchasable add-on products/references.
    */
   private async resolveAllowedAddOns(
-    productIds: string[],
+    addOns: PackAllowedAddOnState[],
+    requirePurchasable: boolean,
   ): Promise<Prisma.PackAllowedAddOnCreateWithoutPackInput[]> {
-    const seen = new Set<string>();
     const resolved: Prisma.PackAllowedAddOnCreateWithoutPackInput[] = [];
 
-    for (const productId of productIds) {
-      if (seen.has(productId)) {
-        continue;
-      }
-      seen.add(productId);
-
+    for (const addOn of addOns) {
       const product = await this.prisma.product.findUnique({
-        where: { id: productId },
-        select: { id: true },
+        where: { id: addOn.productId },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          isActive: true,
+          references: {
+            select: {
+              id: true,
+              productId: true,
+              stockQuantity: true,
+              reservedQuantity: true,
+              isActive: true,
+            },
+          },
+        },
       });
 
       if (!product) {
         throw new NotFoundException(
-          `Add-on product ${productId} was not found.`,
+          `Add-on product ${addOn.productId} was not found.`,
         );
       }
 
-      resolved.push({ product: { connect: { id: productId } } });
+      if (
+        requirePurchasable &&
+        (!product.isActive || product.status !== ProductStatus.ACTIVE)
+      ) {
+        throw new BadRequestException(
+          `Add-on product ${product.name} must be active for customizable packs.`,
+        );
+      }
+
+      if (addOn.productReferenceId) {
+        const reference = product.references.find(
+          (candidate) => candidate.id === addOn.productReferenceId,
+        );
+
+        if (!reference) {
+          throw new BadRequestException(
+            `Add-on reference ${addOn.productReferenceId} must belong to product ${product.name}.`,
+          );
+        }
+
+        if (
+          requirePurchasable &&
+          (!reference.isActive || this.availableReferenceStock(reference) <= 0)
+        ) {
+          throw new BadRequestException(
+            `Add-on reference for product ${product.name} must be active and in stock.`,
+          );
+        }
+      } else if (
+        requirePurchasable &&
+        product.references.every(
+          (reference) =>
+            !reference.isActive || this.availableReferenceStock(reference) <= 0,
+        )
+      ) {
+        throw new BadRequestException(
+          `Add-on product ${product.name} must have at least one active in-stock reference.`,
+        );
+      }
+
+      resolved.push({
+        product: { connect: { id: addOn.productId } },
+        ...(addOn.productReferenceId
+          ? {
+              productReference: {
+                connect: { id: addOn.productReferenceId },
+              },
+            }
+          : {}),
+      });
     }
 
     return resolved;
@@ -1883,12 +2029,185 @@ export class PacksService {
     }
   }
 
+  private validateAdminCustomizationRules(
+    state: PackScalarState,
+    items: ResolvedPackItem[],
+  ) {
+    if (!state.isCustomizable) {
+      return;
+    }
+
+    for (const item of items) {
+      if (item.role !== PackItemRole.REQUIRED_SELECTABLE) {
+        continue;
+      }
+
+      if (item.allowedReferenceIds.length === 0) {
+        throw new BadRequestException(
+          `REQUIRED_SELECTABLE item ${item.productName} must define at least one allowed reference.`,
+        );
+      }
+
+      const hasValidReference = item.allowedReferenceIds.some((referenceId) => {
+        const reference = item.references.find(
+          (candidate) => candidate.id === referenceId,
+        );
+
+        return (
+          reference?.isActive === true &&
+          this.availableReferenceStock(reference) >= item.quantity
+        );
+      });
+
+      if (!hasValidReference) {
+        throw new BadRequestException(
+          `REQUIRED_SELECTABLE item ${item.productName} must have at least one active in-stock allowed reference.`,
+        );
+      }
+    }
+  }
+
+  private validateMinAllowedPrice(
+    state: PackScalarState,
+    items: ResolvedPackItem[],
+  ) {
+    if (state.minAllowedPrice == null) {
+      return;
+    }
+
+    const defaultPrice = this.defaultSellablePrice(state, items);
+    if (!defaultPrice) {
+      return;
+    }
+
+    if (new Prisma.Decimal(state.minAllowedPrice).gt(defaultPrice)) {
+      throw new BadRequestException(
+        'minAllowedPrice cannot exceed the pack default sellable price.',
+      );
+    }
+  }
+
+  private defaultSellablePrice(
+    state: PackScalarState,
+    items: ResolvedPackItem[],
+  ): Prisma.Decimal | null {
+    if (state.priceMode === PriceMode.FIXED) {
+      return state.fixedPrice == null
+        ? null
+        : new Prisma.Decimal(state.fixedPrice);
+    }
+
+    const sellableItems = items.filter(
+      (item) => item.role !== PackItemRole.OPTIONAL_ADDON,
+    );
+    if (sellableItems.length === 0) {
+      return null;
+    }
+
+    let subtotal = new Prisma.Decimal(0);
+    for (const item of sellableItems) {
+      const reference = this.defaultSellableReference(item);
+      if (!reference) {
+        return null;
+      }
+
+      subtotal = subtotal.plus(
+        this.effectiveReferencePrice(item, reference).times(item.quantity),
+      );
+    }
+
+    if (state.priceMode === PriceMode.SUM_ITEMS) {
+      return subtotal;
+    }
+
+    let discount = new Prisma.Decimal(0);
+    if (state.discountAmount != null) {
+      discount = Prisma.Decimal.min(
+        new Prisma.Decimal(state.discountAmount),
+        subtotal,
+      );
+    } else if (state.discountPercentage != null) {
+      discount = Prisma.Decimal.min(
+        subtotal.times(state.discountPercentage).div(100),
+        subtotal,
+      );
+    }
+
+    return Prisma.Decimal.max(subtotal.minus(discount), new Prisma.Decimal(0));
+  }
+
+  private defaultSellableReference(
+    item: ResolvedPackItem,
+  ): ResolvedPackItemReference | null {
+    if (item.selectionMode === SelectionMode.FIXED_REFERENCE) {
+      return (
+        item.references.find(
+          (reference) => reference.id === item.productReferenceId,
+        ) ?? null
+      );
+    }
+
+    if (item.role === PackItemRole.REQUIRED_SELECTABLE) {
+      const allowed = item.references.filter((reference) =>
+        item.allowedReferenceIds.includes(reference.id),
+      );
+      const purchasable = allowed.filter(
+        (reference) =>
+          reference.isActive &&
+          this.availableReferenceStock(reference) >= item.quantity,
+      );
+      const priced = purchasable.length > 0 ? purchasable : allowed;
+
+      return this.lowestPricedReference(item, priced);
+    }
+
+    return (
+      item.references.find(
+        (reference) =>
+          reference.isActive &&
+          this.availableReferenceStock(reference) >= item.quantity,
+      ) ??
+      item.references.find((reference) => reference.isActive) ??
+      item.references[0] ??
+      null
+    );
+  }
+
+  private lowestPricedReference(
+    item: ResolvedPackItem,
+    references: ResolvedPackItemReference[],
+  ): ResolvedPackItemReference | null {
+    return (
+      references
+        .slice()
+        .sort((left, right) =>
+          this.effectiveReferencePrice(item, left).cmp(
+            this.effectiveReferencePrice(item, right),
+          ),
+        )[0] ?? null
+    );
+  }
+
+  private effectiveReferencePrice(
+    item: ResolvedPackItem,
+    reference: ResolvedPackItemReference,
+  ): Prisma.Decimal {
+    if (reference.priceOverride) {
+      return new Prisma.Decimal(reference.priceOverride);
+    }
+
+    return new Prisma.Decimal(item.productBasePrice).plus(
+      reference.priceDelta ?? 0,
+    );
+  }
+
   private async resolveItems(
     items: PackItemInputDto[],
-    activating: boolean,
+    state: PackScalarState,
   ): Promise<ResolvedPackItem[]> {
     const seenProducts = new Set<string>();
     const resolved: ResolvedPackItem[] = [];
+    const activating = this.isActivating(state);
 
     for (const item of items) {
       if (seenProducts.has(item.productId)) {
@@ -1903,15 +2222,19 @@ export class PacksService {
         select: {
           id: true,
           name: true,
+          basePrice: true,
           status: true,
           isActive: true,
           references: {
+            orderBy: [{ isDefault: 'desc' }, { referenceCode: 'asc' }],
             select: {
               id: true,
               productId: true,
               stockQuantity: true,
               reservedQuantity: true,
               isActive: true,
+              priceOverride: true,
+              priceDelta: true,
             },
           },
         },
@@ -1932,9 +2255,24 @@ export class PacksService {
         );
       }
 
-      if (item.selectionMode === SelectionMode.CUSTOMER_CHOICE) {
+      const role = this.resolveItemRole(item, state);
+
+      if (
+        item.selectionMode === SelectionMode.CUSTOMER_CHOICE &&
+        (!state.isCustomizable || role !== PackItemRole.REQUIRED_SELECTABLE)
+      ) {
         throw new BadRequestException(
-          'CUSTOMER_CHOICE pack items are not supported yet. Use FIXED_REFERENCE or AUTO_BEST_REFERENCE.',
+          'CUSTOMER_CHOICE items are allowed only on customizable REQUIRED_SELECTABLE pack items.',
+        );
+      }
+
+      if (
+        state.isCustomizable &&
+        role === PackItemRole.REQUIRED_SELECTABLE &&
+        item.selectionMode !== SelectionMode.CUSTOMER_CHOICE
+      ) {
+        throw new BadRequestException(
+          'REQUIRED_SELECTABLE pack items must use CUSTOMER_CHOICE selectionMode.',
         );
       }
 
@@ -1995,10 +2333,15 @@ export class PacksService {
       const allowedReferenceIds = this.resolveAllowedReferenceIds(
         item,
         product,
+        state.isCustomizable,
       );
 
       resolved.push({
         productId: item.productId,
+        productName: product.name,
+        productIsActive: product.isActive,
+        productStatus: product.status,
+        productBasePrice: product.basePrice,
         productReferenceId:
           item.selectionMode === SelectionMode.FIXED_REFERENCE
             ? (item.productReferenceId ?? null)
@@ -2007,17 +2350,43 @@ export class PacksService {
         selectionMode: item.selectionMode,
         isRequired,
         sortOrder: item.sortOrder ?? 0,
-        role: item.role ?? PackItemRole.FIXED,
+        role,
         minQuantity: item.minQuantity ?? null,
         maxQuantity: item.maxQuantity ?? null,
         quantityEditable: item.quantityEditable ?? false,
         removalAllowed: item.removalAllowed ?? false,
         replacementAllowed: item.replacementAllowed ?? false,
         allowedReferenceIds,
+        references: product.references.map((reference) => ({
+          id: reference.id,
+          stockQuantity: reference.stockQuantity,
+          reservedQuantity: reference.reservedQuantity,
+          isActive: reference.isActive,
+          priceOverride: reference.priceOverride,
+          priceDelta: reference.priceDelta,
+        })),
       });
     }
 
     return resolved;
+  }
+
+  private resolveItemRole(
+    item: PackItemInputDto,
+    state: PackScalarState,
+  ): PackItemRole {
+    if (item.role) {
+      return item.role;
+    }
+
+    if (
+      state.isCustomizable &&
+      item.selectionMode === SelectionMode.CUSTOMER_CHOICE
+    ) {
+      return PackItemRole.REQUIRED_SELECTABLE;
+    }
+
+    return PackItemRole.FIXED;
   }
 
   /**
@@ -2027,7 +2396,16 @@ export class PacksService {
    */
   private resolveAllowedReferenceIds(
     item: PackItemInputDto,
-    product: { name: string; references: { id: string }[] },
+    product: {
+      name: string;
+      references: {
+        id: string;
+        isActive: boolean;
+        stockQuantity: number;
+        reservedQuantity: number | null;
+      }[];
+    },
+    requirePurchasable: boolean,
   ): string[] {
     if (item.minQuantity != null && item.minQuantity < 0) {
       throw new BadRequestException('minQuantity cannot be negative.');
@@ -2052,11 +2430,22 @@ export class PacksService {
     );
 
     for (const referenceId of allowedReferenceIds) {
-      if (
-        !product.references.some((reference) => reference.id === referenceId)
-      ) {
+      const reference = product.references.find(
+        (candidate) => candidate.id === referenceId,
+      );
+
+      if (!reference) {
         throw new BadRequestException(
           `Allowed reference ${referenceId} must belong to product ${product.name}.`,
+        );
+      }
+
+      if (
+        requirePurchasable &&
+        (!reference.isActive || this.availableReferenceStock(reference) <= 0)
+      ) {
+        throw new BadRequestException(
+          `Allowed reference ${referenceId} for product ${product.name} must be active and in stock.`,
         );
       }
     }

@@ -680,6 +680,7 @@ describe('PacksService admin CRUD', () => {
         allowedAddOnIds: ['product-1'],
         items: [
           autoItem({
+            selectionMode: SelectionMode.CUSTOMER_CHOICE,
             role: PackItemRole.REQUIRED_SELECTABLE,
             minQuantity: 1,
             maxQuantity: 3,
@@ -705,6 +706,7 @@ describe('PacksService admin CRUD', () => {
       ]);
       expect(data.items.create[0]).toEqual(
         expect.objectContaining({
+          selectionMode: SelectionMode.CUSTOMER_CHOICE,
           role: PackItemRole.REQUIRED_SELECTABLE,
           minQuantity: 1,
           maxQuantity: 3,
@@ -838,6 +840,223 @@ describe('PacksService admin CRUD', () => {
   });
 
   // ---------------------------------------------------------------------------
+  describe('Phase 7 - admin customization management', () => {
+    it('creates a valid configurable Pack with selectable rules, add-ons, and compatibility', async () => {
+      prisma.pack.findUnique.mockResolvedValue(null);
+      prisma.product.findUnique
+        .mockResolvedValueOnce(productFixture())
+        .mockResolvedValueOnce(
+          productFixture({
+            id: 'product-2',
+            name: 'Lip Gloss',
+            references: [
+              referenceFixture({ id: 'addon-ref', productId: 'product-2' }),
+            ],
+          }),
+        );
+      prisma.attributeGroup.findFirst.mockResolvedValue({ id: 'group-skin' });
+      prisma.attributeOption.findFirst.mockResolvedValue({
+        id: 'option-light',
+      });
+
+      await service.adminCreate({
+        ...baseCreateDto({
+          isCustomizable: true,
+          minRequiredItems: 1,
+          maxItemCount: 4,
+          minAllowedPrice: 150,
+          allowedAddOns: [
+            { productId: 'product-2', productReferenceId: 'addon-ref' },
+          ],
+          items: [
+            autoItem({
+              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+              role: PackItemRole.REQUIRED_SELECTABLE,
+              allowedReferenceIds: ['reference-1'],
+              quantityEditable: true,
+              minQuantity: 1,
+              maxQuantity: 2,
+              replacementAllowed: true,
+            }),
+          ],
+          attributes: [],
+          compatibility: [
+            {
+              criterion: PackCompatibilityCriterion.SKIN_TONE,
+              optionCodes: ['LIGHT'],
+            },
+          ],
+        }),
+      });
+
+      const data = tx.pack.create.mock.calls[0][0].data;
+      expect(data).toEqual(
+        expect.objectContaining({
+          isCustomizable: true,
+          minRequiredItems: 1,
+          maxItemCount: 4,
+          minAllowedPrice: 150,
+        }),
+      );
+      expect(data.items.create[0].allowedReferences.create).toEqual([
+        { productReference: { connect: { id: 'reference-1' } } },
+      ]);
+      expect(data.allowedAddOns.create).toEqual([
+        {
+          product: { connect: { id: 'product-2' } },
+          productReference: { connect: { id: 'addon-ref' } },
+        },
+      ]);
+      expect(data.compatibilityProfiles.create[0].criterion).toBe(
+        PackCompatibilityCriterion.SKIN_TONE,
+      );
+    });
+
+    it('updates a configurable Pack while preserving omitted allowed references and add-ons', async () => {
+      prisma.pack.findUnique.mockResolvedValueOnce(
+        existingConfigurablePackFixture(),
+      );
+      prisma.product.findUnique
+        .mockResolvedValueOnce(productFixture())
+        .mockResolvedValueOnce(
+          productFixture({
+            id: 'product-2',
+            name: 'Lip Gloss',
+            references: [
+              referenceFixture({ id: 'addon-ref', productId: 'product-2' }),
+            ],
+          }),
+        );
+
+      await service.adminUpdate('pack-1', { minAllowedPrice: 100 });
+
+      expect(tx.packItem.deleteMany).not.toHaveBeenCalled();
+      expect(tx.packAllowedAddOn.deleteMany).not.toHaveBeenCalled();
+      expect(tx.pack.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            minAllowedPrice: 100,
+          }),
+        }),
+      );
+    });
+
+    it('rejects a REQUIRED_SELECTABLE item without allowed references', async () => {
+      prisma.pack.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.adminCreate({
+          ...baseCreateDto({
+            isCustomizable: true,
+            items: [
+              autoItem({
+                selectionMode: SelectionMode.CUSTOMER_CHOICE,
+                role: PackItemRole.REQUIRED_SELECTABLE,
+                allowedReferenceIds: [],
+              }),
+            ],
+          }),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects an allowed reference that is inactive or out of stock', async () => {
+      prisma.pack.findUnique.mockResolvedValue(null);
+      prisma.product.findUnique.mockResolvedValue(
+        productFixture({
+          references: [
+            referenceFixture({
+              id: 'reference-1',
+              isActive: false,
+              stockQuantity: 0,
+            }),
+          ],
+        }),
+      );
+
+      await expect(
+        service.adminCreate({
+          ...baseCreateDto({
+            isCustomizable: true,
+            items: [
+              autoItem({
+                selectionMode: SelectionMode.CUSTOMER_CHOICE,
+                role: PackItemRole.REQUIRED_SELECTABLE,
+                allowedReferenceIds: ['reference-1'],
+              }),
+            ],
+          }),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects an add-on reference that does not belong to the add-on product', async () => {
+      prisma.pack.findUnique.mockResolvedValue(null);
+      prisma.product.findUnique
+        .mockResolvedValueOnce(productFixture())
+        .mockResolvedValueOnce(
+          productFixture({
+            id: 'product-2',
+            name: 'Lip Gloss',
+            references: [
+              referenceFixture({ id: 'addon-ref', productId: 'product-2' }),
+            ],
+          }),
+        );
+
+      await expect(
+        service.adminCreate({
+          ...baseCreateDto({
+            isCustomizable: true,
+            items: [
+              autoItem({
+                selectionMode: SelectionMode.CUSTOMER_CHOICE,
+                role: PackItemRole.REQUIRED_SELECTABLE,
+                allowedReferenceIds: ['reference-1'],
+              }),
+            ],
+            allowedAddOns: [
+              { productId: 'product-2', productReferenceId: 'missing-ref' },
+            ],
+          }),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects minAllowedPrice above the Pack default sellable price', async () => {
+      prisma.pack.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.adminCreate({
+          ...baseCreateDto({
+            minAllowedPrice: 300,
+          }),
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('keeps existing fixed Pack admin create behavior unchanged', async () => {
+      prisma.pack.findUnique.mockResolvedValue(null);
+
+      await service.adminCreate(baseCreateDto());
+
+      const data = tx.pack.create.mock.calls[0][0].data;
+      expect(data).toEqual(
+        expect.objectContaining({
+          isCustomizable: false,
+          priceMode: PriceMode.FIXED,
+          fixedPrice: 299,
+        }),
+      );
+      expect(data.items.create[0]).toEqual(
+        expect.objectContaining({
+          selectionMode: SelectionMode.AUTO_BEST_REFERENCE,
+          role: PackItemRole.FIXED,
+        }),
+      );
+    });
+  });
+
   // Pack Core Evolution — Phase 2.5 (Pack Compatibility Profile foundation).
   // Compatibility values are normalized to canonical AttributeOptions and are
   // inert: not consumed by recommendation/scoring/pricing in this phase.
@@ -947,7 +1166,9 @@ describe('PacksService admin CRUD', () => {
     it('Test 3 — de-duplicates repeated option codes within a criterion', async () => {
       prisma.pack.findUnique.mockResolvedValue(null);
       prisma.attributeGroup.findFirst.mockResolvedValue({ id: 'group-skin' });
-      prisma.attributeOption.findFirst.mockResolvedValue({ id: 'option-light' });
+      prisma.attributeOption.findFirst.mockResolvedValue({
+        id: 'option-light',
+      });
 
       await service.adminCreate({
         ...baseCreateDto(),
@@ -970,7 +1191,9 @@ describe('PacksService admin CRUD', () => {
     it('Test 3 — rejects a duplicate compatibility criterion', async () => {
       prisma.pack.findUnique.mockResolvedValue(null);
       prisma.attributeGroup.findFirst.mockResolvedValue({ id: 'group-skin' });
-      prisma.attributeOption.findFirst.mockResolvedValue({ id: 'option-light' });
+      prisma.attributeOption.findFirst.mockResolvedValue({
+        id: 'option-light',
+      });
 
       await expect(
         service.adminCreate({
@@ -1091,7 +1314,9 @@ describe('PacksService admin CRUD', () => {
     it('supplied compatibility replaces the previous profile', async () => {
       prisma.pack.findUnique.mockResolvedValueOnce(existingPackFixture());
       prisma.attributeGroup.findFirst.mockResolvedValue({ id: 'group-skin' });
-      prisma.attributeOption.findFirst.mockResolvedValue({ id: 'option-medium' });
+      prisma.attributeOption.findFirst.mockResolvedValue({
+        id: 'option-medium',
+      });
 
       await service.adminUpdate('pack-1', {
         compatibility: [
@@ -1170,17 +1395,23 @@ function productFixture(overrides: Record<string, unknown> = {}) {
   return {
     id: 'product-1',
     name: 'Foundation X',
+    basePrice: decimal(120),
     status: ProductStatus.ACTIVE,
     isActive: true,
-    references: [
-      {
-        id: 'reference-1',
-        productId: 'product-1',
-        stockQuantity: 10,
-        reservedQuantity: 0,
-        isActive: true,
-      },
-    ],
+    references: [referenceFixture()],
+    ...overrides,
+  };
+}
+
+function referenceFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'reference-1',
+    productId: 'product-1',
+    stockQuantity: 10,
+    reservedQuantity: 0,
+    isActive: true,
+    priceOverride: null,
+    priceDelta: decimal(0),
     ...overrides,
   };
 }
@@ -1202,6 +1433,11 @@ function existingPackFixture(overrides: Record<string, unknown> = {}) {
     priority: 5,
     status: PackStatus.ACTIVE,
     isActive: true,
+    isCustomizable: false,
+    minRequiredItems: null,
+    maxItemCount: null,
+    minAllowedPrice: null,
+    allowedAddOns: [],
     items: [
       {
         productId: 'product-1',
@@ -1210,6 +1446,13 @@ function existingPackFixture(overrides: Record<string, unknown> = {}) {
         selectionMode: SelectionMode.AUTO_BEST_REFERENCE,
         isRequired: true,
         sortOrder: 1,
+        role: PackItemRole.FIXED,
+        minQuantity: null,
+        maxQuantity: null,
+        quantityEditable: false,
+        removalAllowed: false,
+        replacementAllowed: false,
+        allowedReferences: [],
       },
     ],
     attributes: [
@@ -1224,6 +1467,37 @@ function existingPackFixture(overrides: Record<string, unknown> = {}) {
     compatibilityProfiles: [],
     ...overrides,
   };
+}
+
+function existingConfigurablePackFixture() {
+  return existingPackFixture({
+    isCustomizable: true,
+    priceMode: PriceMode.SUM_ITEMS,
+    fixedPrice: null,
+    minRequiredItems: 1,
+    maxItemCount: 3,
+    minAllowedPrice: decimal(90),
+    allowedAddOns: [
+      { productId: 'product-2', productReferenceId: 'addon-ref' },
+    ],
+    items: [
+      {
+        productId: 'product-1',
+        productReferenceId: null,
+        quantity: 1,
+        selectionMode: SelectionMode.CUSTOMER_CHOICE,
+        isRequired: true,
+        sortOrder: 1,
+        role: PackItemRole.REQUIRED_SELECTABLE,
+        minQuantity: 1,
+        maxQuantity: 2,
+        quantityEditable: true,
+        removalAllowed: false,
+        replacementAllowed: true,
+        allowedReferences: [{ productReferenceId: 'reference-1' }],
+      },
+    ],
+  });
 }
 
 function packFixture(overrides: Record<string, unknown> = {}) {

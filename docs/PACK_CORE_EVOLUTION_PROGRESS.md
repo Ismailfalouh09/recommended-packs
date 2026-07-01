@@ -6,11 +6,13 @@
 ## Completed
 
 ### Phase 0 — Architecture and Current-State Analysis
+
 - Current Pack implementation analyzed.
 - Pack Core evolution master plan created.
 - Additive and backward-compatible approach selected.
 
 ### Phase 1 — CUSTOMER_CHOICE Recommendation Eligibility
+
 - Required customer-choice Pack items no longer automatically exclude a Pack.
 - A Pack remains eligible when at least one compatible, active, in-stock option exists.
 - Pending selection is returned safely through:
@@ -20,6 +22,7 @@
 - Fixed and automatic reference-selection behavior remains unchanged.
 
 ### Phase 2 — Pack Item Roles and Customization Foundation
+
 - Added Pack item roles:
   - `FIXED`
   - `REQUIRED_SELECTABLE`
@@ -30,6 +33,7 @@
 - Existing Packs remain fixed and backward-compatible by default.
 
 ### Phase 2.5 — Pack Compatibility Profile Foundation
+
 - Added Pack compatibility profiles for:
   - Skin tone
   - Skin type
@@ -43,6 +47,7 @@
 - Compatibility values reuse canonical quiz/attribute values.
 
 ### Recommendation MVP
+
 - Added single-responsibility recommendation components:
   - Pack eligibility service
   - One matcher per criterion
@@ -69,6 +74,7 @@
   - Occasion: 10
 
 ### Phase 3 — Pack Pricing Floor & Order Snapshot Safety
+
 - Added a reusable server-side price-floor guard (`assertAtOrAboveMinAllowedPrice` / `isAtOrAboveMinAllowedPrice`):
   - Allows any price when `Pack.minAllowedPrice` is null.
   - Allows a price equal to or above the floor.
@@ -84,6 +90,7 @@
 - No change to checkout, cart, order creation, Pack pricing, or recommendation behavior (all inert plumbing until later phases).
 
 ### Phase 4A — Public Pack Catalog Discovery & Availability
+
 - Added additive, backward-compatible public discovery fields on `Pack`
   (migration `20260701005043_pack_public_discovery_fields`, applied):
   - `category` (reuses the shared `Category` entity via `categoryId`, no
@@ -119,6 +126,7 @@
 - Swagger/OpenAPI regenerated and verified. Prisma validate/generate + build pass.
 
 ### Phase 4B — Fixed Pack Direct Purchase
+
 - Added one additive endpoint `POST /packs/:packId/order` for a Cash-on-Delivery
   order of a single **fixed, non-customizable** Pack as one unit — see
   [PACK_FIXED_PURCHASE_FLOW.md](./PACK_FIXED_PURCHASE_FLOW.md).
@@ -144,10 +152,12 @@
   Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
 
 ### Phase 4 — COMPLETE
+
 - Both Phase 4A (public catalog discovery, filtering, browsing availability) and
   Phase 4B (fixed Pack direct purchase) are done. Phase 4 is complete.
 
 ### Phase 5 — Controlled Customizable Pack Rules & Configuration Validator
+
 - Added one additive, **read-only** endpoint
   `POST /packs/:packId/validate-configuration` — see
   [PACK_CUSTOMIZATION_VALIDATION.md](./PACK_CUSTOMIZATION_VALIDATION.md).
@@ -185,6 +195,7 @@
   Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
 
 ### Phase 6 - PackConfiguration Persistence & Configured Checkout
+
 - Added additive Pack configuration persistence via
   `POST /packs/:packId/configurations`.
   - The server reloads the current Pack, reuses the Phase 5 validator,
@@ -205,7 +216,40 @@
 - Existing `POST /orders`, `POST /orders/checkout`, and fixed Pack purchase
   behavior remain unchanged.
 
+### Phase 7 - Admin Pack Customization Management
+
+- Admin `POST /admin/packs`, `PATCH /admin/packs/:id`, and
+  `GET /admin/packs/:id` now expose and preserve Pack customization fields:
+  - `isCustomizable`
+  - `minAllowedPrice`
+  - `minRequiredItems`
+  - `maxItemCount`
+  - Pack item roles
+  - allowed item references
+  - allowed add-ons, including `{ productId, productReferenceId }`
+  - quantity, removal, and replacement rules
+  - compatibility profile data
+- Added admin save-time validation for customizable Packs:
+  - `REQUIRED_SELECTABLE` items must use `CUSTOMER_CHOICE` and have at least one
+    active, in-stock allowed reference.
+  - Allowed references must belong to the item product and be active/in stock
+    for customizable Packs.
+  - Allowed add-ons must exist; customizable Pack add-ons must be active and
+    have an active, in-stock reference. Pinned add-on references must belong to
+    the add-on product.
+  - `minQuantity` / `maxQuantity`, `minRequiredItems` / `maxItemCount`, and
+    `minAllowedPrice` are checked before save.
+  - `minAllowedPrice` cannot exceed the Pack default sellable price.
+- Partial admin updates validate the final saved rule graph while preserving
+  omitted nested allowed references, add-ons, attributes, and compatibility
+  profiles.
+- Fixed non-customizable Pack admin create/update/read behavior remains
+  backward-compatible.
+- Admin guide added:
+  [ADMIN_PACK_CUSTOMIZATION_GUIDE.md](./ADMIN_PACK_CUSTOMIZATION_GUIDE.md).
+
 ### Budget Range Foundation
+
 - Added canonical Budget option numeric ranges:
   - LOW: 150–220 MAD
   - MEDIUM: 221–350 MAD
@@ -213,11 +257,13 @@
 - Actual Pack selling price is used for numeric budget matching.
 
 ### Database Readiness
+
 - Applied Pack compatibility profile migration.
 - Applied AttributeOption budget range migration.
 - Verified local database schema is aligned with Prisma schema.
 
 ### Validation Completed
+
 - Prisma validation and generation passed.
 - Build passed.
 - Swagger generation and validation passed.
@@ -267,11 +313,13 @@
      [PACK_CUSTOMIZATION_VALIDATION.md](./PACK_CUSTOMIZATION_VALIDATION.md)).
    - Phase 6 is **complete**: `PackConfiguration` persistence and configured
      checkout are implemented and documented.
-   - Next: Phase 7 remains intentionally unstarted.
+   - Phase 7 is **complete**: admin Pack customization management is implemented
+     and documented.
+   - Next: Phase 8 remains intentionally unstarted.
 
 ## Explicitly Deferred
 
-- Phase 7 and later Pack business flows
+- Phase 8 and later Pack business flows
 - Wishlist and sharing
 - Add-on recommendations
 - Generated personalized Packs

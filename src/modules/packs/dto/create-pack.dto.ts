@@ -28,6 +28,7 @@ import {
   optionalTrimmedString,
   optionalUppercase,
 } from '../../../common/transforms/query.transforms';
+import { PackAllowedAddOnInputDto } from './pack-allowed-add-on-input.dto';
 import { PackAttributeInputDto } from './pack-attribute-input.dto';
 import { PackCompatibilityInputDto } from './pack-compatibility-input.dto';
 import { PackItemInputDto } from './pack-item-input.dto';
@@ -158,12 +159,23 @@ export class CreatePackDto {
   @ApiPropertyOptional({
     type: [String],
     description:
-      'Foundation-only set of allowed add-on Product IDs. Inert in Phase 2.',
+      'Legacy allowed add-on Product IDs. Prefer allowedAddOns when a pinned reference is needed.',
   })
   @IsOptional()
   @IsArray()
   @IsUUID('all', { each: true })
   allowedAddOnIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [PackAllowedAddOnInputDto],
+    description:
+      'Allowed add-ons for configurable packs. Each entry may allow a whole product or pin one product reference.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PackAllowedAddOnInputDto)
+  allowedAddOns?: PackAllowedAddOnInputDto[];
 
   /**
    * Pack Core Evolution (Phase 4A) — additive public discovery fields. Optional
