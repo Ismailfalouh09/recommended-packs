@@ -147,6 +147,43 @@
 - Both Phase 4A (public catalog discovery, filtering, browsing availability) and
   Phase 4B (fixed Pack direct purchase) are done. Phase 4 is complete.
 
+### Phase 5 — Controlled Customizable Pack Rules & Configuration Validator
+- Added one additive, **read-only** endpoint
+  `POST /packs/:packId/validate-configuration` — see
+  [PACK_CUSTOMIZATION_VALIDATION.md](./PACK_CUSTOMIZATION_VALIDATION.md).
+  Returns `isValid`, `computedPrice`, `minAllowedPrice`, `stockStatus`,
+  `normalizedItems`, and `validationErrors`. Nothing is persisted and no stock
+  is reserved.
+- Server-authoritative throughout: the client body carries only proposed
+  selections (chosen reference, quantity, removal) and add-ons — never prices or
+  item snapshots. Price is recomputed server-side from the current allowed
+  references (`priceOverride`, else `basePrice + priceDelta`), summed over the
+  final composition, with the Pack's configured discount applied only for
+  `SUM_ITEMS_WITH_DISCOUNT`.
+- Gate: only `isCustomizable=true`, active Packs are accepted; missing Packs 404,
+  non-customizable/inactive Packs 400. All composition/rule/stock/price
+  violations return `200` with `isValid=false` and a coded `validationErrors`
+  list.
+- Rules enforced (activating the Phase 2 role/rule fields): required `FIXED`
+  items stay present; `REQUIRED_SELECTABLE` slots need one allowed active
+  in-stock reference; optional removal only when `removalAllowed`; quantity
+  changes only when `quantityEditable` and within `[minQuantity, maxQuantity]`;
+  replacements only when `replacementAllowed`; chosen references must exist in
+  `PackItemAllowedReference`; add-ons must exist in `PackAllowedAddOn`;
+  `minRequiredItems`/`maxItemCount` respected; live stock validated via the
+  shared `availableReferenceStock`; computed price rejected below
+  `minAllowedPrice` via the Phase 3 `isAtOrAboveMinAllowedPrice` helper.
+- The rule engine is a pure, dependency-free function
+  (`pack-configuration.validator.ts`) — fully unit-testable without a database;
+  `PacksService` only loads the Pack and maps it onto the validator input.
+- No new schema (reuses Phase 2 tables/fields). Existing `POST /orders`,
+  `POST /orders/checkout`, `POST /packs/:id/order`, fixed Pack purchase, the
+  recommendation algorithm, cart behavior, and order creation are unchanged.
+- Focused tests added
+  ([pack-configuration.validator.spec.ts](../src/modules/packs/pack-configuration.validator.spec.ts),
+  [packs.service.config.spec.ts](../src/modules/packs/packs.service.config.spec.ts));
+  Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
+
 ### Budget Range Foundation
 - Added canonical Budget option numeric ranges:
   - LOW: 150–220 MAD
@@ -199,12 +236,15 @@
    - Keep Occasion matcher coverage in automated tests.
    - Add the public quiz question only in a separate intentional quiz evolution.
 
-4. Next Pack business phase — Phase 5 (controlled customization):
+4. Next Pack business phase — Phase 6 (configuration persistence + checkout):
    - Phase 4 is **complete**: Phase 4A (catalog discovery, filtering, browsing
      availability — [PACK_PUBLIC_DISCOVERY.md](./PACK_PUBLIC_DISCOVERY.md)) and
      Phase 4B (fixed Pack direct purchase via `POST /packs/:packId/order` —
      [PACK_FIXED_PURCHASE_FLOW.md](./PACK_FIXED_PURCHASE_FLOW.md)).
-   - Next: Phase 5 customizable Pack rules & configuration validator.
+   - Phase 5 is **complete**: controlled customizable Pack rules & the read-only
+     configuration validator (`POST /packs/:packId/validate-configuration` —
+     [PACK_CUSTOMIZATION_VALIDATION.md](./PACK_CUSTOMIZATION_VALIDATION.md)).
+   - Next: Phase 6 — `PackConfiguration` persistence and configured checkout.
 
 ## Explicitly Deferred
 

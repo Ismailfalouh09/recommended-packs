@@ -2384,6 +2384,62 @@ paths:
           description: Pack not found.
       summary: Place a Cash on Delivery order for a fixed pack
       tags: *a49
+  /packs/{packId}/validate-configuration:
+    post:
+      description: Server-authoritative, read-only validation of a proposed
+        composition for a customizable pack. The server recomputes the price
+        from the current allowed product references (never trusting client
+        prices), enforces every customization rule (required items present,
+        allowed selectable/replacement references, permitted removals, editable
+        quantities within min/max, allowed add-ons, min/max item counts),
+        validates live stock, and rejects a price below the pack price floor.
+        Nothing is persisted and no stock is reserved. Only packs with
+        isCustomizable=true are accepted. This route is additive and does not
+        affect POST /orders, POST /orders/checkout, or POST /packs/:id/order.
+      operationId: PacksController_validateConfiguration
+      parameters:
+        - name: packId
+          required: true
+          in: path
+          description: Customizable pack ID to validate a configuration for.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidatePackConfigurationDto"
+            examples:
+              selectRequiredShade:
+                summary: Choose a required-selectable shade and add an add-on
+                value:
+                  items:
+                    - packItemId: 00000000-0000-4000-8000-000000000010
+                      productReferenceId: 00000000-0000-4000-8000-000000000020
+                  addOns:
+                    - productId: 00000000-0000-4000-8000-000000000030
+                      productReferenceId: 00000000-0000-4000-8000-000000000031
+                      quantity: 1
+      responses:
+        "200":
+          description: "Validation result: validity, server-computed price, floor, stock
+            status, normalized items, and any validation errors."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackConfigurationValidationResponse"
+        "400":
+          description: Pack inactive/archived or not customizable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Pack not found.
+      summary: Validate a proposed customizable pack configuration
+      tags: *a49
   /packs/slug/{slug}:
     get:
       description: Returns the same public pack detail response shape as GET /packs/:id.
@@ -5375,6 +5431,163 @@ components:
       required:
         - statusCode
         - message
+    ValidateConfigurationItemDto:
+      type: object
+      properties:
+        packItemId:
+          type: string
+          description: The PackItem (slot) this selection applies to.
+          example: 00000000-0000-4000-8000-000000000010
+        productReferenceId:
+          type: string
+          description: Chosen product reference for a required-selectable slot or an
+            allowed replacement. Must belong to the slot’s
+            PackItemAllowedReference set.
+          example: 00000000-0000-4000-8000-000000000020
+        quantity:
+          type: number
+          description: Proposed quantity for this slot. Only honored when the slot is
+            quantityEditable and the value is within its min/max quantity.
+          example: 2
+        removed:
+          type: boolean
+          description: Request removal of this slot. Only allowed for optional-included
+            items whose removalAllowed flag is true.
+          example: false
+      required:
+        - packItemId
+    ValidateConfigurationAddOnDto:
+      type: object
+      properties:
+        productId:
+          type: string
+          description: Add-on product. Must exist in the Pack’s PackAllowedAddOn set.
+          example: 00000000-0000-4000-8000-000000000030
+        productReferenceId:
+          type: string
+          description: Chosen reference for the add-on. Required when the allow-list does
+            not pin one; must match the pinned reference when it does.
+          example: 00000000-0000-4000-8000-000000000031
+        quantity:
+          type: number
+          description: Add-on quantity (defaults to 1).
+          example: 1
+      required:
+        - productId
+    ValidatePackConfigurationDto:
+      type: object
+      properties:
+        items:
+          description: Per-slot selections/removals/quantity changes.
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidateConfigurationItemDto"
+        addOns:
+          description: Add-ons to append, each validated against PackAllowedAddOn.
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidateConfigurationAddOnDto"
+    NormalizedConfigurationItemResponse:
+      type: object
+      properties:
+        packItemId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+          description: Source PackItem id for base items; null for add-ons.
+        productId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        productReferenceId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+        role:
+          type: string
+          example: REQUIRED_SELECTABLE
+          description: PackItemRole for base items, or "ADD_ON" for add-ons.
+        quantity:
+          type: number
+          example: 1
+        unitPrice:
+          type: number
+          example: 120
+        lineTotal:
+          type: number
+          example: 120
+        isAddOn:
+          type: boolean
+          example: false
+        removed:
+          type: boolean
+          example: false
+      required:
+        - productId
+        - role
+        - quantity
+        - unitPrice
+        - lineTotal
+        - isAddOn
+        - removed
+    ConfigurationValidationErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: REFERENCE_NOT_ALLOWED
+        message:
+          type: string
+          example: The chosen reference is not allowed for Foundation X.
+        packItemId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+        productId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+      required:
+        - code
+        - message
+    PackConfigurationValidationResponse:
+      type: object
+      properties:
+        isValid:
+          type: boolean
+          example: true
+          description: True only when no validation error was recorded.
+        computedPrice:
+          type: number
+          example: 349
+          description: Server-recomputed price from the current allowed references. Never
+            taken from the client.
+        minAllowedPrice:
+          type: object
+          example: 300
+          nullable: true
+          description: The Pack price floor, if configured.
+        stockStatus:
+          type: string
+          enum:
+            - IN_STOCK
+            - OUT_OF_STOCK
+          example: IN_STOCK
+          description: Aggregate stock status across all resolved references in the
+            configuration.
+        normalizedItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/NormalizedConfigurationItemResponse"
+        validationErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfigurationValidationErrorResponse"
+      required:
+        - isValid
+        - computedPrice
+        - stockStatus
+        - normalizedItems
+        - validationErrors
     PackItemInputDto:
       type: object
       properties:

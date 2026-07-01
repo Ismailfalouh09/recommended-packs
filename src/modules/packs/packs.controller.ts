@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -12,11 +20,13 @@ import {
 import {
   ApiErrorResponse,
   OrderCreateResponse,
+  PackConfigurationValidationResponse,
   PackResponse,
 } from '../../common/swagger/api-response.models';
 import { CreatePackOrderDto } from '../orders/dto/create-pack-order.dto';
 import { OrdersService } from '../orders/orders.service';
 import { QueryPublicPacksDto } from './dto/query-public-packs.dto';
+import { ValidatePackConfigurationDto } from './dto/validate-pack-configuration.dto';
 import { PacksService } from './packs.service';
 
 @ApiTags('Packs')
@@ -93,6 +103,67 @@ export class PacksController {
     @Body() dto: CreatePackOrderDto,
   ) {
     return this.ordersService.createFromFixedPack(packId, dto);
+  }
+
+  @Post(':packId/validate-configuration')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Validate a proposed customizable pack configuration',
+    description:
+      'Server-authoritative, read-only validation of a proposed composition for ' +
+      'a customizable pack. The server recomputes the price from the current ' +
+      'allowed product references (never trusting client prices), enforces every ' +
+      'customization rule (required items present, allowed selectable/replacement ' +
+      'references, permitted removals, editable quantities within min/max, allowed ' +
+      'add-ons, min/max item counts), validates live stock, and rejects a price ' +
+      'below the pack price floor. Nothing is persisted and no stock is reserved. ' +
+      'Only packs with isCustomizable=true are accepted. This route is additive ' +
+      'and does not affect POST /orders, POST /orders/checkout, or POST /packs/:id/order.',
+  })
+  @ApiParam({
+    name: 'packId',
+    description: 'Customizable pack ID to validate a configuration for.',
+    example: '00000000-0000-4000-8000-000000000001',
+  })
+  @ApiBody({
+    type: ValidatePackConfigurationDto,
+    examples: {
+      selectRequiredShade: {
+        summary: 'Choose a required-selectable shade and add an add-on',
+        value: {
+          items: [
+            {
+              packItemId: '00000000-0000-4000-8000-000000000010',
+              productReferenceId: '00000000-0000-4000-8000-000000000020',
+            },
+          ],
+          addOns: [
+            {
+              productId: '00000000-0000-4000-8000-000000000030',
+              productReferenceId: '00000000-0000-4000-8000-000000000031',
+              quantity: 1,
+            },
+          ],
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description:
+      'Validation result: validity, server-computed price, floor, stock status, ' +
+      'normalized items, and any validation errors.',
+    type: PackConfigurationValidationResponse,
+  })
+  @ApiBadRequestResponse({
+    description: 'Pack inactive/archived or not customizable.',
+    type: ApiErrorResponse,
+  })
+  @ApiNotFoundResponse({ description: 'Pack not found.' })
+  validateConfiguration(
+    @Param('packId') packId: string,
+    @Body() dto: ValidatePackConfigurationDto,
+  ) {
+    return this.packsService.validateConfiguration(packId, dto);
   }
 
   @Get('slug/:slug')

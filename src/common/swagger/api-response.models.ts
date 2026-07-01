@@ -858,6 +858,92 @@ export class PackResponse {
   availableNow?: boolean;
 }
 
+export class NormalizedConfigurationItemResponse {
+  @ApiPropertyOptional({
+    example: uuidExample,
+    nullable: true,
+    description: 'Source PackItem id for base items; null for add-ons.',
+  })
+  packItemId?: string | null;
+
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productReferenceId?: string | null;
+
+  @ApiProperty({
+    example: 'REQUIRED_SELECTABLE',
+    description: 'PackItemRole for base items, or "ADD_ON" for add-ons.',
+  })
+  role!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  unitPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  lineTotal!: number;
+
+  @ApiProperty({ example: false })
+  isAddOn!: boolean;
+
+  @ApiProperty({ example: false })
+  removed!: boolean;
+}
+
+export class ConfigurationValidationErrorResponse {
+  @ApiProperty({ example: 'REFERENCE_NOT_ALLOWED' })
+  code!: string;
+
+  @ApiProperty({ example: 'The chosen reference is not allowed for Foundation X.' })
+  message!: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  packItemId?: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productId?: string;
+}
+
+export class PackConfigurationValidationResponse {
+  @ApiProperty({
+    example: true,
+    description: 'True only when no validation error was recorded.',
+  })
+  isValid!: boolean;
+
+  @ApiProperty({
+    example: 349,
+    description:
+      'Server-recomputed price from the current allowed references. Never taken from the client.',
+  })
+  computedPrice!: number;
+
+  @ApiPropertyOptional({
+    example: 300,
+    nullable: true,
+    description: 'The Pack price floor, if configured.',
+  })
+  minAllowedPrice?: number | null;
+
+  @ApiProperty({
+    enum: ['IN_STOCK', 'OUT_OF_STOCK'],
+    example: 'IN_STOCK',
+    description:
+      'Aggregate stock status across all resolved references in the configuration.',
+  })
+  stockStatus!: 'IN_STOCK' | 'OUT_OF_STOCK';
+
+  @ApiProperty({ type: [NormalizedConfigurationItemResponse] })
+  normalizedItems!: NormalizedConfigurationItemResponse[];
+
+  @ApiProperty({ type: [ConfigurationValidationErrorResponse] })
+  validationErrors!: ConfigurationValidationErrorResponse[];
+}
+
 export class SelectableReferenceOptionResponse {
   @ApiProperty({ example: uuidExample })
   referenceId!: string;

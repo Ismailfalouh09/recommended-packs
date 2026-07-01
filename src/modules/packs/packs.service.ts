@@ -36,11 +36,17 @@ import {
   QueryPublicPacksDto,
 } from './dto/query-public-packs.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
+import { ValidatePackConfigurationDto } from './dto/validate-pack-configuration.dto';
 import { PACK_COMPATIBILITY_GROUP_CODE } from './pack-compatibility.constants';
 import {
   AvailabilityPack,
   isPackAvailableNow,
 } from './pack-availability.util';
+import {
+  PackConfigurationValidationResult,
+  ValidatorPack,
+  validatePackConfiguration,
+} from './pack-configuration.validator';
 
 interface ResolvedPackItem {
   productId: string;
@@ -554,6 +560,163 @@ export class PacksService {
     }
 
     return this.toPublicPackResponse(pack);
+  }
+
+  /**
+   * Pack Core Evolution (Phase 5) — server-authoritative validation of a
+   * proposed customizable-Pack configuration.
+   *
+   * Loads the Pack with its customization rules, allowed references, and allowed
+   * add-ons, then delegates to the pure {@link validatePackConfiguration}. The
+   * result is read-only: nothing is persisted, no stock is reserved, and no
+   * client-supplied price is ever trusted. Only Packs with `isCustomizable=true`
+   * may be validated here; any other Pack is rejected.
+   */
+  async validateConfiguration(
+    packId: string,
+    dto: ValidatePackConfigurationDto,
+  ): Promise<PackConfigurationValidationResult> {
+    const pack = await this.loadConfigurablePack(packId);
+
+    if (!pack) {
+      throw new NotFoundException(`Pack ${packId} was not found.`);
+    }
+
+    if (pack.status !== PackStatus.ACTIVE || !pack.isActive) {
+      throw new BadRequestException('The pack is inactive or archived.');
+    }
+
+    if (!pack.isCustomizable) {
+      throw new BadRequestException(
+        'This pack is not customizable and cannot be configured.',
+      );
+    }
+
+    return validatePackConfiguration(this.toValidatorPack(pack), {
+      items: dto.items,
+      addOns: dto.addOns,
+    });
+  }
+
+  /**
+   * Loads a Pack with everything the configuration validator needs: pricing /
+   * floor / limit fields, each item's role + customization rules + allowed
+   * references, the item product's active references, and the Pack's allowed
+   * add-ons (with their products' active references).
+   */
+  private loadConfigurablePack(packId: string) {
+    const referenceSelect = {
+      id: true,
+      isActive: true,
+      stockQuantity: true,
+      reservedQuantity: true,
+      priceOverride: true,
+      priceDelta: true,
+    } satisfies Prisma.ProductReferenceSelect;
+
+    const productSelect = {
+      id: true,
+      name: true,
+      basePrice: true,
+      isActive: true,
+      status: true,
+      references: {
+        orderBy: [{ isDefault: 'desc' }, { referenceCode: 'asc' }],
+        select: referenceSelect,
+      },
+    } satisfies Prisma.ProductSelect;
+
+    return this.prisma.pack.findUnique({
+      where: { id: packId },
+      select: {
+        id: true,
+        status: true,
+        isActive: true,
+        isCustomizable: true,
+        priceMode: true,
+        discountAmount: true,
+        discountPercentage: true,
+        currency: true,
+        minAllowedPrice: true,
+        minRequiredItems: true,
+        maxItemCount: true,
+        items: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            role: true,
+            selectionMode: true,
+            quantity: true,
+            minQuantity: true,
+            maxQuantity: true,
+            quantityEditable: true,
+            removalAllowed: true,
+            replacementAllowed: true,
+            productReferenceId: true,
+            product: { select: productSelect },
+            allowedReferences: { select: { productReferenceId: true } },
+          },
+        },
+        allowedAddOns: {
+          select: {
+            productId: true,
+            productReferenceId: true,
+            product: { select: productSelect },
+          },
+        },
+      },
+    });
+  }
+
+  /** Maps the loaded configurable Pack onto the pure validator input shape. */
+  private toValidatorPack(
+    pack: NonNullable<Awaited<ReturnType<PacksService['loadConfigurablePack']>>>,
+  ): ValidatorPack {
+    return {
+      id: pack.id,
+      priceMode: pack.priceMode,
+      discountAmount: pack.discountAmount,
+      discountPercentage: pack.discountPercentage,
+      currency: pack.currency,
+      minAllowedPrice: pack.minAllowedPrice,
+      minRequiredItems: pack.minRequiredItems,
+      maxItemCount: pack.maxItemCount,
+      items: pack.items.map((item) => ({
+        id: item.id,
+        role: item.role,
+        selectionMode: item.selectionMode,
+        quantity: item.quantity,
+        minQuantity: item.minQuantity,
+        maxQuantity: item.maxQuantity,
+        quantityEditable: item.quantityEditable,
+        removalAllowed: item.removalAllowed,
+        replacementAllowed: item.replacementAllowed,
+        productReferenceId: item.productReferenceId,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          basePrice: item.product.basePrice,
+          isActive: item.product.isActive,
+          status: item.product.status,
+          references: item.product.references,
+        },
+        allowedReferenceIds: item.allowedReferences.map(
+          (allowed) => allowed.productReferenceId,
+        ),
+      })),
+      allowedAddOns: pack.allowedAddOns.map((addOn) => ({
+        productId: addOn.productId,
+        productReferenceId: addOn.productReferenceId,
+        product: {
+          id: addOn.product.id,
+          name: addOn.product.name,
+          basePrice: addOn.product.basePrice,
+          isActive: addOn.product.isActive,
+          status: addOn.product.status,
+          references: addOn.product.references,
+        },
+      })),
+    };
   }
 
   async adminFindAll(query: QueryPacksDto) {
