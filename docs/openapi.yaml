@@ -2203,10 +2203,122 @@ paths:
       tags: *a48
   /packs:
     get:
-      description: Returns active packs with attributes, pack items, products, and
-        fixed product references where configured.
+      description: "Returns active packs with attributes, pack items, products, and
+        fixed product references where configured. Supports optional discovery
+        filters (category, tier, occasion, experienceLevel, customizable,
+        availableNow, featured, tags, search), sorting, and pagination. Backward
+        compatible: with NO query parameters it returns the legacy plain array
+        of active packs. When any filter/pagination parameter is supplied it
+        returns a paginated envelope ({ data, pagination }) whose items
+        additionally carry an `availableNow` flag."
       operationId: PacksController_findAll
-      parameters: []
+      parameters:
+        - name: category
+          required: false
+          in: query
+          description: Filter by Category code (case-insensitive).
+          schema:
+            example: FACE
+            type: string
+        - name: tier
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - ESSENTIAL
+              - PREMIUM
+              - LUXE
+        - name: occasion
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - EVERYDAY
+              - WORK
+              - EVENING
+              - PARTY
+              - WEDDING
+              - SPECIAL_EVENT
+        - name: experienceLevel
+          required: false
+          in: query
+          schema:
+            type: string
+            enum:
+              - BEGINNER
+              - INTERMEDIATE
+              - EXPERT
+        - name: customizable
+          required: false
+          in: query
+          description: When true, only customizable Packs; when false, only fixed.
+          schema:
+            example: false
+            type: boolean
+        - name: availableNow
+          required: false
+          in: query
+          description: Filter by browsing availability. true = only Packs available now;
+            false = only unavailable.
+          schema:
+            example: true
+            type: boolean
+        - name: featured
+          required: false
+          in: query
+          description: When true, only featured Packs.
+          schema:
+            example: true
+            type: boolean
+        - name: tags
+          required: false
+          in: query
+          description: Match Packs carrying any of these tags. Repeat the param or pass a
+            comma-separated list.
+          schema:
+            example:
+              - bridal
+              - glam
+            type: array
+            items:
+              type: string
+        - name: search
+          required: false
+          in: query
+          description: Free-text search over name, slug, keywords, and description.
+          schema:
+            example: natural
+            type: string
+        - name: sort
+          required: false
+          in: query
+          schema:
+            default: priority
+            type: string
+            enum:
+              - featured
+              - newest
+              - price_asc
+              - price_desc
+              - priority
+              - name
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
       responses:
         "200":
           description: Active packs.
@@ -2216,7 +2328,7 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/PackResponse"
-      summary: List active packs
+      summary: List active packs (public catalog discovery)
       tags: &a49
         - Packs
   /packs/slug/{slug}:
@@ -4987,6 +5099,62 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MediaImageResponse"
+        category:
+          nullable: true
+          description: Reused shared Category the Pack is filed under, if any.
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/CategorySummaryResponse"
+        tier:
+          type: string
+          enum:
+            - ESSENTIAL
+            - PREMIUM
+            - LUXE
+          nullable: true
+        occasion:
+          type: string
+          enum:
+            - EVERYDAY
+            - WORK
+            - EVENING
+            - PARTY
+            - WEDDING
+            - SPECIAL_EVENT
+          nullable: true
+        experienceLevel:
+          type: string
+          enum:
+            - BEGINNER
+            - INTERMEDIATE
+            - EXPERT
+          nullable: true
+        isFeatured:
+          type: boolean
+          example: true
+        isNew:
+          type: boolean
+          example: false
+        isBestSeller:
+          type: boolean
+          example: false
+        tags:
+          example:
+            - bridal
+            - glam
+          type: array
+          items:
+            type: string
+        searchKeywords:
+          type: object
+          example: wedding bridal soft glam
+          nullable: true
+        availableNow:
+          type: boolean
+          example: true
+          description: "Browsing availability: true when every FIXED/REQUIRED_SELECTABLE
+            item has an active reference with enough available stock. Present
+            only on the filtered catalog response."
       required:
         - id
         - name
@@ -5196,6 +5364,59 @@ components:
           type: array
           items:
             type: string
+        categoryId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+        tier:
+          type: string
+          enum: &a70
+            - ESSENTIAL
+            - PREMIUM
+            - LUXE
+          nullable: true
+        occasion:
+          type: string
+          enum: &a71
+            - EVERYDAY
+            - WORK
+            - EVENING
+            - PARTY
+            - WEDDING
+            - SPECIAL_EVENT
+          nullable: true
+        experienceLevel:
+          type: string
+          enum: &a72
+            - BEGINNER
+            - INTERMEDIATE
+            - EXPERT
+          nullable: true
+        isFeatured:
+          type: boolean
+          example: false
+          default: false
+        isNew:
+          type: boolean
+          example: false
+          default: false
+        isBestSeller:
+          type: boolean
+          example: false
+          default: false
+        tags:
+          example: &a73
+            - bridal
+            - glam
+          description: Free-form discovery tags used by the public catalog filter.
+          type: array
+          items:
+            type: string
+        searchKeywords:
+          type: object
+          example: wedding bridal soft glam
+          nullable: true
+          description: Extra keywords matched by public free-text search.
         items:
           type: array
           items:
@@ -5284,6 +5505,45 @@ components:
           type: array
           items:
             type: string
+        categoryId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+        tier:
+          type: string
+          enum: *a70
+          nullable: true
+        occasion:
+          type: string
+          enum: *a71
+          nullable: true
+        experienceLevel:
+          type: string
+          enum: *a72
+          nullable: true
+        isFeatured:
+          type: boolean
+          example: false
+          default: false
+        isNew:
+          type: boolean
+          example: false
+          default: false
+        isBestSeller:
+          type: boolean
+          example: false
+          default: false
+        tags:
+          example: *a73
+          description: Free-form discovery tags used by the public catalog filter.
+          type: array
+          items:
+            type: string
+        searchKeywords:
+          type: object
+          example: wedding bridal soft glam
+          nullable: true
+          description: Extra keywords matched by public free-text search.
         items:
           type: array
           items:
@@ -5497,7 +5757,7 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: &a70
+          enum: &a74
             - PACK
             - PRODUCT
             - REFERENCE
@@ -5506,7 +5766,7 @@ components:
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: &a71
+          enum: &a75
             - MUST_MATCH
             - SHOULD_MATCH
             - EXCLUDE_IF_MATCH
@@ -5535,13 +5795,13 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: *a70
+          enum: *a74
         attributeGroupId:
           type: object
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: *a71
+          enum: *a75
         scoreValue:
           type: number
           example: 15
@@ -5865,7 +6125,7 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: &a72
+          enum: &a76
             - PENDING_CONFIRMATION
             - CONFIRMED
             - PREPARING
@@ -5876,7 +6136,7 @@ components:
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: &a73
+          enum: &a77
             - UNPAID
             - PAID
             - REFUNDED
@@ -5922,11 +6182,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a72
+          enum: *a76
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a73
+          enum: *a77
           example: UNPAID
         totalAmount:
           type: number
@@ -6048,11 +6308,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a72
+          enum: *a76
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a73
+          enum: *a77
           example: UNPAID
         totalAmount:
           type: number

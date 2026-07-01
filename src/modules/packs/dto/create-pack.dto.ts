@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PackStatus, PriceMode } from '@prisma/client';
+import {
+  PackExperienceLevel,
+  PackOccasion,
+  PackStatus,
+  PackTier,
+  PriceMode,
+} from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
@@ -158,6 +164,69 @@ export class CreatePackDto {
   @IsArray()
   @IsUUID('all', { each: true })
   allowedAddOnIds?: string[];
+
+  /**
+   * Pack Core Evolution (Phase 4A) — additive public discovery fields. Optional
+   * marketing/browsing classifications surfaced by the public catalog filters.
+   * `categoryId` reuses the shared Category entity.
+   */
+  @ApiPropertyOptional({
+    example: '00000000-0000-4000-8000-000000000001',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string | null;
+
+  @ApiPropertyOptional({ enum: PackTier, nullable: true })
+  @IsOptional()
+  @IsEnum(PackTier)
+  tier?: PackTier | null;
+
+  @ApiPropertyOptional({ enum: PackOccasion, nullable: true })
+  @IsOptional()
+  @IsEnum(PackOccasion)
+  occasion?: PackOccasion | null;
+
+  @ApiPropertyOptional({ enum: PackExperienceLevel, nullable: true })
+  @IsOptional()
+  @IsEnum(PackExperienceLevel)
+  experienceLevel?: PackExperienceLevel | null;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isNew?: boolean;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isBestSeller?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['bridal', 'glam'],
+    description: 'Free-form discovery tags used by the public catalog filter.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({
+    example: 'wedding bridal soft glam',
+    nullable: true,
+    description: 'Extra keywords matched by public free-text search.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
+  @IsString()
+  searchKeywords?: string | null;
 
   @ApiPropertyOptional({ type: [PackItemInputDto] })
   @IsOptional()

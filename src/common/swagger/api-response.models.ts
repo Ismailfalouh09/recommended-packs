@@ -6,7 +6,10 @@ import {
   MediaAssetType,
   MediaRole,
   OrderStatus,
+  PackExperienceLevel,
+  PackOccasion,
   PackStatus,
+  PackTier,
   PaymentMethod,
   PaymentStatus,
   PriceMode,
@@ -810,6 +813,49 @@ export class PackResponse {
 
   @ApiProperty({ type: [MediaImageResponse] })
   images!: MediaImageResponse[];
+
+  // Pack Core Evolution (Phase 4A) — public discovery fields. Present on the
+  // filtered/paginated catalog response; omitted on the legacy no-filter array.
+  @ApiPropertyOptional({
+    type: () => CategorySummaryResponse,
+    nullable: true,
+    description: 'Reused shared Category the Pack is filed under, if any.',
+  })
+  category?: CategorySummaryResponse | null;
+
+  @ApiPropertyOptional({ enum: PackTier, nullable: true })
+  tier?: PackTier | null;
+
+  @ApiPropertyOptional({ enum: PackOccasion, nullable: true })
+  occasion?: PackOccasion | null;
+
+  @ApiPropertyOptional({ enum: PackExperienceLevel, nullable: true })
+  experienceLevel?: PackExperienceLevel | null;
+
+  @ApiPropertyOptional({ example: true })
+  isFeatured?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  isNew?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  isBestSeller?: boolean;
+
+  @ApiPropertyOptional({ type: [String], example: ['bridal', 'glam'] })
+  tags?: string[];
+
+  @ApiPropertyOptional({
+    example: 'wedding bridal soft glam',
+    nullable: true,
+  })
+  searchKeywords?: string | null;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Browsing availability: true when every FIXED/REQUIRED_SELECTABLE item has an active reference with enough available stock. Present only on the filtered catalog response.',
+  })
+  availableNow?: boolean;
 }
 
 export class SelectableReferenceOptionResponse {

@@ -64,6 +64,32 @@ enum PackItemRole {
   OPTIONAL_ADDON
 }
 
+// Pack Core Evolution (Phase 4A) — public catalog discovery facets. These are
+// coarse marketing classifications used only for browsing/filtering. They are
+// intentionally distinct from PackCompatibilityProfile (which expresses the full
+// suitability set consumed by the recommendation engine) and are never used for
+// scoring, pricing, or eligibility.
+enum PackTier {
+  ESSENTIAL
+  PREMIUM
+  LUXE
+}
+
+enum PackOccasion {
+  EVERYDAY
+  WORK
+  EVENING
+  PARTY
+  WEDDING
+  SPECIAL_EVENT
+}
+
+enum PackExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  EXPERT
+}
+
 enum MatchType {
   COMPATIBLE
   NOT_COMPATIBLE
@@ -326,6 +352,7 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
 
   products Product[]
+  packs    Pack[]
   image    CategoryImage?
 
   @@index([parentId])
@@ -505,9 +532,23 @@ model Pack {
   maxItemCount     Int?     @map("max_item_count")
   minAllowedPrice  Decimal? @map("min_allowed_price") @db.Decimal(10, 2)
 
+  // Pack Core Evolution (Phase 4A) — additive public discovery fields. Optional
+  // and defaulted so existing Packs read back byte-identically. `category` reuses
+  // the shared Category entity (no PackCategory duplication).
+  categoryId      String?              @map("category_id") @db.Uuid
+  tier            PackTier?
+  occasion        PackOccasion?
+  experienceLevel PackExperienceLevel? @map("experience_level")
+  isFeatured      Boolean              @default(false) @map("is_featured")
+  isNew           Boolean              @default(false) @map("is_new")
+  isBestSeller    Boolean              @default(false) @map("is_best_seller")
+  tags            String[]             @default([])
+  searchKeywords  String?              @map("search_keywords")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  category              Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   items                 PackItem[]
   attributes            PackAttribute[]
   images                PackImage[]
@@ -521,6 +562,13 @@ model Pack {
   @@index([isActive])
   @@index([priority])
   @@index([minBudget, maxBudget])
+  @@index([categoryId])
+  @@index([tier])
+  @@index([occasion])
+  @@index([experienceLevel])
+  @@index([isFeatured])
+  @@index([isNew])
+  @@index([isBestSeller])
   @@map("packs")
 }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -7,6 +7,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { PackResponse } from '../../common/swagger/api-response.models';
+import { QueryPublicPacksDto } from './dto/query-public-packs.dto';
 import { PacksService } from './packs.service';
 
 @ApiTags('Packs')
@@ -16,13 +17,18 @@ export class PacksController {
 
   @Get()
   @ApiOperation({
-    summary: 'List active packs',
+    summary: 'List active packs (public catalog discovery)',
     description:
-      'Returns active packs with attributes, pack items, products, and fixed product references where configured.',
+      'Returns active packs with attributes, pack items, products, and fixed product references where configured. ' +
+      'Supports optional discovery filters (category, tier, occasion, experienceLevel, customizable, availableNow, ' +
+      'featured, tags, search), sorting, and pagination. ' +
+      'Backward compatible: with NO query parameters it returns the legacy plain array of active packs. ' +
+      'When any filter/pagination parameter is supplied it returns a paginated envelope ({ data, pagination }) ' +
+      'whose items additionally carry an `availableNow` flag.',
   })
   @ApiOkResponse({ description: 'Active packs.', type: [PackResponse] })
-  findAll() {
-    return this.packsService.findAll();
+  findAll(@Query() query: QueryPublicPacksDto) {
+    return this.packsService.findAllPublic(query);
   }
 
   @Get('slug/:slug')

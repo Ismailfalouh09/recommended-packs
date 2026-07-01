@@ -83,6 +83,42 @@
 - Admin order detail now returns `packConfigurationSnapshot` only when the order actually carries one.
 - No change to checkout, cart, order creation, Pack pricing, or recommendation behavior (all inert plumbing until later phases).
 
+### Phase 4A — Public Pack Catalog Discovery & Availability
+- Added additive, backward-compatible public discovery fields on `Pack`
+  (migration `20260701005043_pack_public_discovery_fields`, applied):
+  - `category` (reuses the shared `Category` entity via `categoryId`, no
+    `PackCategory` duplication)
+  - `tier` (`PackTier`), `occasion` (`PackOccasion`),
+    `experienceLevel` (`PackExperienceLevel`)
+  - `isFeatured`, `isNew`, `isBestSeller`
+  - `tags` (`String[]`), `searchKeywords`
+  - All discovery columns indexed for filter performance.
+- Discovery `occasion`/`tier`/`experienceLevel` are coarse browsing facets kept
+  distinct from `PackCompatibilityProfile` (recommendation suitability set) — no
+  compatibility data duplicated; discovery fields never affect scoring/eligibility.
+- Extended public `GET /packs` with optional, additive filters: `category`,
+  `tier`, `occasion`, `experienceLevel`, `customizable`, `availableNow`,
+  `featured`, `tags`, `search`, `sort`, `page`, `limit`.
+  - **No query parameters ⇒ unchanged legacy behavior** (plain array of active
+    packs; no `availableNow`, no pagination envelope).
+  - With any filter/pagination param ⇒ a paginated envelope `{ data, pagination }`
+    whose items carry an `availableNow` flag.
+  - Only active/public packs are ever returned.
+- Added a reusable, side-effect-free browsing availability calculation
+  (`isPackAvailableNow` in `pack-availability.util.ts`):
+  - Pack available now = active/public AND every `FIXED`/`REQUIRED_SELECTABLE`
+    item has ≥1 active reference with available stock ≥ required quantity.
+  - Optional included items and add-ons never block availability.
+  - Does NOT reserve stock and does NOT change checkout. Reserved-stock counts are
+    stripped from public reference output.
+- Discovery fields are settable via the admin Pack create/update DTOs (additive);
+  `categoryId` is validated against an existing `Category`.
+- Focused tests added: each public filter, combined filters, search, sort,
+  `availableNow` true/false, no-filter backward compatibility, optional-items-do-
+  not-block, required-unavailable-blocks, pagination, reserved-stock non-leak.
+- Swagger/OpenAPI regenerated and verified. Prisma validate/generate + build pass.
+- **Direct Pack purchase is NOT implemented** (Phase 4B — see below).
+
 ### Budget Range Foundation
 - Added canonical Budget option numeric ranges:
   - LOW: 150–220 MAD
@@ -135,8 +171,12 @@
    - Keep Occasion matcher coverage in automated tests.
    - Add the public quiz question only in a separate intentional quiz evolution.
 
-4. Next Pack business phase — Phase 4:
-   - Fixed Pack catalog discovery and filtering, plus direct fixed-Pack purchase.
+4. Next Pack business phase — Phase 4B (direct fixed-Pack purchase):
+   - Phase 4A (catalog discovery, filtering, and browsing availability) is
+     **completed** — see [PACK_PUBLIC_DISCOVERY.md](./PACK_PUBLIC_DISCOVERY.md).
+   - Remaining: `POST /packs/:id/order` (expand a fixed pack into priced lines,
+     apply the pack price mode, reserve stock, snapshot lines, set
+     `OrderItem.packId`), gated to non-customizable packs. Not started.
 
 ## Explicitly Deferred
 

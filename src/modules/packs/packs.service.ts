@@ -9,8 +9,11 @@ import {
   MatchType,
   PackCompatibilityCriterion,
   PackCompatibilityMode,
+  PackExperienceLevel,
   PackItemRole,
+  PackOccasion,
   PackStatus,
+  PackTier,
   PriceMode,
   Prisma,
   ProductStatus,
@@ -28,8 +31,16 @@ import { PackAttributeInputDto } from './dto/pack-attribute-input.dto';
 import { PackCompatibilityInputDto } from './dto/pack-compatibility-input.dto';
 import { PackItemInputDto } from './dto/pack-item-input.dto';
 import { QueryPacksDto } from './dto/query-packs.dto';
+import {
+  PublicPackSort,
+  QueryPublicPacksDto,
+} from './dto/query-public-packs.dto';
 import { UpdatePackDto } from './dto/update-pack.dto';
 import { PACK_COMPATIBILITY_GROUP_CODE } from './pack-compatibility.constants';
+import {
+  AvailabilityPack,
+  isPackAvailableNow,
+} from './pack-availability.util';
 
 interface ResolvedPackItem {
   productId: string;
@@ -85,6 +96,16 @@ interface PackScalarState {
   maxItemCount: number | null;
   minAllowedPrice: number | null;
   allowedAddOnIds: string[];
+  // Pack Core Evolution (Phase 4A) — additive public discovery fields.
+  categoryId: string | null;
+  tier: PackTier | null;
+  occasion: PackOccasion | null;
+  experienceLevel: PackExperienceLevel | null;
+  isFeatured: boolean;
+  isNew: boolean;
+  isBestSeller: boolean;
+  tags: string[];
+  searchKeywords: string | null;
 }
 
 @Injectable()
@@ -233,6 +254,65 @@ export class PacksService {
     } satisfies Prisma.PackSelect;
   }
 
+  /**
+   * Pack Core Evolution (Phase 4A) — scalar + relation select for the public
+   * discovery list (excluding `items`, which the caller selects with the extra
+   * stock fields needed for availability). Adds the additive discovery fields
+   * and the reused Category summary.
+   */
+  private publicDiscoverySelect() {
+    return {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      mainImageUrl: true,
+      priceMode: true,
+      fixedPrice: true,
+      discountAmount: true,
+      discountPercentage: true,
+      minBudget: true,
+      maxBudget: true,
+      currency: true,
+      priority: true,
+      status: true,
+      isActive: true,
+      isCustomizable: true,
+      tier: true,
+      occasion: true,
+      experienceLevel: true,
+      isFeatured: true,
+      isNew: true,
+      isBestSeller: true,
+      tags: true,
+      searchKeywords: true,
+      category: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+      images: {
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          mediaId: true,
+          role: true,
+          position: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
+      attributes: {
+        orderBy: [{ attributeGroup: { sortOrder: 'asc' } }],
+        select: this.packAttributeSelect,
+      },
+    } satisfies Prisma.PackSelect;
+  }
+
   async findAll() {
     const packs = await this.prisma.pack.findMany({
       where: {
@@ -244,6 +324,202 @@ export class PacksService {
     });
 
     return packs.map((pack) => this.toPublicPackResponse(pack));
+  }
+
+  /**
+   * Pack Core Evolution (Phase 4A) — public catalog discovery.
+   *
+   * Backward compatibility: with NO query parameters this behaves exactly like
+   * {@link findAll} and returns a plain array of active packs. When any filter or
+   * pagination parameter is supplied it returns a paginated envelope
+   * (`{ data, pagination }`) whose items additionally carry an `availableNow`
+   * flag. Only active/public packs are ever returned. Availability is computed
+   * (never reserved) via the reusable {@link isPackAvailableNow} calculation.
+   */
+  async findAllPublic(query: QueryPublicPacksDto) {
+    if (!this.hasPublicFilters(query)) {
+      return this.findAll();
+    }
+
+    const where = this.buildPublicWhere(query);
+    const candidates = await this.prisma.pack.findMany({
+      where,
+      orderBy: this.buildPublicOrderBy(query.sort),
+      select: {
+        ...this.publicDiscoverySelect(),
+        items: {
+          orderBy: [{ sortOrder: 'asc' }],
+          select: {
+            id: true,
+            quantity: true,
+            selectionMode: true,
+            isRequired: true,
+            sortOrder: true,
+            role: true,
+            product: {
+              select: {
+                ...this.productSummarySelect,
+                references: {
+                  where: { isActive: true },
+                  orderBy: [{ isDefault: 'desc' }, { referenceCode: 'asc' }],
+                  select: {
+                    ...this.fixedReferenceSelect,
+                    isActive: true,
+                    reservedQuantity: true,
+                  },
+                },
+              },
+            },
+            productReference: {
+              select: {
+                ...this.fixedReferenceSelect,
+                isActive: true,
+                reservedQuantity: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const evaluated = candidates.map((pack) => ({
+      pack,
+      availableNow: isPackAvailableNow(this.toAvailabilityPack(pack)),
+    }));
+
+    const filtered =
+      query.availableNow === undefined
+        ? evaluated
+        : evaluated.filter((entry) => entry.availableNow === query.availableNow);
+
+    const page = query.page ?? 1;
+    const pageSize = Math.min(query.limit ?? 20, 100);
+    const totalItems = filtered.length;
+    const start = (page - 1) * pageSize;
+    const pageEntries = filtered.slice(start, start + pageSize);
+
+    const data = pageEntries.map((entry) => ({
+      ...this.toPublicPackResponse(entry.pack),
+      availableNow: entry.availableNow,
+    }));
+
+    return paginatedResponse(data, { page, pageSize, totalItems });
+  }
+
+  private hasPublicFilters(query: QueryPublicPacksDto): boolean {
+    return (
+      query.category !== undefined ||
+      query.tier !== undefined ||
+      query.occasion !== undefined ||
+      query.experienceLevel !== undefined ||
+      query.customizable !== undefined ||
+      query.availableNow !== undefined ||
+      query.featured !== undefined ||
+      (query.tags !== undefined && query.tags.length > 0) ||
+      query.search !== undefined ||
+      query.sort !== undefined ||
+      query.page !== undefined ||
+      query.limit !== undefined
+    );
+  }
+
+  private buildPublicWhere(
+    query: QueryPublicPacksDto,
+  ): Prisma.PackWhereInput {
+    return {
+      isActive: true,
+      status: PackStatus.ACTIVE,
+      ...(query.category
+        ? {
+            category: {
+              is: {
+                code: { equals: query.category, mode: 'insensitive' },
+              },
+            },
+          }
+        : {}),
+      ...(query.tier !== undefined ? { tier: query.tier } : {}),
+      ...(query.occasion !== undefined ? { occasion: query.occasion } : {}),
+      ...(query.experienceLevel !== undefined
+        ? { experienceLevel: query.experienceLevel }
+        : {}),
+      ...(query.customizable !== undefined
+        ? { isCustomizable: query.customizable }
+        : {}),
+      ...(query.featured !== undefined ? { isFeatured: query.featured } : {}),
+      ...(query.tags && query.tags.length > 0
+        ? { tags: { hasSome: query.tags } }
+        : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { slug: { contains: query.search, mode: 'insensitive' } },
+              {
+                searchKeywords: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              { description: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+  }
+
+  private buildPublicOrderBy(
+    sort?: PublicPackSort,
+  ): Prisma.PackOrderByWithRelationInput[] {
+    switch (sort) {
+      case 'featured':
+        return [
+          { isFeatured: 'desc' },
+          { priority: 'desc' },
+          { createdAt: 'desc' },
+        ];
+      case 'newest':
+        return [{ createdAt: 'desc' }];
+      case 'price_asc':
+        return [{ fixedPrice: 'asc' }, { createdAt: 'desc' }];
+      case 'price_desc':
+        return [{ fixedPrice: 'desc' }, { createdAt: 'desc' }];
+      case 'name':
+        return [{ name: 'asc' }];
+      case 'priority':
+      default:
+        return [{ priority: 'desc' }, { createdAt: 'desc' }];
+    }
+  }
+
+  /**
+   * Maps a loaded pack (with items + references) onto the pure availability
+   * shape consumed by {@link isPackAvailableNow}. A pinned FIXED_REFERENCE is the
+   * sole candidate for its slot; otherwise the product's active references are.
+   */
+  private toAvailabilityPack(pack: any): AvailabilityPack {
+    return {
+      status: pack.status,
+      isActive: pack.isActive,
+      items: (pack.items ?? []).map((item: any) => ({
+        role: item.role,
+        quantity: item.quantity ?? 1,
+        fixedReference: item.productReference
+          ? {
+              isActive: item.productReference.isActive,
+              stockQuantity: item.productReference.stockQuantity,
+              reservedQuantity: item.productReference.reservedQuantity,
+            }
+          : null,
+        candidateReferences: (item.product?.references ?? []).map(
+          (reference: any) => ({
+            isActive: reference.isActive,
+            stockQuantity: reference.stockQuantity,
+            reservedQuantity: reference.reservedQuantity,
+          }),
+        ),
+      })),
+    };
   }
 
   async findOne(id: string) {
@@ -342,6 +618,7 @@ export class PacksService {
     const state = this.normalizedCreateState(dto);
     this.validatePricing(state);
     this.validatePackRules(state);
+    await this.ensureCategoryExists(state.categoryId);
     const items = await this.resolveItems(
       dto.items ?? [],
       this.isActivating(state),
@@ -409,6 +686,7 @@ export class PacksService {
     const state = this.normalizedUpdateState(existing, dto);
     this.validatePricing(state);
     this.validatePackRules(state);
+    await this.ensureCategoryExists(state.categoryId);
 
     const itemsIncluded = Object.prototype.hasOwnProperty.call(dto, 'items');
     const attributesIncluded = Object.prototype.hasOwnProperty.call(
@@ -573,6 +851,15 @@ export class PacksService {
       minRequiredItems: true,
       maxItemCount: true,
       minAllowedPrice: true,
+      categoryId: true,
+      tier: true,
+      occasion: true,
+      experienceLevel: true,
+      isFeatured: true,
+      isNew: true,
+      isBestSeller: true,
+      tags: true,
+      searchKeywords: true,
       createdAt: true,
       updatedAt: true,
       images: {
@@ -618,6 +905,15 @@ export class PacksService {
       minRequiredItems: true,
       maxItemCount: true,
       minAllowedPrice: true,
+      categoryId: true,
+      tier: true,
+      occasion: true,
+      experienceLevel: true,
+      isFeatured: true,
+      isNew: true,
+      isBestSeller: true,
+      tags: true,
+      searchKeywords: true,
       createdAt: true,
       updatedAt: true,
       attributes: {
@@ -734,6 +1030,15 @@ export class PacksService {
       minRequiredItems: true,
       maxItemCount: true,
       minAllowedPrice: true,
+      categoryId: true,
+      tier: true,
+      occasion: true,
+      experienceLevel: true,
+      isFeatured: true,
+      isNew: true,
+      isBestSeller: true,
+      tags: true,
+      searchKeywords: true,
       items: {
         select: {
           productId: true,
@@ -919,22 +1224,32 @@ export class PacksService {
           images: (item.product.images ?? []).map((image: any) =>
             this.toImageResponse(image),
           ),
-          references: (item.product.references ?? []).map((reference: any) => ({
-            ...reference,
-            priceOverride: toMoneyNumber(reference.priceOverride),
-            priceDelta: toMoneyNumber(reference.priceDelta),
-            image: this.toReferenceImageResponse(reference.image),
-          })),
+          references: (item.product.references ?? []).map((reference: any) =>
+            this.toPublicReferenceResponse(reference),
+          ),
         },
         productReference: item.productReference
-          ? {
-              ...item.productReference,
-              priceOverride: toMoneyNumber(item.productReference.priceOverride),
-              priceDelta: toMoneyNumber(item.productReference.priceDelta),
-              image: this.toReferenceImageResponse(item.productReference.image),
-            }
+          ? this.toPublicReferenceResponse(item.productReference)
           : null,
       })),
+    };
+  }
+
+  /**
+   * Normalizes a product reference for public output. Strips the internal-only
+   * `reservedQuantity`/`isActive` fields that the discovery availability query
+   * loads, so reserved-stock counts never leak to the storefront.
+   */
+  private toPublicReferenceResponse(reference: any) {
+    const { reservedQuantity, isActive, ...rest } = reference;
+    void reservedQuantity;
+    void isActive;
+
+    return {
+      ...rest,
+      priceOverride: toMoneyNumber(reference.priceOverride),
+      priceDelta: toMoneyNumber(reference.priceDelta),
+      image: this.toReferenceImageResponse(reference.image),
     };
   }
 
@@ -1013,6 +1328,15 @@ export class PacksService {
       maxItemCount: dto.maxItemCount ?? null,
       minAllowedPrice: dto.minAllowedPrice ?? null,
       allowedAddOnIds: dto.allowedAddOnIds ?? [],
+      categoryId: dto.categoryId ?? null,
+      tier: dto.tier ?? null,
+      occasion: dto.occasion ?? null,
+      experienceLevel: dto.experienceLevel ?? null,
+      isFeatured: dto.isFeatured ?? false,
+      isNew: dto.isNew ?? false,
+      isBestSeller: dto.isBestSeller ?? false,
+      tags: dto.tags ?? [],
+      searchKeywords: dto.searchKeywords ?? null,
     };
   }
 
@@ -1077,6 +1401,33 @@ export class PacksService {
         ? (dto.minAllowedPrice ?? null)
         : toMoneyNumber(existing.minAllowedPrice),
       allowedAddOnIds: dto.allowedAddOnIds ?? [],
+      categoryId: Object.prototype.hasOwnProperty.call(dto, 'categoryId')
+        ? (dto.categoryId ?? null)
+        : existing.categoryId,
+      tier: Object.prototype.hasOwnProperty.call(dto, 'tier')
+        ? (dto.tier ?? null)
+        : existing.tier,
+      occasion: Object.prototype.hasOwnProperty.call(dto, 'occasion')
+        ? (dto.occasion ?? null)
+        : existing.occasion,
+      experienceLevel: Object.prototype.hasOwnProperty.call(
+        dto,
+        'experienceLevel',
+      )
+        ? (dto.experienceLevel ?? null)
+        : existing.experienceLevel,
+      isFeatured: dto.isFeatured ?? existing.isFeatured,
+      isNew: dto.isNew ?? existing.isNew,
+      isBestSeller: dto.isBestSeller ?? existing.isBestSeller,
+      tags: Object.prototype.hasOwnProperty.call(dto, 'tags')
+        ? (dto.tags ?? [])
+        : existing.tags,
+      searchKeywords: Object.prototype.hasOwnProperty.call(
+        dto,
+        'searchKeywords',
+      )
+        ? (dto.searchKeywords ?? null)
+        : existing.searchKeywords,
     };
   }
 
@@ -1580,6 +1931,23 @@ export class PacksService {
     }
   }
 
+  // Pack Core Evolution (Phase 4A) — the discovery `category` reuses the shared
+  // Category entity; reject a link to a non-existent Category.
+  private async ensureCategoryExists(categoryId: string | null) {
+    if (!categoryId) {
+      return;
+    }
+
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new BadRequestException(`Category ${categoryId} was not found.`);
+    }
+  }
+
   private toPackWriteData(state: PackScalarState) {
     return {
       name: state.name,
@@ -1600,6 +1968,15 @@ export class PacksService {
       minRequiredItems: state.minRequiredItems,
       maxItemCount: state.maxItemCount,
       minAllowedPrice: state.minAllowedPrice,
+      categoryId: state.categoryId,
+      tier: state.tier,
+      occasion: state.occasion,
+      experienceLevel: state.experienceLevel,
+      isFeatured: state.isFeatured,
+      isNew: state.isNew,
+      isBestSeller: state.isBestSeller,
+      tags: state.tags,
+      searchKeywords: state.searchKeywords,
     };
   }
 

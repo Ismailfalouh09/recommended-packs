@@ -3689,9 +3689,156 @@
     },
     "/packs": {
       "get": {
-        "description": "Returns active packs with attributes, pack items, products, and fixed product references where configured.",
+        "description": "Returns active packs with attributes, pack items, products, and fixed product references where configured. Supports optional discovery filters (category, tier, occasion, experienceLevel, customizable, availableNow, featured, tags, search), sorting, and pagination. Backward compatible: with NO query parameters it returns the legacy plain array of active packs. When any filter/pagination parameter is supplied it returns a paginated envelope ({ data, pagination }) whose items additionally carry an `availableNow` flag.",
         "operationId": "PacksController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Filter by Category code (case-insensitive).",
+            "schema": {
+              "example": "FACE",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tier",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ESSENTIAL",
+                "PREMIUM",
+                "LUXE"
+              ]
+            }
+          },
+          {
+            "name": "occasion",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EVERYDAY",
+                "WORK",
+                "EVENING",
+                "PARTY",
+                "WEDDING",
+                "SPECIAL_EVENT"
+              ]
+            }
+          },
+          {
+            "name": "experienceLevel",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "BEGINNER",
+                "INTERMEDIATE",
+                "EXPERT"
+              ]
+            }
+          },
+          {
+            "name": "customizable",
+            "required": false,
+            "in": "query",
+            "description": "When true, only customizable Packs; when false, only fixed.",
+            "schema": {
+              "example": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "availableNow",
+            "required": false,
+            "in": "query",
+            "description": "Filter by browsing availability. true = only Packs available now; false = only unavailable.",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "featured",
+            "required": false,
+            "in": "query",
+            "description": "When true, only featured Packs.",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "tags",
+            "required": false,
+            "in": "query",
+            "description": "Match Packs carrying any of these tags. Repeat the param or pass a comma-separated list.",
+            "schema": {
+              "example": [
+                "bridal",
+                "glam"
+              ],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Free-text search over name, slug, keywords, and description.",
+            "schema": {
+              "example": "natural",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "priority",
+              "type": "string",
+              "enum": [
+                "featured",
+                "newest",
+                "price_asc",
+                "price_desc",
+                "priority",
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Active packs.",
@@ -3707,7 +3854,7 @@
             }
           }
         },
-        "summary": "List active packs",
+        "summary": "List active packs (public catalog discovery)",
         "tags": [
           "Packs"
         ]
@@ -7690,6 +7837,78 @@
             "items": {
               "$ref": "#/components/schemas/MediaImageResponse"
             }
+          },
+          "category": {
+            "nullable": true,
+            "description": "Reused shared Category the Pack is filed under, if any.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CategorySummaryResponse"
+              }
+            ]
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "ESSENTIAL",
+              "PREMIUM",
+              "LUXE"
+            ],
+            "nullable": true
+          },
+          "occasion": {
+            "type": "string",
+            "enum": [
+              "EVERYDAY",
+              "WORK",
+              "EVENING",
+              "PARTY",
+              "WEDDING",
+              "SPECIAL_EVENT"
+            ],
+            "nullable": true
+          },
+          "experienceLevel": {
+            "type": "string",
+            "enum": [
+              "BEGINNER",
+              "INTERMEDIATE",
+              "EXPERT"
+            ],
+            "nullable": true
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "example": true
+          },
+          "isNew": {
+            "type": "boolean",
+            "example": false
+          },
+          "isBestSeller": {
+            "type": "boolean",
+            "example": false
+          },
+          "tags": {
+            "example": [
+              "bridal",
+              "glam"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "searchKeywords": {
+            "type": "object",
+            "example": "wedding bridal soft glam",
+            "nullable": true
+          },
+          "availableNow": {
+            "type": "boolean",
+            "example": true,
+            "description": "Browsing availability: true when every FIXED/REQUIRED_SELECTABLE item has an active reference with enough available stock. Present only on the filtered catalog response."
           }
         },
         "required": [
@@ -7959,6 +8178,73 @@
               "type": "string"
             }
           },
+          "categoryId": {
+            "type": "object",
+            "example": "00000000-0000-4000-8000-000000000001",
+            "nullable": true
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "ESSENTIAL",
+              "PREMIUM",
+              "LUXE"
+            ],
+            "nullable": true
+          },
+          "occasion": {
+            "type": "string",
+            "enum": [
+              "EVERYDAY",
+              "WORK",
+              "EVENING",
+              "PARTY",
+              "WEDDING",
+              "SPECIAL_EVENT"
+            ],
+            "nullable": true
+          },
+          "experienceLevel": {
+            "type": "string",
+            "enum": [
+              "BEGINNER",
+              "INTERMEDIATE",
+              "EXPERT"
+            ],
+            "nullable": true
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          },
+          "isNew": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          },
+          "isBestSeller": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          },
+          "tags": {
+            "example": [
+              "bridal",
+              "glam"
+            ],
+            "description": "Free-form discovery tags used by the public catalog filter.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "searchKeywords": {
+            "type": "object",
+            "example": "wedding bridal soft glam",
+            "nullable": true,
+            "description": "Extra keywords matched by public free-text search."
+          },
           "items": {
             "type": "array",
             "items": {
@@ -8081,6 +8367,73 @@
             "items": {
               "type": "string"
             }
+          },
+          "categoryId": {
+            "type": "object",
+            "example": "00000000-0000-4000-8000-000000000001",
+            "nullable": true
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "ESSENTIAL",
+              "PREMIUM",
+              "LUXE"
+            ],
+            "nullable": true
+          },
+          "occasion": {
+            "type": "string",
+            "enum": [
+              "EVERYDAY",
+              "WORK",
+              "EVENING",
+              "PARTY",
+              "WEDDING",
+              "SPECIAL_EVENT"
+            ],
+            "nullable": true
+          },
+          "experienceLevel": {
+            "type": "string",
+            "enum": [
+              "BEGINNER",
+              "INTERMEDIATE",
+              "EXPERT"
+            ],
+            "nullable": true
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          },
+          "isNew": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          },
+          "isBestSeller": {
+            "type": "boolean",
+            "example": false,
+            "default": false
+          },
+          "tags": {
+            "example": [
+              "bridal",
+              "glam"
+            ],
+            "description": "Free-form discovery tags used by the public catalog filter.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "searchKeywords": {
+            "type": "object",
+            "example": "wedding bridal soft glam",
+            "nullable": true,
+            "description": "Extra keywords matched by public free-text search."
           },
           "items": {
             "type": "array",
