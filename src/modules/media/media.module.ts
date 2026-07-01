@@ -26,6 +26,6 @@ import { MediaStorageProvider } from './providers/media-storage.provider';
     ImageFileValidationPipe,
     { provide: MediaStorageProvider, useClass: CloudinaryStorageProvider },
   ],
-  exports: [MediaUrlService],
+  exports: [MediaUrlService, MediaService, ImageFileValidationPipe],
 })
 export class MediaModule {}

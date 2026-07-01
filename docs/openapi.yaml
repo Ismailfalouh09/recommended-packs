@@ -3540,6 +3540,322 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Remove an item from the wishlist
       tags: *a66
+  /reviews:
+    post:
+      description: Creates a PENDING review for a Product or Pack the customer
+        verifiably bought. Ownership and delivery are re-derived server-side
+        from the given order (no customerId is accepted). A duplicate review for
+        the same order and target is rejected. The author display name is
+        generated and masked server-side; private customer/order data is never
+        returned.
+      operationId: ReviewsController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewDto"
+      responses:
+        "201":
+          description: The created PENDING review (public-safe fields).
+        "400":
+          description: Invalid body, or the target is not part of the given order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "403":
+          description: The order is not delivered or does not belong to the customer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The order was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: A review already exists for this order and target.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: Submit a review for a purchased product or pack
+      tags: &a67
+        - Reviews
+  /reviews/{reviewId}:
+    patch:
+      description: Updates the content (rating/title/comment) of a still-PENDING
+        review. The original order id must be supplied as ownership proof.
+        Target, order, and customer cannot be changed. APPROVED or REJECTED
+        reviews are locked. The edit keeps the review PENDING for re-moderation.
+      operationId: ReviewsController_update
+      parameters:
+        - name: reviewId
+          required: true
+          in: path
+          description: The review to edit.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReviewDto"
+      responses:
+        "200":
+          description: The updated PENDING review.
+        "403":
+          description: Wrong order id, or the review is already moderated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The review was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: Edit a pending review
+      tags: *a67
+    delete:
+      description: Deletes a still-PENDING review. The original order id must be
+        supplied as ownership proof (query parameter). APPROVED or REJECTED
+        reviews are locked and cannot be deleted by the customer.
+      operationId: ReviewsController_remove
+      parameters:
+        - name: reviewId
+          required: true
+          in: path
+          description: The review to delete.
+          schema:
+            type: string
+        - name: orderId
+          required: true
+          in: query
+          description: The original order the review was created from (ownership proof).
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      responses:
+        "200":
+          description: The review was deleted.
+        "403":
+          description: Wrong order id, or the review is already moderated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The review was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: Delete a pending review
+      tags: *a67
+  /reviews/{reviewId}/images:
+    post:
+      description: Uploads one JPEG, PNG, or WEBP image and attaches it to a
+        still-PENDING review (up to 5 per review). The original order id must be
+        supplied as ownership proof. APPROVED or REJECTED reviews are locked.
+        Images attached to a pending review are never shown publicly — they
+        become visible only once the review is approved. Private storage keys
+        are never returned.
+      operationId: ReviewsController_addImage
+      parameters:
+        - name: reviewId
+          required: true
+          in: path
+          description: The review to attach the image to.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - orderId
+              properties:
+                file:
+                  type: string
+                  format: binary
+                orderId:
+                  type: string
+                  format: uuid
+                  description: Ownership proof (the review’s original order).
+      responses:
+        "201":
+          description: The attached image (display-safe fields).
+        "400":
+          description: Invalid or missing image file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "403":
+          description: Wrong order id, or the review is already moderated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The review was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: The review already has the maximum number of images.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "413":
+          description: Image file is too large.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "415":
+          description: Unsupported or mismatched image type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: Attach an image to a pending review
+      tags: *a67
+  /reviews/{reviewId}/images/{imageId}:
+    delete:
+      description: Detaches an image from a still-PENDING review. The original order
+        id must be supplied as ownership proof (query parameter). APPROVED or
+        REJECTED reviews are locked and their images cannot be changed by the
+        customer.
+      operationId: ReviewsController_removeImage
+      parameters:
+        - name: reviewId
+          required: true
+          in: path
+          description: The review that owns the image.
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          description: The review image to remove.
+          schema:
+            type: string
+        - name: orderId
+          required: true
+          in: query
+          description: The original order the review was created from (ownership proof).
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      responses:
+        "200":
+          description: The image was removed.
+        "403":
+          description: Wrong order id, or the review is already moderated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: The review or image was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: Remove an image from a pending review
+      tags: *a67
+  /products/{slug}/reviews:
+    get:
+      description: Returns APPROVED reviews only for an active product, with a safe
+        rating summary (ratingAverage, reviewCount) and pagination.
+      operationId: PublicReviewsController_productReviews
+      parameters:
+        - name: slug
+          required: true
+          in: path
+          description: Product slug.
+          schema:
+            example: foundation-x
+            type: string
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+      responses:
+        "200":
+          description: Approved product reviews with a rating summary.
+        "404":
+          description: Product not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: List approved reviews for a product
+      tags: &a68
+        - Reviews
+  /packs/{slug}/reviews:
+    get:
+      description: Returns APPROVED reviews only for an active, public pack, with a
+        safe rating summary (ratingAverage, reviewCount) and pagination.
+      operationId: PublicReviewsController_packReviews
+      parameters:
+        - name: slug
+          required: true
+          in: path
+          description: Pack slug.
+          schema:
+            example: bridal-glam
+            type: string
+        - name: page
+          required: false
+          in: query
+          schema:
+            default: 1
+            example: 1
+            type: number
+        - name: limit
+          required: false
+          in: query
+          schema:
+            maximum: 100
+            default: 20
+            example: 20
+            type: number
+      responses:
+        "200":
+          description: Approved pack reviews with a rating summary.
+        "404":
+          description: Pack not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+      summary: List approved reviews for a pack
+      tags: *a68
 info:
   title: Beauty Pack Recommendation API
   description: Backend API for beauty-pack personalization, recommendations, COD
@@ -3637,7 +3953,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: &a67
+          enum: &a69
             - OWNER
             - ADMIN
             - STAFF
@@ -3680,7 +3996,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: *a67
+          enum: *a69
           example: ADMIN
         isActive:
           type: boolean
@@ -4533,7 +4849,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: &a68
+          enum: &a70
             - SINGLE
             - MULTIPLE
           default: SINGLE
@@ -4570,7 +4886,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: *a68
+          enum: *a70
           default: SINGLE
         isRequired:
           type: boolean
@@ -5214,7 +5530,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: &a69
+          enum: &a71
             - DRAFT
             - ACTIVE
             - HIDDEN
@@ -5294,7 +5610,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: *a69
+          enum: *a71
           default: DRAFT
         isActive:
           type: boolean
@@ -5359,7 +5675,7 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: &a70
+          enum: &a72
             - SHADE
             - SIZE
             - BUNDLE
@@ -5432,7 +5748,7 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: *a70
+          enum: *a72
           description: Single variation axis for this reference.
         barcode:
           type: object
@@ -5731,7 +6047,7 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: &a77
+          enum: &a79
             - PENDING_CONFIRMATION
             - CONFIRMED
             - PREPARING
@@ -5742,7 +6058,7 @@ components:
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: &a78
+          enum: &a80
             - UNPAID
             - PAID
             - REFUNDED
@@ -6354,7 +6670,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: &a71
+          enum: &a73
             - FIXED
             - SUM_ITEMS
             - SUM_ITEMS_WITH_DISCOUNT
@@ -6384,7 +6700,7 @@ components:
           default: 0
         status:
           type: string
-          enum: &a72
+          enum: &a74
             - DRAFT
             - ACTIVE
             - ARCHIVED
@@ -6425,14 +6741,14 @@ components:
           nullable: true
         tier:
           type: string
-          enum: &a73
+          enum: &a75
             - ESSENTIAL
             - PREMIUM
             - LUXE
           nullable: true
         occasion:
           type: string
-          enum: &a74
+          enum: &a76
             - EVERYDAY
             - WORK
             - EVENING
@@ -6442,7 +6758,7 @@ components:
           nullable: true
         experienceLevel:
           type: string
-          enum: &a75
+          enum: &a77
             - BEGINNER
             - INTERMEDIATE
             - EXPERT
@@ -6460,7 +6776,7 @@ components:
           example: false
           default: false
         tags:
-          example: &a76
+          example: &a78
             - bridal
             - glam
           description: Free-form discovery tags used by the public catalog filter.
@@ -6508,7 +6824,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: *a71
+          enum: *a73
           example: FIXED
         fixedPrice:
           type: object
@@ -6535,7 +6851,7 @@ components:
           default: 0
         status:
           type: string
-          enum: *a72
+          enum: *a74
           default: DRAFT
         isActive:
           type: boolean
@@ -6573,15 +6889,15 @@ components:
           nullable: true
         tier:
           type: string
-          enum: *a73
+          enum: *a75
           nullable: true
         occasion:
           type: string
-          enum: *a74
+          enum: *a76
           nullable: true
         experienceLevel:
           type: string
-          enum: *a75
+          enum: *a77
           nullable: true
         isFeatured:
           type: boolean
@@ -6596,7 +6912,7 @@ components:
           example: false
           default: false
         tags:
-          example: *a76
+          example: *a78
           description: Free-form discovery tags used by the public catalog filter.
           type: array
           items:
@@ -6869,11 +7185,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a77
+          enum: *a79
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a78
+          enum: *a80
           example: UNPAID
         totalAmount:
           type: number
@@ -6995,11 +7311,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a77
+          enum: *a79
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a78
+          enum: *a80
           example: UNPAID
         totalAmount:
           type: number
@@ -7265,7 +7581,7 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: &a79
+          enum: &a81
             - PACK
             - PRODUCT
             - REFERENCE
@@ -7274,7 +7590,7 @@ components:
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: &a80
+          enum: &a82
             - MUST_MATCH
             - SHOULD_MATCH
             - EXCLUDE_IF_MATCH
@@ -7303,13 +7619,13 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: *a79
+          enum: *a81
         attributeGroupId:
           type: object
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: *a80
+          enum: *a82
         scoreValue:
           type: number
           example: 15
@@ -7340,3 +7656,59 @@ components:
       required:
         - targetType
         - targetId
+    CreateReviewDto:
+      type: object
+      properties:
+        orderId:
+          type: string
+          description: The delivered order that proves the purchase. Customer ownership is
+            derived from this order server-side; no customerId is ever accepted.
+          example: 00000000-0000-4000-8000-000000000001
+        targetType:
+          type: string
+          enum:
+            - PRODUCT
+            - PACK
+        targetId:
+          type: string
+          description: The reviewed Product id (PRODUCT) or Pack id (PACK).
+          example: 00000000-0000-4000-8000-000000000002
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+          example: 5
+        title:
+          type: string
+          maxLength: 160
+          example: Loved it
+        comment:
+          type: string
+          example: Great quality, would buy again.
+      required:
+        - orderId
+        - targetType
+        - targetId
+        - rating
+    UpdateReviewDto:
+      type: object
+      properties:
+        orderId:
+          type: string
+          description: The original order the review was created from. Acts as the
+            ownership proof; it is never changed by the edit.
+          example: 00000000-0000-4000-8000-000000000001
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+          example: 4
+        title:
+          type: object
+          maxLength: 160
+          nullable: true
+        comment:
+          type: object
+          nullable: true
+      required:
+        - orderId

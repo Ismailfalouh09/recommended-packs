@@ -166,6 +166,9 @@ describe('MediaService', () => {
         delete: jest.fn().mockResolvedValue(productImage),
         count: jest.fn().mockResolvedValue(0),
       },
+      reviewImage: {
+        count: jest.fn().mockResolvedValue(0),
+      },
       $transaction: jest.fn((input: unknown) =>
         Array.isArray(input)
           ? Promise.all(input)

@@ -460,6 +460,7 @@ model Product {
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
   wishlistItems             WishlistItem[]
+  reviews                   Review[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -612,6 +613,7 @@ model Pack {
   orderItems            OrderItem[]                @relation("PackOrderItems")
   configurations        PackConfiguration[]        @relation("PackConfigurations")
   wishlistItems         WishlistItem[]
+  reviews               Review[]
 
   @@index([status])
   @@index([isActive])
@@ -960,6 +962,7 @@ model Customer {
   orders    Order[]
   events    CustomerEvent[]
   messages  MessageLog[]
+  reviews   Review[]
 
   @@index([phone])
   @@index([whatsappPhone])
@@ -1028,6 +1031,7 @@ model Order {
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
   messages      MessageLog[]
+  reviews       Review[]
 
   @@index([customerId])
   @@index([customerProfileId])
@@ -1154,6 +1158,7 @@ model MediaAsset {
   packImages             PackImage[]
   categoryImages         CategoryImage[]
   productReferenceImages ProductReferenceImage[]
+  reviewImages           ReviewImage[]
 
   @@index([provider])
   @@index([assetType])
@@ -1287,4 +1292,99 @@ model MessageLog {
   @@index([messageType])
   @@index([createdAt])
   @@map("message_logs")
+}
+
+/**
+ * =========================================================
+ * 10. REVIEWS & RATINGS (Phase R1 — foundation)
+ * =========================================================
+ *
+ * One shared Review model covers both PRODUCT and PACK reviews via the same
+ * polymorphic pattern used by WishlistItem: a `targetType` discriminator plus
+ * two nullable, cascading foreign keys of which exactly one is ever set. The XOR
+ * (and its consistency with `targetType`) is enforced by a database CHECK
+ * constraint added in the migration, and rating is bounded 1–5 by a second CHECK
+ * — neither is expressible in the Prisma schema itself.
+ *
+ * A review is always tied to a real, delivered Order that belongs to the
+ * reviewing Customer and actually contains the target (see
+ * `assertReviewEligibility`). `customerId`, `orderId`, `isVerifiedPurchase`, and
+ * `status` are strictly server-owned; they are never accepted from a client.
+ * Duplicate protection is per (customer, order, target): NULLs are distinct in
+ * Postgres, so the product-scoped unique never conflicts with PACK rows
+ * (product_id NULL) and vice versa.
+ *
+ * Phase R1 is schema + verified-purchase eligibility only. Customer review APIs,
+ * public rating reads, moderation, and rating aggregates are intentionally out of
+ * scope.
+ */
+enum ReviewTargetType {
+  PRODUCT
+  PACK
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Review {
+  id                 String           @id @default(uuid()) @db.Uuid
+  targetType         ReviewTargetType @map("target_type")
+  productId          String?          @map("product_id") @db.Uuid
+  packId             String?          @map("pack_id") @db.Uuid
+  customerId         String           @map("customer_id") @db.Uuid
+  orderId            String           @map("order_id") @db.Uuid
+  rating             Int
+  title              String?          @db.VarChar(160)
+  comment            String?          @db.Text
+  status             ReviewStatus     @default(PENDING)
+  isVerifiedPurchase Boolean          @default(true) @map("is_verified_purchase")
+  authorDisplayName  String           @map("author_display_name") @db.VarChar(160)
+  moderationNote     String?          @map("moderation_note") @db.Text
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  product  Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pack     Pack?     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  images ReviewImage[]
+
+  @@unique([customerId, orderId, productId])
+  @@unique([customerId, orderId, packId])
+  @@index([productId])
+  @@index([packId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([targetType])
+  @@index([status])
+  @@map("reviews")
+}
+
+/// Reviews & Ratings (Phase R2.5) — customer-attached review photos.
+///
+/// A customer may attach optional images to their own PENDING Product or Pack
+/// review (up to 5, ordered by `position`). Each row links one Review to one
+/// MediaAsset — the same reuse-the-media-module pattern as ProductImage /
+/// PackImage; no separate file store and no image bytes in PostgreSQL. Images
+/// are surfaced publicly only once the parent review is APPROVED (enforced by
+/// the read layer, which never returns non-APPROVED reviews).
+model ReviewImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  reviewId  String   @map("review_id") @db.Uuid
+  mediaId   String   @map("media_id") @db.Uuid
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  review Review     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  media  MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, mediaId])
+  @@index([reviewId, position])
+  @@index([mediaId])
+  @@map("review_images")
 }

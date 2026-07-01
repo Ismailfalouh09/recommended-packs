@@ -8,6 +8,13 @@ export const allowedImageExtensions = ['jpg', 'jpeg', 'png', 'webp'] as const;
 
 export const defaultMediaMaxFileSizeMb = 5;
 
+/**
+ * Maximum number of customer-attached images per review (Phase R2.5). Uploads
+ * beyond this are rejected; enforced both up front and inside the write
+ * transaction to stay race-safe.
+ */
+export const maxReviewImages = 5;
+
 export const defaultCloudinaryFolderPrefix = 'beauty-app';
 
 export const mediaUrlTransformations = {

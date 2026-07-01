@@ -5700,6 +5700,474 @@
           "Wishlist"
         ]
       }
+    },
+    "/reviews": {
+      "post": {
+        "description": "Creates a PENDING review for a Product or Pack the customer verifiably bought. Ownership and delivery are re-derived server-side from the given order (no customerId is accepted). A duplicate review for the same order and target is rejected. The author display name is generated and masked server-side; private customer/order data is never returned.",
+        "operationId": "ReviewsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created PENDING review (public-safe fields)."
+          },
+          "400": {
+            "description": "Invalid body, or the target is not part of the given order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The order is not delivered or does not belong to the customer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The order was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A review already exists for this order and target.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Submit a review for a purchased product or pack",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/reviews/{reviewId}": {
+      "patch": {
+        "description": "Updates the content (rating/title/comment) of a still-PENDING review. The original order id must be supplied as ownership proof. Target, order, and customer cannot be changed. APPROVED or REJECTED reviews are locked. The edit keeps the review PENDING for re-moderation.",
+        "operationId": "ReviewsController_update",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "description": "The review to edit.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated PENDING review."
+          },
+          "403": {
+            "description": "Wrong order id, or the review is already moderated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The review was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Edit a pending review",
+        "tags": [
+          "Reviews"
+        ]
+      },
+      "delete": {
+        "description": "Deletes a still-PENDING review. The original order id must be supplied as ownership proof (query parameter). APPROVED or REJECTED reviews are locked and cannot be deleted by the customer.",
+        "operationId": "ReviewsController_remove",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "description": "The review to delete.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderId",
+            "required": true,
+            "in": "query",
+            "description": "The original order the review was created from (ownership proof).",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review was deleted."
+          },
+          "403": {
+            "description": "Wrong order id, or the review is already moderated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The review was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete a pending review",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/reviews/{reviewId}/images": {
+      "post": {
+        "description": "Uploads one JPEG, PNG, or WEBP image and attaches it to a still-PENDING review (up to 5 per review). The original order id must be supplied as ownership proof. APPROVED or REJECTED reviews are locked. Images attached to a pending review are never shown publicly — they become visible only once the review is approved. Private storage keys are never returned.",
+        "operationId": "ReviewsController_addImage",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "description": "The review to attach the image to.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "orderId"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "orderId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Ownership proof (the review’s original order)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The attached image (display-safe fields)."
+          },
+          "400": {
+            "description": "Invalid or missing image file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Wrong order id, or the review is already moderated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The review was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The review already has the maximum number of images.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Image file is too large.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported or mismatched image type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Attach an image to a pending review",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/reviews/{reviewId}/images/{imageId}": {
+      "delete": {
+        "description": "Detaches an image from a still-PENDING review. The original order id must be supplied as ownership proof (query parameter). APPROVED or REJECTED reviews are locked and their images cannot be changed by the customer.",
+        "operationId": "ReviewsController_removeImage",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "description": "The review that owns the image.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "description": "The review image to remove.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderId",
+            "required": true,
+            "in": "query",
+            "description": "The original order the review was created from (ownership proof).",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image was removed."
+          },
+          "403": {
+            "description": "Wrong order id, or the review is already moderated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The review or image was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Remove an image from a pending review",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/products/{slug}/reviews": {
+      "get": {
+        "description": "Returns APPROVED reviews only for an active product, with a safe rating summary (ratingAverage, reviewCount) and pagination.",
+        "operationId": "PublicReviewsController_productReviews",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "description": "Product slug.",
+            "schema": {
+              "example": "foundation-x",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved product reviews with a rating summary."
+          },
+          "404": {
+            "description": "Product not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List approved reviews for a product",
+        "tags": [
+          "Reviews"
+        ]
+      }
+    },
+    "/packs/{slug}/reviews": {
+      "get": {
+        "description": "Returns APPROVED reviews only for an active, public pack, with a safe rating summary (ratingAverage, reviewCount) and pagination.",
+        "operationId": "PublicReviewsController_packReviews",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "description": "Pack slug.",
+            "schema": {
+              "example": "bridal-glam",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approved pack reviews with a rating summary."
+          },
+          "404": {
+            "description": "Pack not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List approved reviews for a pack",
+        "tags": [
+          "Reviews"
+        ]
+      }
     }
   },
   "info": {
@@ -10833,6 +11301,77 @@
         "required": [
           "targetType",
           "targetId"
+        ]
+      },
+      "CreateReviewDto": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "description": "The delivered order that proves the purchase. Customer ownership is derived from this order server-side; no customerId is ever accepted.",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "PRODUCT",
+              "PACK"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "description": "The reviewed Product id (PRODUCT) or Pack id (PACK).",
+            "example": "00000000-0000-4000-8000-000000000002"
+          },
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 5
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "example": "Loved it"
+          },
+          "comment": {
+            "type": "string",
+            "example": "Great quality, would buy again."
+          }
+        },
+        "required": [
+          "orderId",
+          "targetType",
+          "targetId",
+          "rating"
+        ]
+      },
+      "UpdateReviewDto": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "description": "The original order the review was created from. Acts as the ownership proof; it is never changed by the edit.",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 4
+          },
+          "title": {
+            "type": "object",
+            "maxLength": 160,
+            "nullable": true
+          },
+          "comment": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "orderId"
         ]
       }
     }

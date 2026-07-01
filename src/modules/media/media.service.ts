@@ -23,6 +23,7 @@ import type { CurrentAdmin } from '../auth/types/jwt-payload.type';
 import {
   allowedImageExtensions,
   allowedImageMimeTypes,
+  maxReviewImages,
 } from './constants/media.constants';
 import { MediaUrlService } from './media-url.service';
 import { QueryMediaAssetsDto } from './dto/query-media-assets.dto';
@@ -42,6 +43,7 @@ type MediaEntityType =
   | 'packs'
   | 'categories'
   | 'product-references'
+  | 'reviews'
   | 'misc';
 
 type Tx = Prisma.TransactionClient;
@@ -418,6 +420,86 @@ export class MediaService {
     return { ...deleted, deleted: true };
   }
 
+  /**
+   * Reviews & Ratings (Phase R2.5) — attaches a customer image to a review.
+   *
+   * Ownership and the PENDING-only rule are enforced by the caller
+   * (`ReviewsService`) before this runs; here we only reuse the shared media
+   * pipeline: validate + upload to the storage provider, persist a `MediaAsset`
+   * (no `uploadedByAdminId` — this is a customer upload) and a `ReviewImage`
+   * link. The 5-image cap is checked up front and re-checked inside the write
+   * transaction so concurrent uploads cannot exceed it.
+   */
+  async uploadReviewImage(reviewId: string, file: ValidatedImageFile) {
+    await this.assertReviewImageCapacity(this.prisma, reviewId);
+    const uploaded = await this.uploadToProvider(file, 'reviews', reviewId);
+
+    try {
+      const image = await this.prisma.$transaction(async (tx) => {
+        await this.assertReviewImageCapacity(tx, reviewId);
+
+        const mediaAsset = await tx.mediaAsset.create({
+          data: this.toReviewMediaAssetData(uploaded, file, reviewId),
+        });
+
+        return tx.reviewImage.create({
+          data: {
+            reviewId,
+            mediaId: mediaAsset.id,
+            position: await this.nextReviewImagePosition(tx, reviewId),
+          },
+          include: { media: true },
+        });
+      });
+
+      this.logger.log({
+        operation: 'review_image_attachment_succeeded',
+        entityType: 'REVIEW',
+        entityId: reviewId,
+        mediaId: image.mediaId,
+        publicId: image.media.publicId,
+      });
+
+      return this.toReviewImageResponse(image);
+    } catch (error) {
+      await this.cleanupUploadedAsset(
+        uploaded.publicId,
+        'review_image_upload_rollback_cleanup_failed',
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Reviews & Ratings (Phase R2.5) — removes a customer image from a review.
+   * Ownership / PENDING gating is the caller's responsibility. Returns only the
+   * removed relationship id — internal storage keys are never surfaced.
+   */
+  async deleteReviewImage(reviewId: string, imageId: string) {
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const image = await this.ensureReviewImageBelongsToReview(
+        tx,
+        reviewId,
+        imageId,
+      );
+      await tx.reviewImage.delete({ where: { id: imageId } });
+
+      const deletedMedia = await this.deleteMediaAssetIfUnreferenced(
+        tx,
+        image.mediaId,
+      );
+
+      return { imageId, publicId: deletedMedia?.publicId };
+    });
+
+    await this.deleteProviderAfterDatabaseCleanup(
+      deleted.publicId,
+      'review_image_delete_provider_failed',
+    );
+
+    return { imageId, deleted: true };
+  }
+
   async replaceCategoryImage(
     categoryId: string,
     file: ValidatedImageFile,
@@ -785,6 +867,37 @@ export class MediaService {
     };
   }
 
+  private toReviewMediaAssetData(
+    stored: StoredMedia,
+    file: ValidatedImageFile,
+    reviewId: string,
+  ): Prisma.MediaAssetUncheckedCreateInput {
+    // Customer-owned upload: there is no admin actor, so uploadedByAdminId stays
+    // null. The asset is tagged to its review for auditing/moderation reuse.
+    return {
+      provider: MediaAssetProvider.CLOUDINARY,
+      assetType: MediaAssetType.IMAGE,
+      providerAssetId: stored.providerAssetId ?? null,
+      publicId: stored.publicId,
+      secureUrl: stored.secureUrl,
+      url: stored.url ?? null,
+      resourceType: stored.resourceType,
+      folder: this.folderFromPublicId(stored.publicId),
+      originalName: file.originalname,
+      mimeType: stored.mimeType ?? file.detectedMimeType,
+      format: stored.format ?? file.detectedExtension,
+      width: stored.width ?? null,
+      height: stored.height ?? null,
+      bytes: stored.bytes ?? file.size,
+      version: stored.version ?? null,
+      altText: null,
+      usageContext: 'REVIEW_IMAGE',
+      relatedEntity: 'REVIEW',
+      relatedEntityId: reviewId,
+      uploadedByAdminId: null,
+    };
+  }
+
   private folderFor(entityType: MediaEntityType, entityId?: string) {
     const config = readCloudinaryMediaConfig(this.configService);
     const base = config.folderPrefix.replace(/^\/+|\/+$/g, '');
@@ -944,6 +1057,45 @@ export class MediaService {
     return (aggregate._max.position ?? -1) + 1;
   }
 
+  private async nextReviewImagePosition(tx: Tx, reviewId: string) {
+    const aggregate = await tx.reviewImage.aggregate({
+      where: { reviewId },
+      _max: { position: true },
+    });
+
+    return (aggregate._max.position ?? -1) + 1;
+  }
+
+  private async assertReviewImageCapacity(
+    client: Pick<PrismaService | Tx, 'reviewImage'>,
+    reviewId: string,
+  ) {
+    const count = await client.reviewImage.count({ where: { reviewId } });
+
+    if (count >= maxReviewImages) {
+      throw new ConflictException(
+        `A review can have at most ${maxReviewImages} images.`,
+      );
+    }
+  }
+
+  private async ensureReviewImageBelongsToReview(
+    tx: Tx,
+    reviewId: string,
+    imageId: string,
+  ) {
+    const image = await tx.reviewImage.findFirst({
+      where: { id: imageId, reviewId },
+      select: { id: true, mediaId: true },
+    });
+
+    if (!image) {
+      throw new NotFoundException('Review image was not found.');
+    }
+
+    return image;
+  }
+
   private async deleteMediaAssetIfUnreferenced(tx: Tx, mediaId: string) {
     const referenceCount = await this.countMediaReferences(tx, mediaId);
 
@@ -963,19 +1115,35 @@ export class MediaService {
   private async countMediaReferences(
     client: Pick<
       PrismaService | Tx,
-      'productImage' | 'packImage' | 'categoryImage' | 'productReferenceImage'
+      | 'productImage'
+      | 'packImage'
+      | 'categoryImage'
+      | 'productReferenceImage'
+      | 'reviewImage'
     >,
     mediaId: string,
   ) {
-    const [productImages, packImages, categoryImages, productReferenceImages] =
-      await Promise.all([
-        client.productImage.count({ where: { mediaId } }),
-        client.packImage.count({ where: { mediaId } }),
-        client.categoryImage.count({ where: { mediaId } }),
-        client.productReferenceImage.count({ where: { mediaId } }),
-      ]);
+    const [
+      productImages,
+      packImages,
+      categoryImages,
+      productReferenceImages,
+      reviewImages,
+    ] = await Promise.all([
+      client.productImage.count({ where: { mediaId } }),
+      client.packImage.count({ where: { mediaId } }),
+      client.categoryImage.count({ where: { mediaId } }),
+      client.productReferenceImage.count({ where: { mediaId } }),
+      client.reviewImage.count({ where: { mediaId } }),
+    ]);
 
-    return productImages + packImages + categoryImages + productReferenceImages;
+    return (
+      productImages +
+      packImages +
+      categoryImages +
+      productReferenceImages +
+      reviewImages
+    );
   }
 
   private async cleanupUploadedAsset(publicId: string, operation: string) {
@@ -1138,6 +1306,33 @@ export class MediaService {
       }),
       createdAt: image.createdAt,
       updatedAt: image.updatedAt,
+    };
+  }
+
+  /**
+   * Reviews & Ratings (Phase R2.5) — public-safe shape for a review image.
+   * Only the display URLs and harmless image dimensions are exposed; the raw
+   * publicId, folder, provider asset id, storage keys, and uploader are never
+   * surfaced.
+   */
+  toReviewImageResponse(image: {
+    id: string;
+    position: number;
+    createdAt: Date;
+    media: Pick<
+      MediaAsset,
+      'publicId' | 'secureUrl' | 'mimeType' | 'format' | 'width' | 'height'
+    >;
+  }) {
+    return {
+      id: image.id,
+      position: image.position,
+      mimeType: image.media.mimeType,
+      format: image.media.format,
+      width: image.media.width,
+      height: image.media.height,
+      urls: this.mediaUrlService.buildUrls(image.media),
+      createdAt: image.createdAt,
     };
   }
 }

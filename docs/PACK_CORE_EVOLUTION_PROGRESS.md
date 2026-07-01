@@ -436,6 +436,10 @@
      ([QUIZ_RECOMMENDED_PACK_FLOW.md](./QUIZ_RECOMMENDED_PACK_FLOW.md)).
      Quiz-generated packs remain deferred.
 
+> **Note:** Reviews & Ratings is tracked as a separate roadmap and has started
+> with **Phase R1** (schema + verified-purchase eligibility foundation) —
+> see [REVIEWS_RATINGS_PROGRESS.md](./REVIEWS_RATINGS_PROGRESS.md).
+
 ## Explicitly Deferred
 
 - Phase 10 and later Pack business flows (Phase 9 —

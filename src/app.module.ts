@@ -13,6 +13,7 @@ import { ProductReferencesModule } from './modules/product-references/product-re
 import { ProductsModule } from './modules/products/products.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -32,6 +33,7 @@ import { PrismaModule } from './prisma/prisma.module';
     OrdersModule,
     MediaModule,
     WishlistModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
