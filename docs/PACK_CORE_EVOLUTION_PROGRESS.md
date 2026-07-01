@@ -369,6 +369,23 @@
 - Unconfigured Pack did not receive false compatibility reasons.
 - CUSTOMER_CHOICE live manual test remains blocked because the selected profile did not return a compatible customer-choice fixture.
 
+## Pack MVP Readiness Review (After Phase 9)
+
+- Completed phases: Phase 0 through Phase 9 are documented complete for the Pack MVP path, including public Pack discovery, fixed Pack direct purchase, customizable Pack validation, PackConfiguration persistence and checkout, admin customization management, wishlist/share foundations, and quiz-recommended existing Pack configuration/checkout. Quiz-generated Packs remain intentionally unimplemented.
+- Regression result: PASS. Focused Pack/order/configuration/recommendation regression passed (13 suites, 170 tests). Required validation also passed: `npx prisma validate`, `npx prisma generate`, `npm run build`, `npm run swagger:generate`, `npm run swagger:check`, and full `npm test -- --runInBand` (33 suites, 433 tests).
+- Legacy-flow result: PASS. Existing `POST /orders`, existing `POST /orders/checkout`, fixed Pack direct purchase, public Pack discovery, custom Pack validation, PackConfiguration checkout, quiz-recommended Pack configuration and checkout, and the existing recommendation flow are covered by focused/full tests and remain backward-compatible.
+- Remaining known debt:
+  - Controlled live CUSTOMER_CHOICE recommendation fixture is still needed for manual API verification.
+  - Customer-facing recommendation response still needs scoring/sanitization review.
+  - Phase 10 generated-Pack design is not yet backed by a concrete margin policy, generation guardrail model, or generated-composition test matrix.
+  - `PackConfiguration.sourcePackId` is currently required in the Prisma schema, while Phase 10 expects `QUIZ_GENERATED` configurations with `sourcePackId = null`.
+- Phase 10 readiness: NOT READY.
+- Exact blockers:
+  - Clear margin policy for generated Packs does not yet exist.
+  - Generated composition cannot yet be proven limited to allowed products/references without a Phase 10 guardrail/template design.
+  - Generated Pack persistence is not schema-ready because `PackConfiguration.sourcePackId` is non-null, despite the Phase 10 plan requiring null for `QUIZ_GENERATED`.
+  - Generated Pack regression tests do not exist yet for margin, allowed composition, stock, and min-price constraints.
+
 ## Known Follow-Ups
 
 1. Customer-facing recommendation response sanitization:
