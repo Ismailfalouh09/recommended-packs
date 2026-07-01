@@ -4008,6 +4008,63 @@
         ]
       }
     },
+    "/packs/{packId}/configurations": {
+      "post": {
+        "description": "Server-authoritative persistence of a proposed customizable pack configuration. The server re-runs the Phase 5 validator (recomputing the price from current allowed references, never trusting client prices) and persists ONLY when the configuration is valid. An invalid configuration is rejected with 400 and its validationErrors, and nothing is saved. The stored configuration captures the normalized composition (selected references, quantities, removed optional items, added add-ons), the recomputed final price, currency, price floor, and the immutable validation result. Additive: does not affect POST /orders, POST /orders/checkout, or POST /packs/:id/order.",
+        "operationId": "PacksController_createConfiguration",
+        "parameters": [
+          {
+            "name": "packId",
+            "required": true,
+            "in": "path",
+            "description": "Customizable pack ID to configure.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidatePackConfigurationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Persisted, server-validated pack configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackConfigurationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pack inactive/archived, not customizable, or the proposed configuration is invalid (not persisted).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pack not found."
+          }
+        },
+        "summary": "Persist a validated customizable pack configuration",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
     "/packs/slug/{slug}": {
       "get": {
         "description": "Returns the same public pack detail response shape as GET /packs/:id.",
@@ -4077,6 +4134,100 @@
           }
         },
         "summary": "Get an active pack by ID",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
+    "/configurations/{id}": {
+      "get": {
+        "description": "Returns a previously persisted, server-validated pack configuration including its normalized composition, recomputed final price, currency, price floor, and frozen validation result.",
+        "operationId": "PackConfigurationsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Pack configuration ID.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Persisted pack configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackConfigurationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Configuration not found."
+          }
+        },
+        "summary": "Get a persisted pack configuration",
+        "tags": [
+          "Packs"
+        ]
+      }
+    },
+    "/configurations/{id}/checkout": {
+      "post": {
+        "description": "Revalidates the persisted configuration against the current pack (stock, price, allowed composition, and minimum price) and, on success, creates a normal Cash-on-Delivery order: normal OrderItems carrying the source packId, atomic stock reservation, and an immutable packConfigurationSnapshot frozen on the order. Stale, unavailable, disallowed, or below-floor configurations are rejected and no order is created. Prices are always server-recomputed; no client price is trusted. Additive: does not affect POST /orders or POST /orders/checkout.",
+        "operationId": "PackConfigurationsController_checkout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Pack configuration ID to check out.",
+            "schema": {
+              "example": "00000000-0000-4000-8000-000000000001",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePackOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Configured pack order created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Configuration is stale, unavailable, disallowed, below the price floor, or its source pack is inactive/non-customizable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Configuration not found."
+          }
+        },
+        "summary": "Place a Cash on Delivery order from a pack configuration",
         "tags": [
           "Packs"
         ]
@@ -8478,6 +8629,143 @@
           "stockStatus",
           "normalizedItems",
           "validationErrors"
+        ]
+      },
+      "PackConfigurationItemLineResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "packItemId": {
+            "type": "object",
+            "example": "00000000-0000-4000-8000-000000000001",
+            "nullable": true,
+            "description": "Source PackItem id for base items; null for add-ons."
+          },
+          "productId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "productReferenceId": {
+            "type": "object",
+            "example": "00000000-0000-4000-8000-000000000001",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "example": "REQUIRED_SELECTABLE",
+            "description": "PackItemRole for base items, or \"ADD_ON\" for add-ons."
+          },
+          "quantity": {
+            "type": "number",
+            "example": 1
+          },
+          "unitPrice": {
+            "type": "number",
+            "example": 120
+          },
+          "lineTotal": {
+            "type": "number",
+            "example": 120
+          },
+          "isAddOn": {
+            "type": "boolean",
+            "example": false
+          },
+          "removed": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "role",
+          "quantity",
+          "unitPrice",
+          "lineTotal",
+          "isAddOn",
+          "removed"
+        ]
+      },
+      "PackConfigurationResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "sourcePackId": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "sourceType": {
+            "type": "string",
+            "example": "CUSTOMIZED"
+          },
+          "finalPrice": {
+            "type": "number",
+            "example": 349,
+            "description": "Server-recomputed final price. Never a client-supplied price."
+          },
+          "currency": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "minAllowedPrice": {
+            "type": "object",
+            "example": 300,
+            "nullable": true
+          },
+          "isValid": {
+            "type": "boolean",
+            "example": true
+          },
+          "stockStatus": {
+            "type": "string",
+            "enum": [
+              "IN_STOCK",
+              "OUT_OF_STOCK"
+            ],
+            "example": "IN_STOCK"
+          },
+          "validationResult": {
+            "description": "Immutable validator result frozen at persistence time.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PackConfigurationValidationResponse"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackConfigurationItemLineResponse"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-01T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-07-01T10:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "sourcePackId",
+          "sourceType",
+          "finalPrice",
+          "currency",
+          "isValid",
+          "stockStatus",
+          "validationResult",
+          "items",
+          "createdAt",
+          "updatedAt"
         ]
       },
       "PackItemInputDto": {

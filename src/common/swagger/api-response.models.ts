@@ -944,6 +944,89 @@ export class PackConfigurationValidationResponse {
   validationErrors!: ConfigurationValidationErrorResponse[];
 }
 
+export class PackConfigurationItemLineResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiPropertyOptional({
+    example: uuidExample,
+    nullable: true,
+    description: 'Source PackItem id for base items; null for add-ons.',
+  })
+  packItemId?: string | null;
+
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productReferenceId?: string | null;
+
+  @ApiProperty({
+    example: 'REQUIRED_SELECTABLE',
+    description: 'PackItemRole for base items, or "ADD_ON" for add-ons.',
+  })
+  role!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  unitPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  lineTotal!: number;
+
+  @ApiProperty({ example: false })
+  isAddOn!: boolean;
+
+  @ApiProperty({ example: false })
+  removed!: boolean;
+}
+
+export class PackConfigurationResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: uuidExample })
+  sourcePackId!: string;
+
+  @ApiProperty({ example: 'CUSTOMIZED' })
+  sourceType!: string;
+
+  @ApiProperty({
+    example: 349,
+    description: 'Server-recomputed final price. Never a client-supplied price.',
+  })
+  finalPrice!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiPropertyOptional({ example: 300, nullable: true })
+  minAllowedPrice?: number | null;
+
+  @ApiProperty({ example: true })
+  isValid!: boolean;
+
+  @ApiProperty({ enum: ['IN_STOCK', 'OUT_OF_STOCK'], example: 'IN_STOCK' })
+  stockStatus!: string;
+
+  @ApiProperty({
+    type: PackConfigurationValidationResponse,
+    description: 'Immutable validator result frozen at persistence time.',
+  })
+  validationResult!: PackConfigurationValidationResponse;
+
+  @ApiProperty({ type: [PackConfigurationItemLineResponse] })
+  items!: PackConfigurationItemLineResponse[];
+
+  @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
+  updatedAt!: string;
+}
+
 export class SelectableReferenceOptionResponse {
   @ApiProperty({ example: uuidExample })
   referenceId!: string;

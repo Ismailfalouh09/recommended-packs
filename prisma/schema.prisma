@@ -117,6 +117,17 @@ enum PackCompatibilityMode {
   RESTRICTED
 }
 
+// Pack Core Evolution (Phase 6) — how a persisted PackConfiguration originated.
+// Mirrors the string union used by the Order snapshot builder. Phase 6 only
+// persists CUSTOMIZED configurations; the other values are reserved for later
+// phases (fixed capture, quiz recommendation, generated packs).
+enum PackConfigurationSourceType {
+  FIXED
+  CUSTOMIZED
+  QUIZ_RECOMMENDED
+  QUIZ_GENERATED
+}
+
 enum RecommendationTargetType {
   PACK
   PRODUCT
@@ -557,6 +568,7 @@ model Pack {
   recommendationResults RecommendationResult[]
   orders                Order[]                    @relation("SelectedPackOrders")
   orderItems            OrderItem[]                @relation("PackOrderItems")
+  configurations        PackConfiguration[]        @relation("PackConfigurations")
 
   @@index([status])
   @@index([isActive])
@@ -711,6 +723,68 @@ model PackCompatibilityValue {
   @@index([profileId])
   @@index([attributeOptionId])
   @@map("pack_compatibility_values")
+}
+
+/**
+ * Pack Core Evolution (Phase 6) — persisted, server-authoritative Pack
+ * configuration. Created only after {@link validatePackConfiguration} passes, so
+ * a stored row always reflects a valid, server-recomputed composition and price
+ * (never a client-supplied price). The immutable `validationResult` JSON freezes
+ * the validator output at persistence time; `items` capture the normalized
+ * server-calculated composition (selected references, quantities, removed
+ * optional items, and added add-ons). A configuration is revalidated again at
+ * checkout before an order is created.
+ */
+model PackConfiguration {
+  id               String                      @id @default(uuid()) @db.Uuid
+  sourcePackId     String                      @map("source_pack_id") @db.Uuid
+  sourceType       PackConfigurationSourceType @default(CUSTOMIZED) @map("source_type")
+  finalPrice       Decimal                     @map("final_price") @db.Decimal(10, 2)
+  currency         String                      @default("MAD") @db.Char(3)
+  minAllowedPrice  Decimal?                    @map("min_allowed_price") @db.Decimal(10, 2)
+  isValid          Boolean                     @default(true) @map("is_valid")
+  stockStatus      String                      @map("stock_status") @db.VarChar(20)
+  validationResult Json                        @map("validation_result")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+
+  sourcePack Pack                    @relation("PackConfigurations", fields: [sourcePackId], references: [id], onDelete: Restrict)
+  items      PackConfigurationItem[]
+  orders     Order[]                 @relation("PackConfigurationOrders")
+
+  @@index([sourcePackId])
+  @@index([sourceType])
+  @@map("pack_configurations")
+}
+
+/**
+ * Pack Core Evolution (Phase 6) — one normalized line of a persisted
+ * PackConfiguration. `role` stores the PackItemRole for base items or the
+ * literal "ADD_ON" for add-ons. `productId`/`productReferenceId` are stored as
+ * plain identifiers (snapshot-style, no hard FK) so the configuration stays
+ * historically readable even if the underlying product/reference later changes;
+ * live existence/stock/price are re-checked from the source Pack at checkout.
+ */
+model PackConfigurationItem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  configurationId    String   @map("configuration_id") @db.Uuid
+  packItemId         String?  @map("pack_item_id") @db.Uuid
+  productId          String   @map("product_id") @db.Uuid
+  productReferenceId String?  @map("product_reference_id") @db.Uuid
+  role               String   @db.VarChar(30)
+  quantity           Int      @default(1)
+  unitPrice          Decimal  @map("unit_price") @db.Decimal(10, 2)
+  lineTotal          Decimal  @map("line_total") @db.Decimal(10, 2)
+  isAddOn            Boolean  @default(false) @map("is_add_on")
+  removed            Boolean  @default(false) @map("removed")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  configuration PackConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId])
+  @@index([productId])
+  @@index([productReferenceId])
+  @@map("pack_configuration_items")
 }
 
 /**
@@ -877,6 +951,11 @@ model Order {
   // Never stores private quiz answers, internal scores, costs, or margins.
   packConfigurationSnapshot Json? @map("pack_configuration_snapshot")
 
+  // Pack Core Evolution (Phase 6) — additive, nullable link to the persisted
+  // PackConfiguration this order was checked out from (if any). Null for legacy,
+  // recommendation-funnel, cart, and fixed-pack orders.
+  packConfigurationId String? @map("pack_configuration_id") @db.Uuid
+
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 
@@ -885,6 +964,7 @@ model Order {
   recommendationResult RecommendationResult? @relation(fields: [recommendationResultId], references: [id], onDelete: SetNull)
   selectedPack         Pack?                 @relation("SelectedPackOrders", fields: [selectedPackId], references: [id], onDelete: Restrict)
   customerAddress      CustomerAddress       @relation(fields: [customerAddressId], references: [id], onDelete: Restrict)
+  packConfiguration    PackConfiguration?    @relation("PackConfigurationOrders", fields: [packConfigurationId], references: [id], onDelete: SetNull)
 
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
@@ -895,6 +975,7 @@ model Order {
   @@index([recommendationResultId])
   @@index([selectedPackId])
   @@index([customerAddressId])
+  @@index([packConfigurationId])
   @@index([orderStatus])
   @@index([paymentStatus])
   @@index([createdAt])

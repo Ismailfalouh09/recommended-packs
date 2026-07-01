@@ -20,6 +20,7 @@ import {
 import {
   ApiErrorResponse,
   OrderCreateResponse,
+  PackConfigurationResponse,
   PackConfigurationValidationResponse,
   PackResponse,
 } from '../../common/swagger/api-response.models';
@@ -164,6 +165,45 @@ export class PacksController {
     @Body() dto: ValidatePackConfigurationDto,
   ) {
     return this.packsService.validateConfiguration(packId, dto);
+  }
+
+  @Post(':packId/configurations')
+  @ApiOperation({
+    summary: 'Persist a validated customizable pack configuration',
+    description:
+      'Server-authoritative persistence of a proposed customizable pack ' +
+      'configuration. The server re-runs the Phase 5 validator (recomputing the ' +
+      'price from current allowed references, never trusting client prices) and ' +
+      'persists ONLY when the configuration is valid. An invalid configuration is ' +
+      'rejected with 400 and its validationErrors, and nothing is saved. The ' +
+      'stored configuration captures the normalized composition (selected ' +
+      'references, quantities, removed optional items, added add-ons), the ' +
+      'recomputed final price, currency, price floor, and the immutable ' +
+      'validation result. Additive: does not affect POST /orders, ' +
+      'POST /orders/checkout, or POST /packs/:id/order.',
+  })
+  @ApiParam({
+    name: 'packId',
+    description: 'Customizable pack ID to configure.',
+    example: '00000000-0000-4000-8000-000000000001',
+  })
+  @ApiBody({ type: ValidatePackConfigurationDto })
+  @ApiCreatedResponse({
+    description: 'Persisted, server-validated pack configuration.',
+    type: PackConfigurationResponse,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Pack inactive/archived, not customizable, or the proposed configuration ' +
+      'is invalid (not persisted).',
+    type: ApiErrorResponse,
+  })
+  @ApiNotFoundResponse({ description: 'Pack not found.' })
+  createConfiguration(
+    @Param('packId') packId: string,
+    @Body() dto: ValidatePackConfigurationDto,
+  ) {
+    return this.packsService.createConfiguration(packId, dto);
   }
 
   @Get('slug/:slug')

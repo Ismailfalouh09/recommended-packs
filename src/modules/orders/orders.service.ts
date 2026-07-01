@@ -17,11 +17,21 @@ import {
 } from '@prisma/client';
 import { toMoneyNumber } from '../../common/utils/decimal.util';
 import {
+  BuildPackConfigurationSnapshotInput,
+  buildPackConfigurationSnapshot,
+} from '../../common/utils/pack-configuration-snapshot.util';
+import {
   paginatedResponse,
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isPackAvailableNow } from '../packs/pack-availability.util';
+import {
+  ConfigurationAddOnInput,
+  ConfigurationItemInput,
+  ValidatorPack,
+  validatePackConfiguration,
+} from '../packs/pack-configuration.validator';
 import { CreateCartOrderDto } from './dto/create-cart-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePackOrderDto } from './dto/create-pack-order.dto';
@@ -41,6 +51,18 @@ type LoadedFixedPurchasePack = NonNullable<
 type LoadedFixedPackItem = LoadedFixedPurchasePack['items'][number];
 type LoadedFixedPackReference =
   LoadedFixedPackItem['product']['references'][number];
+
+type LoadedConfigurationCheckout = NonNullable<
+  Awaited<ReturnType<OrdersService['loadConfigurationForCheckout']>>
+>;
+type LoadedConfigurationPack = LoadedConfigurationCheckout['sourcePack'];
+type LoadedConfigurationProduct =
+  LoadedConfigurationPack['items'][number]['product'];
+
+/** One selected/removed/added line accepted by the snapshot builder. */
+type SnapshotLine = NonNullable<
+  BuildPackConfigurationSnapshotInput['selectedItems']
+>[number];
 
 interface PricedOrderItem {
   packId: string | null;
@@ -357,6 +379,171 @@ export class OrdersService {
           totalAmount: priceSummary.totalAmount,
           currency: pack.currency,
           notes: dto.notes || null,
+        },
+      });
+
+      await tx.orderItem.createMany({
+        data: priceSummary.items.map((item) => ({
+          orderId: order.id,
+          packId: item.packId,
+          productId: item.productId,
+          productReferenceId: item.productReferenceId,
+          productNameSnapshot: item.productNameSnapshot,
+          referenceNameSnapshot: item.referenceNameSnapshot,
+          skuSnapshot: item.skuSnapshot,
+          variationSnapshot: item.variationSnapshot,
+          productImageUrlSnapshot: item.productImageUrlSnapshot,
+          brandNameSnapshot: item.brandNameSnapshot,
+          unitPriceSnapshot: item.unitPriceSnapshot,
+          originalUnitPriceSnapshot: item.originalUnitPriceSnapshot,
+          quantity: item.quantity,
+          totalPrice: item.totalPrice,
+        })),
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          oldStatus: null,
+          newStatus: OrderStatus.PENDING_CONFIRMATION,
+          comment: 'Order created',
+        },
+      });
+
+      return {
+        order,
+        customer,
+        address,
+        pack,
+        items: priceSummary.items,
+      };
+    });
+
+    return this.toOrderResponse({
+      order: created.order,
+      customer: created.customer,
+      address: created.address,
+      pack: created.pack,
+      items: created.items,
+    });
+  }
+
+  /**
+   * Pack Core Evolution (Phase 6) — configured Cash-on-Delivery checkout from a
+   * previously persisted {@link PackConfiguration}.
+   *
+   * The configuration is loaded with its immutable stored composition and its
+   * source Pack (current state). The stored selections are **revalidated** with
+   * the same Phase 5 validator (stock, price, allowed composition, and price
+   * floor are re-checked against the live Pack) — a stale, unavailable,
+   * disallowed, or below-floor configuration is rejected before any order is
+   * created and no stock is reserved. On success the configuration is expanded
+   * into normal priced OrderItems (each carrying `packId`), stock is reserved
+   * through the existing atomic flow, and the order freezes an immutable
+   * {@link buildPackConfigurationSnapshot} on `Order.packConfigurationSnapshot`.
+   * Prices are always server-recomputed; no client price is ever trusted.
+   */
+  async createFromConfiguration(configurationId: string, dto: CreatePackOrderDto) {
+    const orderNumber = this.generateOrderNumber();
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const configuration = await this.loadConfigurationForCheckout(
+        configurationId,
+        tx,
+      );
+
+      if (!configuration) {
+        throw new NotFoundException(
+          `Pack configuration ${configurationId} was not found.`,
+        );
+      }
+
+      const pack = configuration.sourcePack;
+
+      if (!pack.isActive || pack.status !== PackStatus.ACTIVE) {
+        throw new BadRequestException('The pack is inactive or archived.');
+      }
+
+      if (!pack.isCustomizable) {
+        throw new BadRequestException(
+          'The source pack is no longer customizable.',
+        );
+      }
+
+      // Revalidate the stored selections against the current pack state.
+      const input = this.reconstructConfigurationInput(
+        pack,
+        configuration.items,
+      );
+      const result = validatePackConfiguration(
+        this.toConfigurationValidatorPack(pack),
+        input,
+      );
+
+      if (!result.isValid) {
+        throw new BadRequestException({
+          message:
+            'The saved configuration is no longer valid and cannot be ordered.',
+          validationErrors: result.validationErrors,
+        });
+      }
+
+      const lines = this.buildConfiguredOrderLines(pack, result);
+      const priceSummary = this.summarizeConfiguredPrice(
+        result,
+        lines.pricedItems,
+      );
+      await this.orderStockService.reserveForNewOrder(tx, priceSummary.items);
+
+      const snapshot = buildPackConfigurationSnapshot({
+        sourcePackId: pack.id,
+        sourcePackName: pack.name,
+        sourceType: 'CUSTOMIZED',
+        currency: pack.currency,
+        finalPrice: result.computedPrice,
+        minAllowedPrice: result.minAllowedPrice,
+        selectedItems: lines.snapshotSelected,
+        removedItems: lines.snapshotRemoved,
+        addedItems: lines.snapshotAdded,
+      });
+
+      const customer = await this.upsertCustomer(tx, dto);
+
+      await tx.customerAddress.updateMany({
+        where: { customerId: customer.id, isDefault: true },
+        data: { isDefault: false },
+      });
+
+      const address = await tx.customerAddress.create({
+        data: {
+          customerId: customer.id,
+          city: dto.city,
+          addressLine: dto.addressLine,
+          extraInfo: dto.extraInfo || null,
+          isDefault: true,
+        },
+      });
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          customerId: customer.id,
+          customerProfileId: null,
+          recommendationResultId: null,
+          selectedPackId: pack.id,
+          packConfigurationId: configuration.id,
+          customerAddressId: address.id,
+          paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+          paymentStatus: PaymentStatus.UNPAID,
+          orderStatus: OrderStatus.PENDING_CONFIRMATION,
+          subtotalAmount: priceSummary.subtotalAmount,
+          discountAmount: priceSummary.discountAmount,
+          deliveryFee: priceSummary.deliveryFee,
+          totalAmount: priceSummary.totalAmount,
+          currency: pack.currency,
+          notes: dto.notes || null,
+          packConfigurationSnapshot:
+            snapshot as unknown as Prisma.InputJsonValue,
         },
       });
 
@@ -1311,6 +1498,376 @@ export class OrdersService {
     }
 
     return reference;
+  }
+
+  /**
+   * Loads a persisted PackConfiguration together with its immutable stored
+   * composition and the current state of its source Pack — everything needed to
+   * revalidate the configuration and to expand it into priced order lines with
+   * full product/reference snapshots.
+   */
+  private loadConfigurationForCheckout(
+    configurationId: string,
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ) {
+    const referenceSelect = {
+      id: true,
+      referenceCode: true,
+      referenceName: true,
+      shadeName: true,
+      measurement: true,
+      sku: true,
+      priceOverride: true,
+      priceDelta: true,
+      imageUrl: true,
+      image: {
+        select: { media: { select: { secureUrl: true, url: true } } },
+      },
+      stockQuantity: true,
+      reservedQuantity: true,
+      isActive: true,
+    } satisfies Prisma.ProductReferenceSelect;
+
+    const productSelect = {
+      id: true,
+      name: true,
+      basePrice: true,
+      compareAtPrice: true,
+      mainImageUrl: true,
+      isActive: true,
+      status: true,
+      brand: { select: { name: true } },
+      images: {
+        where: { role: MediaRole.COVER },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        take: 1,
+        select: { media: { select: { secureUrl: true, url: true } } },
+      },
+      references: {
+        orderBy: [{ isDefault: 'desc' }, { referenceCode: 'asc' }],
+        select: referenceSelect,
+      },
+    } satisfies Prisma.ProductSelect;
+
+    return client.packConfiguration.findUnique({
+      where: { id: configurationId },
+      select: {
+        id: true,
+        items: {
+          orderBy: [{ createdAt: 'asc' }],
+          select: {
+            packItemId: true,
+            productId: true,
+            productReferenceId: true,
+            role: true,
+            quantity: true,
+            isAddOn: true,
+            removed: true,
+          },
+        },
+        sourcePack: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            isActive: true,
+            isCustomizable: true,
+            priceMode: true,
+            discountAmount: true,
+            discountPercentage: true,
+            currency: true,
+            minAllowedPrice: true,
+            minRequiredItems: true,
+            maxItemCount: true,
+            items: {
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+              select: {
+                id: true,
+                role: true,
+                selectionMode: true,
+                quantity: true,
+                minQuantity: true,
+                maxQuantity: true,
+                quantityEditable: true,
+                removalAllowed: true,
+                replacementAllowed: true,
+                productReferenceId: true,
+                product: { select: productSelect },
+                allowedReferences: { select: { productReferenceId: true } },
+              },
+            },
+            allowedAddOns: {
+              select: {
+                productId: true,
+                productReferenceId: true,
+                product: { select: productSelect },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Reconstructs the original validator input from a persisted configuration's
+   * normalized items, using the *current* Pack items to decide when a stored
+   * reference represents a customer selection/replacement (which must be replayed
+   * through the gating rules) versus a server auto-resolved reference (which the
+   * validator re-resolves). This keeps revalidation faithful without ever
+   * trusting a stored price.
+   */
+  private reconstructConfigurationInput(
+    pack: LoadedConfigurationPack,
+    configItems: LoadedConfigurationCheckout['items'],
+  ): { items: ConfigurationItemInput[]; addOns: ConfigurationAddOnInput[] } {
+    const packItemsById = new Map(pack.items.map((item) => [item.id, item]));
+    const items: ConfigurationItemInput[] = [];
+    const addOns: ConfigurationAddOnInput[] = [];
+
+    for (const stored of configItems) {
+      if (stored.isAddOn) {
+        addOns.push({
+          productId: stored.productId,
+          productReferenceId: stored.productReferenceId ?? undefined,
+          quantity: stored.quantity,
+        });
+        continue;
+      }
+
+      if (!stored.packItemId) {
+        continue;
+      }
+
+      if (stored.removed) {
+        items.push({ packItemId: stored.packItemId, removed: true });
+        continue;
+      }
+
+      const entry: ConfigurationItemInput = {
+        packItemId: stored.packItemId,
+        quantity: stored.quantity,
+      };
+
+      const packItem = packItemsById.get(stored.packItemId);
+      const isRequiredSelectable =
+        packItem?.role === PackItemRole.REQUIRED_SELECTABLE;
+      const isExplicitReference =
+        !packItem ||
+        isRequiredSelectable ||
+        (stored.productReferenceId != null &&
+          stored.productReferenceId !== packItem.productReferenceId);
+
+      if (isExplicitReference && stored.productReferenceId != null) {
+        entry.productReferenceId = stored.productReferenceId;
+      }
+
+      items.push(entry);
+    }
+
+    return { items, addOns };
+  }
+
+  /** Maps a loaded configuration Pack onto the pure validator input shape. */
+  private toConfigurationValidatorPack(
+    pack: LoadedConfigurationPack,
+  ): ValidatorPack {
+    const toRefs = (references: LoadedConfigurationProduct['references']) =>
+      references.map((reference) => ({
+        id: reference.id,
+        isActive: reference.isActive,
+        stockQuantity: reference.stockQuantity,
+        reservedQuantity: reference.reservedQuantity,
+        priceOverride: reference.priceOverride,
+        priceDelta: reference.priceDelta,
+      }));
+
+    return {
+      id: pack.id,
+      priceMode: pack.priceMode,
+      discountAmount: pack.discountAmount,
+      discountPercentage: pack.discountPercentage,
+      currency: pack.currency,
+      minAllowedPrice: pack.minAllowedPrice,
+      minRequiredItems: pack.minRequiredItems,
+      maxItemCount: pack.maxItemCount,
+      items: pack.items.map((item) => ({
+        id: item.id,
+        role: item.role,
+        selectionMode: item.selectionMode,
+        quantity: item.quantity,
+        minQuantity: item.minQuantity,
+        maxQuantity: item.maxQuantity,
+        quantityEditable: item.quantityEditable,
+        removalAllowed: item.removalAllowed,
+        replacementAllowed: item.replacementAllowed,
+        productReferenceId: item.productReferenceId,
+        product: {
+          id: item.product.id,
+          name: item.product.name,
+          basePrice: item.product.basePrice,
+          isActive: item.product.isActive,
+          status: item.product.status,
+          references: toRefs(item.product.references),
+        },
+        allowedReferenceIds: item.allowedReferences.map(
+          (allowed) => allowed.productReferenceId,
+        ),
+      })),
+      allowedAddOns: pack.allowedAddOns.map((addOn) => ({
+        productId: addOn.productId,
+        productReferenceId: addOn.productReferenceId,
+        product: {
+          id: addOn.product.id,
+          name: addOn.product.name,
+          basePrice: addOn.product.basePrice,
+          isActive: addOn.product.isActive,
+          status: addOn.product.status,
+          references: toRefs(addOn.product.references),
+        },
+      })),
+    };
+  }
+
+  /**
+   * Expands a revalidated configuration into priced order lines (one per kept
+   * item, each carrying `packId`) plus the selected/removed/added snapshot lines
+   * for the immutable order snapshot. Product/reference snapshot fields come from
+   * the freshly loaded Pack; unit prices come from the validator (server-side).
+   */
+  private buildConfiguredOrderLines(
+    pack: LoadedConfigurationPack,
+    result: ReturnType<typeof validatePackConfiguration>,
+  ) {
+    const packItemsById = new Map(pack.items.map((item) => [item.id, item]));
+    const pricedItems: PricedOrderItem[] = [];
+    const snapshotSelected: SnapshotLine[] = [];
+    const snapshotRemoved: SnapshotLine[] = [];
+    const snapshotAdded: SnapshotLine[] = [];
+
+    for (const normalized of result.normalizedItems) {
+      if (normalized.removed) {
+        const packItem = normalized.packItemId
+          ? packItemsById.get(normalized.packItemId)
+          : undefined;
+        snapshotRemoved.push({
+          productId: normalized.productId,
+          productReferenceId: null,
+          productName: packItem?.product.name ?? normalized.productId,
+          referenceName: null,
+          role:
+            packItem?.role ??
+            (normalized.role as PackItemRole),
+          quantity: 0,
+          unitPrice: 0,
+        });
+        continue;
+      }
+
+      const resolved = this.resolveConfiguredLineSource(pack, normalized);
+      const { product, reference } = resolved;
+      const unitPrice = this.decimal(normalized.unitPrice);
+
+      pricedItems.push({
+        packId: pack.id,
+        productId: product.id,
+        productReferenceId: reference.id,
+        productNameSnapshot: product.name,
+        referenceNameSnapshot: this.referenceSnapshotName(reference),
+        skuSnapshot: reference.sku,
+        variationSnapshot: this.variationSnapshot(reference),
+        productImageUrlSnapshot: this.snapshotImageUrl(product, reference),
+        brandNameSnapshot: product.brand?.name ?? null,
+        unitPriceSnapshot: unitPrice,
+        originalUnitPriceSnapshot: this.originalUnitPriceSnapshot(
+          product,
+          unitPrice,
+        ),
+        quantity: normalized.quantity,
+        totalPrice: unitPrice.times(normalized.quantity),
+      });
+
+      const snapshotLine: SnapshotLine = {
+        productId: product.id,
+        productReferenceId: reference.id,
+        productName: product.name,
+        referenceName: this.referenceSnapshotName(reference),
+        role: normalized.isAddOn
+          ? PackItemRole.OPTIONAL_ADDON
+          : (normalized.role as PackItemRole),
+        quantity: normalized.quantity,
+        unitPrice: normalized.unitPrice,
+      };
+
+      if (normalized.isAddOn) {
+        snapshotAdded.push(snapshotLine);
+      } else {
+        snapshotSelected.push(snapshotLine);
+      }
+    }
+
+    return { pricedItems, snapshotSelected, snapshotRemoved, snapshotAdded };
+  }
+
+  /**
+   * Resolves the concrete product + reference backing one normalized line from
+   * the loaded Pack. Post-validation these always exist; a miss is a hard error.
+   */
+  private resolveConfiguredLineSource(
+    pack: LoadedConfigurationPack,
+    normalized: ReturnType<
+      typeof validatePackConfiguration
+    >['normalizedItems'][number],
+  ): {
+    product: LoadedConfigurationProduct;
+    reference: LoadedConfigurationProduct['references'][number];
+  } {
+    const product = normalized.isAddOn
+      ? pack.allowedAddOns.find(
+          (addOn) => addOn.productId === normalized.productId,
+        )?.product
+      : normalized.packItemId
+        ? pack.items.find((item) => item.id === normalized.packItemId)?.product
+        : undefined;
+
+    const reference = product?.references.find(
+      (ref) => ref.id === normalized.productReferenceId,
+    );
+
+    if (!product || !reference) {
+      throw new BadRequestException(
+        'The saved configuration references a product or reference that no longer exists.',
+      );
+    }
+
+    return { product, reference };
+  }
+
+  /**
+   * Derives the order price summary for a configured checkout. The validated
+   * `computedPrice` (already discount-applied and floor-checked by the validator)
+   * is authoritative for the total; the discount is the difference from the
+   * pre-discount line subtotal.
+   */
+  private summarizeConfiguredPrice(
+    result: ReturnType<typeof validatePackConfiguration>,
+    pricedItems: PricedOrderItem[],
+  ): PriceSummary {
+    const zero = this.decimal(0);
+    const subtotal = pricedItems.reduce(
+      (sum, item) => sum.plus(item.totalPrice),
+      zero,
+    );
+    const total = this.decimal(result.computedPrice);
+    const discount = Prisma.Decimal.max(subtotal.minus(total), zero);
+
+    return {
+      subtotalAmount: subtotal,
+      discountAmount: discount,
+      deliveryFee: zero,
+      totalAmount: total,
+      items: pricedItems,
+    };
   }
 
   private availableReferenceStock(reference: {

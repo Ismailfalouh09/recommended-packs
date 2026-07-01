@@ -3,12 +3,17 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { MediaModule } from '../media/media.module';
 import { OrdersModule } from '../orders/orders.module';
 import { AdminPacksController } from './admin-packs.controller';
+import { PackConfigurationsController } from './pack-configurations.controller';
 import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
 
 @Module({
   imports: [PrismaModule, MediaModule, OrdersModule],
-  controllers: [PacksController, AdminPacksController],
+  controllers: [
+    PacksController,
+    PackConfigurationsController,
+    AdminPacksController,
+  ],
   providers: [PacksService],
 })
 export class PacksModule {}

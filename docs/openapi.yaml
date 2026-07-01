@@ -2440,6 +2440,51 @@ paths:
           description: Pack not found.
       summary: Validate a proposed customizable pack configuration
       tags: *a49
+  /packs/{packId}/configurations:
+    post:
+      description: "Server-authoritative persistence of a proposed customizable pack
+        configuration. The server re-runs the Phase 5 validator (recomputing the
+        price from current allowed references, never trusting client prices) and
+        persists ONLY when the configuration is valid. An invalid configuration
+        is rejected with 400 and its validationErrors, and nothing is saved. The
+        stored configuration captures the normalized composition (selected
+        references, quantities, removed optional items, added add-ons), the
+        recomputed final price, currency, price floor, and the immutable
+        validation result. Additive: does not affect POST /orders, POST
+        /orders/checkout, or POST /packs/:id/order."
+      operationId: PacksController_createConfiguration
+      parameters:
+        - name: packId
+          required: true
+          in: path
+          description: Customizable pack ID to configure.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidatePackConfigurationDto"
+      responses:
+        "201":
+          description: Persisted, server-validated pack configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackConfigurationResponse"
+        "400":
+          description: Pack inactive/archived, not customizable, or the proposed
+            configuration is invalid (not persisted).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Pack not found.
+      summary: Persist a validated customizable pack configuration
+      tags: *a49
   /packs/slug/{slug}:
     get:
       description: Returns the same public pack detail response shape as GET /packs/:id.
@@ -2487,6 +2532,76 @@ paths:
           description: Pack not found.
       summary: Get an active pack by ID
       tags: *a49
+  /configurations/{id}:
+    get:
+      description: Returns a previously persisted, server-validated pack configuration
+        including its normalized composition, recomputed final price, currency,
+        price floor, and frozen validation result.
+      operationId: PackConfigurationsController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Pack configuration ID.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      responses:
+        "200":
+          description: Persisted pack configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PackConfigurationResponse"
+        "404":
+          description: Configuration not found.
+      summary: Get a persisted pack configuration
+      tags: &a50
+        - Packs
+  /configurations/{id}/checkout:
+    post:
+      description: "Revalidates the persisted configuration against the current pack
+        (stock, price, allowed composition, and minimum price) and, on success,
+        creates a normal Cash-on-Delivery order: normal OrderItems carrying the
+        source packId, atomic stock reservation, and an immutable
+        packConfigurationSnapshot frozen on the order. Stale, unavailable,
+        disallowed, or below-floor configurations are rejected and no order is
+        created. Prices are always server-recomputed; no client price is
+        trusted. Additive: does not affect POST /orders or POST
+        /orders/checkout."
+      operationId: PackConfigurationsController_checkout
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Pack configuration ID to check out.
+          schema:
+            example: 00000000-0000-4000-8000-000000000001
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePackOrderDto"
+      responses:
+        "201":
+          description: Configured pack order created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCreateResponse"
+        "400":
+          description: Configuration is stale, unavailable, disallowed, below the price
+            floor, or its source pack is inactive/non-customizable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Configuration not found.
+      summary: Place a Cash on Delivery order from a pack configuration
+      tags: *a50
   /admin/packs:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated packs with admin metadata.
@@ -2574,14 +2689,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PackResponse"
-        "401": &a50
+        "401": &a51
           description: Authentication required.
-        "403": &a51
+        "403": &a52
           description: Insufficient admin role.
-      security: &a52
+      security: &a53
         - bearer: []
       summary: List admin packs
-      tags: &a53
+      tags: &a54
         - Admin Packs
     post:
       description: OWNER and ADMIN can create draft or active packs. Active packs must
@@ -2597,13 +2712,13 @@ paths:
       responses:
         "200":
           description: Pack created.
-        "401": *a50
-        "403": *a51
+        "401": *a51
+        "403": *a52
         "409":
           description: Pack slug already exists.
-      security: *a52
+      security: *a53
       summary: Create pack
-      tags: *a53
+      tags: *a54
   /admin/packs/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read full pack details.
@@ -2621,13 +2736,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PackResponse"
-        "401": *a50
-        "403": *a51
+        "401": *a51
+        "403": *a52
         "404":
           description: Pack not found.
-      security: *a52
+      security: *a53
       summary: Get admin pack details
-      tags: *a53
+      tags: *a54
     patch:
       description: OWNER and ADMIN can update packs. Nested items and attributes are
         replaced transactionally when provided.
@@ -2647,15 +2762,15 @@ paths:
       responses:
         "200":
           description: Pack updated.
-        "401": *a50
-        "403": *a51
+        "401": *a51
+        "403": *a52
         "404":
           description: Pack not found.
         "409":
           description: Pack slug already exists.
-      security: *a52
+      security: *a53
       summary: Update pack
-      tags: *a53
+      tags: *a54
     delete:
       description: OWNER and ADMIN can archive a pack without deleting historical relations.
       operationId: AdminPacksController_archive
@@ -2668,13 +2783,13 @@ paths:
       responses:
         "200":
           description: Pack archived.
-        "401": *a50
-        "403": *a51
+        "401": *a51
+        "403": *a52
         "404":
           description: Pack not found.
-      security: *a52
+      security: *a53
       summary: Archive pack
-      tags: *a53
+      tags: *a54
   /orders/checkout:
     post:
       description: Creates a normal-store Cash on Delivery order from direct cart
@@ -2724,7 +2839,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Create a Cash on Delivery order from cart items
-      tags: &a54
+      tags: &a55
         - Orders
   /orders:
     post:
@@ -2752,7 +2867,7 @@ paths:
         "404":
           description: Recommendation result not found.
       summary: Create a Cash on Delivery order
-      tags: *a54
+      tags: *a55
   /orders/{id}:
     get:
       description: Returns a limited public order summary. It intentionally excludes
@@ -2776,7 +2891,7 @@ paths:
         "404":
           description: Order not found.
       summary: Get safe public order summary
-      tags: *a54
+      tags: *a55
   /admin/orders:
     get:
       description: OWNER, ADMIN, and STAFF can search, filter, sort, and paginate orders.
@@ -2899,14 +3014,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": &a55
+        "401": &a56
           description: Authentication required.
-        "403": &a56
+        "403": &a57
           description: Insufficient admin role.
-      security: &a57
+      security: &a58
         - bearer: []
       summary: List admin orders
-      tags: &a58
+      tags: &a59
         - Admin Orders
   /admin/orders/{id}:
     get:
@@ -2927,13 +3042,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": *a55
-        "403": *a56
+        "401": *a56
+        "403": *a57
         "404":
           description: Order not found.
-      security: *a57
+      security: *a58
       summary: Get admin order details
-      tags: *a58
+      tags: *a59
   /admin/orders/{id}/status:
     patch:
       description: OWNER and ADMIN can move an order through the enforced workflow.
@@ -2959,13 +3074,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": *a55
-        "403": *a56
+        "401": *a56
+        "403": *a57
         "404":
           description: Order not found.
-      security: *a57
+      security: *a58
       summary: Update order status
-      tags: *a58
+      tags: *a59
   /recommendations:
     post:
       description: Loads profile answers and active packs/products/references, selects
@@ -2991,7 +3106,7 @@ paths:
         "404":
           description: Customer profile not found.
       summary: Generate recommendations for a customer profile
-      tags: &a59
+      tags: &a60
         - Recommendations
   /recommendations/{sessionId}:
     get:
@@ -3015,7 +3130,7 @@ paths:
         "404":
           description: Recommendation session not found.
       summary: Get a stored recommendation session
-      tags: *a59
+      tags: *a60
   /admin/recommendation-rules:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated recommendation scoring rules.
@@ -3079,14 +3194,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationRuleResponse"
-        "401": &a60
+        "401": &a61
           description: Authentication required.
-        "403": &a61
+        "403": &a62
           description: Insufficient admin role.
-      security: &a62
+      security: &a63
         - bearer: []
       summary: List recommendation rules
-      tags: &a63
+      tags: &a64
         - Admin Recommendation Rules
     post:
       description: OWNER and ADMIN can create scoring rules. Rule codes are immutable
@@ -3102,13 +3217,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule created.
-        "401": *a60
-        "403": *a61
+        "401": *a61
+        "403": *a62
         "409":
           description: Recommendation rule code already exists.
-      security: *a62
+      security: *a63
       summary: Create recommendation rule
-      tags: *a63
+      tags: *a64
   /admin/recommendation-rules/preview:
     post:
       description: OWNER, ADMIN, and STAFF can preview current rule effects. This
@@ -3128,11 +3243,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationResponse"
-        "401": *a60
-        "403": *a61
-      security: *a62
+        "401": *a61
+        "403": *a62
+      security: *a63
       summary: Preview recommendations without persistence
-      tags: *a63
+      tags: *a64
   /admin/recommendation-rules/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read recommendation rule details.
@@ -3150,13 +3265,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationRuleResponse"
-        "401": *a60
-        "403": *a61
+        "401": *a61
+        "403": *a62
         "404":
           description: Recommendation rule not found.
-      security: *a62
+      security: *a63
       summary: Get recommendation rule details
-      tags: *a63
+      tags: *a64
     patch:
       description: OWNER and ADMIN can update mutable recommendation rule fields.
       operationId: AdminRecommendationRulesController_update
@@ -3175,13 +3290,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule updated.
-        "401": *a60
-        "403": *a61
+        "401": *a61
+        "403": *a62
         "404":
           description: Recommendation rule not found.
-      security: *a62
+      security: *a63
       summary: Update recommendation rule
-      tags: *a63
+      tags: *a64
     delete:
       description: OWNER and ADMIN can soft-deactivate recommendation rules.
       operationId: AdminRecommendationRulesController_deactivate
@@ -3194,13 +3309,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule deactivated.
-        "401": *a60
-        "403": *a61
+        "401": *a61
+        "403": *a62
         "404":
           description: Recommendation rule not found.
-      security: *a62
+      security: *a63
       summary: Deactivate recommendation rule
-      tags: *a63
+      tags: *a64
 info:
   title: Beauty Pack Recommendation API
   description: Backend API for beauty-pack personalization, recommendations, COD
@@ -3298,7 +3413,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: &a64
+          enum: &a65
             - OWNER
             - ADMIN
             - STAFF
@@ -3341,7 +3456,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: *a64
+          enum: *a65
           example: ADMIN
         isActive:
           type: boolean
@@ -4194,7 +4309,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: &a65
+          enum: &a66
             - SINGLE
             - MULTIPLE
           default: SINGLE
@@ -4231,7 +4346,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: *a65
+          enum: *a66
           default: SINGLE
         isRequired:
           type: boolean
@@ -4850,7 +4965,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: &a66
+          enum: &a67
             - DRAFT
             - ACTIVE
             - HIDDEN
@@ -4930,7 +5045,7 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: *a66
+          enum: *a67
           default: DRAFT
         isActive:
           type: boolean
@@ -4995,7 +5110,7 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: &a67
+          enum: &a68
             - SHADE
             - SIZE
             - BUNDLE
@@ -5068,7 +5183,7 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: *a67
+          enum: *a68
           description: Single variation axis for this reference.
         barcode:
           type: object
@@ -5365,7 +5480,7 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: &a74
+          enum: &a75
             - PENDING_CONFIRMATION
             - CONFIRMED
             - PREPARING
@@ -5376,7 +5491,7 @@ components:
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: &a75
+          enum: &a76
             - UNPAID
             - PAID
             - REFUNDED
@@ -5588,6 +5703,110 @@ components:
         - stockStatus
         - normalizedItems
         - validationErrors
+    PackConfigurationItemLineResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        packItemId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+          description: Source PackItem id for base items; null for add-ons.
+        productId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        productReferenceId:
+          type: object
+          example: 00000000-0000-4000-8000-000000000001
+          nullable: true
+        role:
+          type: string
+          example: REQUIRED_SELECTABLE
+          description: PackItemRole for base items, or "ADD_ON" for add-ons.
+        quantity:
+          type: number
+          example: 1
+        unitPrice:
+          type: number
+          example: 120
+        lineTotal:
+          type: number
+          example: 120
+        isAddOn:
+          type: boolean
+          example: false
+        removed:
+          type: boolean
+          example: false
+      required:
+        - id
+        - productId
+        - role
+        - quantity
+        - unitPrice
+        - lineTotal
+        - isAddOn
+        - removed
+    PackConfigurationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        sourcePackId:
+          type: string
+          example: 00000000-0000-4000-8000-000000000001
+        sourceType:
+          type: string
+          example: CUSTOMIZED
+        finalPrice:
+          type: number
+          example: 349
+          description: Server-recomputed final price. Never a client-supplied price.
+        currency:
+          type: string
+          example: MAD
+        minAllowedPrice:
+          type: object
+          example: 300
+          nullable: true
+        isValid:
+          type: boolean
+          example: true
+        stockStatus:
+          type: string
+          enum:
+            - IN_STOCK
+            - OUT_OF_STOCK
+          example: IN_STOCK
+        validationResult:
+          description: Immutable validator result frozen at persistence time.
+          allOf:
+            - $ref: "#/components/schemas/PackConfigurationValidationResponse"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PackConfigurationItemLineResponse"
+        createdAt:
+          type: string
+          example: 2026-07-01T10:00:00.000Z
+        updatedAt:
+          type: string
+          example: 2026-07-01T10:00:00.000Z
+      required:
+        - id
+        - sourcePackId
+        - sourceType
+        - finalPrice
+        - currency
+        - isValid
+        - stockStatus
+        - validationResult
+        - items
+        - createdAt
+        - updatedAt
     PackItemInputDto:
       type: object
       properties:
@@ -5729,7 +5948,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: &a68
+          enum: &a69
             - FIXED
             - SUM_ITEMS
             - SUM_ITEMS_WITH_DISCOUNT
@@ -5759,7 +5978,7 @@ components:
           default: 0
         status:
           type: string
-          enum: &a69
+          enum: &a70
             - DRAFT
             - ACTIVE
             - ARCHIVED
@@ -5793,14 +6012,14 @@ components:
           nullable: true
         tier:
           type: string
-          enum: &a70
+          enum: &a71
             - ESSENTIAL
             - PREMIUM
             - LUXE
           nullable: true
         occasion:
           type: string
-          enum: &a71
+          enum: &a72
             - EVERYDAY
             - WORK
             - EVENING
@@ -5810,7 +6029,7 @@ components:
           nullable: true
         experienceLevel:
           type: string
-          enum: &a72
+          enum: &a73
             - BEGINNER
             - INTERMEDIATE
             - EXPERT
@@ -5828,7 +6047,7 @@ components:
           example: false
           default: false
         tags:
-          example: &a73
+          example: &a74
             - bridal
             - glam
           description: Free-form discovery tags used by the public catalog filter.
@@ -5876,7 +6095,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: *a68
+          enum: *a69
           example: FIXED
         fixedPrice:
           type: object
@@ -5903,7 +6122,7 @@ components:
           default: 0
         status:
           type: string
-          enum: *a69
+          enum: *a70
           default: DRAFT
         isActive:
           type: boolean
@@ -5934,15 +6153,15 @@ components:
           nullable: true
         tier:
           type: string
-          enum: *a70
+          enum: *a71
           nullable: true
         occasion:
           type: string
-          enum: *a71
+          enum: *a72
           nullable: true
         experienceLevel:
           type: string
-          enum: *a72
+          enum: *a73
           nullable: true
         isFeatured:
           type: boolean
@@ -5957,7 +6176,7 @@ components:
           example: false
           default: false
         tags:
-          example: *a73
+          example: *a74
           description: Free-form discovery tags used by the public catalog filter.
           type: array
           items:
@@ -6230,11 +6449,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a74
+          enum: *a75
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a75
+          enum: *a76
           example: UNPAID
         totalAmount:
           type: number
@@ -6356,11 +6575,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a74
+          enum: *a75
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a75
+          enum: *a76
           example: UNPAID
         totalAmount:
           type: number
@@ -6626,7 +6845,7 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: &a76
+          enum: &a77
             - PACK
             - PRODUCT
             - REFERENCE
@@ -6635,7 +6854,7 @@ components:
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: &a77
+          enum: &a78
             - MUST_MATCH
             - SHOULD_MATCH
             - EXCLUDE_IF_MATCH
@@ -6664,13 +6883,13 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: *a76
+          enum: *a77
         attributeGroupId:
           type: object
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: *a77
+          enum: *a78
         scoreValue:
           type: number
           example: 15

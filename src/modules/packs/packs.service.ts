@@ -9,6 +9,7 @@ import {
   MatchType,
   PackCompatibilityCriterion,
   PackCompatibilityMode,
+  PackConfigurationSourceType,
   PackExperienceLevel,
   PackItemRole,
   PackOccasion,
@@ -576,6 +577,96 @@ export class PacksService {
     packId: string,
     dto: ValidatePackConfigurationDto,
   ): Promise<PackConfigurationValidationResult> {
+    const pack = await this.loadAndGuardConfigurablePack(packId);
+
+    return validatePackConfiguration(this.toValidatorPack(pack), {
+      items: dto.items,
+      addOns: dto.addOns,
+    });
+  }
+
+  /**
+   * Pack Core Evolution (Phase 6) — persist a customer-validated customizable
+   * Pack configuration.
+   *
+   * Reuses the Phase 5 validator: the Pack is reloaded and re-validated
+   * server-side (never trusting a client price), and only a **valid** result is
+   * persisted. An invalid configuration is rejected with `400` and its
+   * `validationErrors`, and nothing is written. The stored row captures the
+   * normalized, server-calculated composition (selected references, quantities,
+   * removed optional items, added add-ons), the recomputed final price, the
+   * currency, the price floor, and the immutable validation result.
+   */
+  async createConfiguration(packId: string, dto: ValidatePackConfigurationDto) {
+    const pack = await this.loadAndGuardConfigurablePack(packId);
+
+    const result = validatePackConfiguration(this.toValidatorPack(pack), {
+      items: dto.items,
+      addOns: dto.addOns,
+    });
+
+    if (!result.isValid) {
+      throw new BadRequestException({
+        message: 'The proposed configuration is invalid and was not saved.',
+        validationErrors: result.validationErrors,
+      });
+    }
+
+    const created = await this.prisma.packConfiguration.create({
+      data: {
+        sourcePackId: pack.id,
+        sourceType: PackConfigurationSourceType.CUSTOMIZED,
+        finalPrice: new Prisma.Decimal(result.computedPrice),
+        currency: pack.currency,
+        minAllowedPrice:
+          pack.minAllowedPrice != null
+            ? new Prisma.Decimal(pack.minAllowedPrice)
+            : null,
+        isValid: true,
+        stockStatus: result.stockStatus,
+        validationResult: result as unknown as Prisma.InputJsonValue,
+        items: {
+          create: result.normalizedItems.map((item) => ({
+            packItemId: item.packItemId,
+            productId: item.productId,
+            productReferenceId: item.productReferenceId,
+            role: item.role,
+            quantity: item.quantity,
+            unitPrice: new Prisma.Decimal(item.unitPrice),
+            lineTotal: new Prisma.Decimal(item.lineTotal),
+            isAddOn: item.isAddOn,
+            removed: item.removed,
+          })),
+        },
+      },
+      select: this.configurationSelect(),
+    });
+
+    return this.toConfigurationResponse(created);
+  }
+
+  /**
+   * Pack Core Evolution (Phase 6) — read a persisted Pack configuration by id.
+   */
+  async findConfiguration(id: string) {
+    const configuration = await this.prisma.packConfiguration.findUnique({
+      where: { id },
+      select: this.configurationSelect(),
+    });
+
+    if (!configuration) {
+      throw new NotFoundException(`Pack configuration ${id} was not found.`);
+    }
+
+    return this.toConfigurationResponse(configuration);
+  }
+
+  /**
+   * Loads a configurable Pack and enforces the customization gate (missing → 404;
+   * inactive/archived or non-customizable → 400). Shared by the read-only Phase 5
+   * validation endpoint and the Phase 6 persistence endpoint.
+   */
+  private async loadAndGuardConfigurablePack(packId: string) {
     const pack = await this.loadConfigurablePack(packId);
 
     if (!pack) {
@@ -592,10 +683,66 @@ export class PacksService {
       );
     }
 
-    return validatePackConfiguration(this.toValidatorPack(pack), {
-      items: dto.items,
-      addOns: dto.addOns,
-    });
+    return pack;
+  }
+
+  private configurationSelect() {
+    return {
+      id: true,
+      sourcePackId: true,
+      sourceType: true,
+      finalPrice: true,
+      currency: true,
+      minAllowedPrice: true,
+      isValid: true,
+      stockStatus: true,
+      validationResult: true,
+      createdAt: true,
+      updatedAt: true,
+      items: {
+        orderBy: [{ createdAt: 'asc' as const }],
+        select: {
+          id: true,
+          packItemId: true,
+          productId: true,
+          productReferenceId: true,
+          role: true,
+          quantity: true,
+          unitPrice: true,
+          lineTotal: true,
+          isAddOn: true,
+          removed: true,
+        },
+      },
+    } satisfies Prisma.PackConfigurationSelect;
+  }
+
+  private toConfigurationResponse(configuration: any) {
+    return {
+      id: configuration.id,
+      sourcePackId: configuration.sourcePackId,
+      sourceType: configuration.sourceType,
+      finalPrice: toMoneyNumber(configuration.finalPrice) ?? 0,
+      currency: configuration.currency,
+      minAllowedPrice: toMoneyNumber(configuration.minAllowedPrice),
+      isValid: configuration.isValid,
+      stockStatus: configuration.stockStatus,
+      validationResult: configuration.validationResult,
+      createdAt: configuration.createdAt,
+      updatedAt: configuration.updatedAt,
+      items: (configuration.items ?? []).map((item: any) => ({
+        id: item.id,
+        packItemId: item.packItemId,
+        productId: item.productId,
+        productReferenceId: item.productReferenceId,
+        role: item.role,
+        quantity: item.quantity,
+        unitPrice: toMoneyNumber(item.unitPrice) ?? 0,
+        lineTotal: toMoneyNumber(item.lineTotal) ?? 0,
+        isAddOn: item.isAddOn,
+        removed: item.removed,
+      })),
+    };
   }
 
   /**

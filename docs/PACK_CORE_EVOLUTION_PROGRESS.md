@@ -1,7 +1,7 @@
 # Pack Core Evolution — Progress Log
 
-**Checkpoint date:** 2026-06-30
-**Checkpoint scope:** Pack Core foundation and Recommendation MVP
+**Checkpoint date:** 2026-07-01
+**Checkpoint scope:** Pack Core foundation, Recommendation MVP, and Phase 6 configuration checkout
 
 ## Completed
 
@@ -184,6 +184,27 @@
   [packs.service.config.spec.ts](../src/modules/packs/packs.service.config.spec.ts));
   Swagger/OpenAPI regenerated and verified; Prisma validate/generate + build pass.
 
+### Phase 6 - PackConfiguration Persistence & Configured Checkout
+- Added additive Pack configuration persistence via
+  `POST /packs/:packId/configurations`.
+  - The server reloads the current Pack, reuses the Phase 5 validator,
+    recomputes price/stock, and persists only valid configurations.
+  - Invalid configurations are rejected with `400` and are not written.
+- Added persisted configuration read and configured checkout:
+  - `GET /configurations/:id`
+  - `POST /configurations/:id/checkout`
+- Lifecycle documented in
+  [PACK_CONFIGURATION_LIFECYCLE.md](./PACK_CONFIGURATION_LIFECYCLE.md):
+  `validate/persist configuration -> revalidate at checkout -> reserve stock -> create normal OrderItems -> write immutable packConfigurationSnapshot`.
+- Checkout revalidates the saved composition against the current source Pack
+  before reservation/order creation, including active/customizable status, live
+  stock, allowed references/add-ons, and `minAllowedPrice`.
+- Successful configured checkout creates normal `OrderItem` rows, reserves stock
+  through the existing atomic order-stock flow, and writes immutable
+  `Order.packConfigurationSnapshot`.
+- Existing `POST /orders`, `POST /orders/checkout`, and fixed Pack purchase
+  behavior remain unchanged.
+
 ### Budget Range Foundation
 - Added canonical Budget option numeric ranges:
   - LOW: 150–220 MAD
@@ -236,7 +257,7 @@
    - Keep Occasion matcher coverage in automated tests.
    - Add the public quiz question only in a separate intentional quiz evolution.
 
-4. Next Pack business phase — Phase 6 (configuration persistence + checkout):
+4. Next Pack business phase:
    - Phase 4 is **complete**: Phase 4A (catalog discovery, filtering, browsing
      availability — [PACK_PUBLIC_DISCOVERY.md](./PACK_PUBLIC_DISCOVERY.md)) and
      Phase 4B (fixed Pack direct purchase via `POST /packs/:packId/order` —
@@ -244,13 +265,13 @@
    - Phase 5 is **complete**: controlled customizable Pack rules & the read-only
      configuration validator (`POST /packs/:packId/validate-configuration` —
      [PACK_CUSTOMIZATION_VALIDATION.md](./PACK_CUSTOMIZATION_VALIDATION.md)).
-   - Next: Phase 6 — `PackConfiguration` persistence and configured checkout.
+   - Phase 6 is **complete**: `PackConfiguration` persistence and configured
+     checkout are implemented and documented.
+   - Next: Phase 7 remains intentionally unstarted.
 
 ## Explicitly Deferred
 
-- Customer PackConfiguration persistence
-- Customer Pack customization checkout
-- Writing pack-config snapshots during checkout (Phase 3 added storage + builder only; order creation does not yet populate it)
+- Phase 7 and later Pack business flows
 - Wishlist and sharing
 - Add-on recommendations
 - Generated personalized Packs
