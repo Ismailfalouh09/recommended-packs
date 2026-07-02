@@ -1,0 +1,5048 @@
+{
+  "info": {
+    "name": "PHINIX Backend API",
+    "description": "Manual testing collection generated from OpenAPI on 2026-07-02. OpenAPI remains the source of truth.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Health",
+      "item": [
+        {
+          "name": "GET /",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Root API check.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Authentication",
+      "item": [
+        {
+          "name": "POST /auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Log in as an admin user.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: LoginDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"change-this-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Get current authenticated admin.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Public Catalog",
+      "item": [
+        {
+          "name": "GET /attributes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attributes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attributes"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: List active attribute groups.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attributes/{code}/options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attributes/{{code}}/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attributes",
+                ":code",
+                "options"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "code",
+                  "value": "{{code}}"
+                }
+              ]
+            },
+            "description": "Purpose: List active options for an attribute group code.\nRequired access: Public.\nRequired variables: {{code}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: List active public categories.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /brands",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/brands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "brands"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: List active public brands.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Public Products and Packs",
+      "item": [
+        {
+          "name": "GET /products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryCode",
+                  "value": "{{categoryCode}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "productType",
+                  "value": "{{productType}}",
+                  "disabled": true,
+                  "description": "Filter by the stable product-type code (kebab-case)."
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "minPrice",
+                  "value": "{{minPrice}}",
+                  "disabled": true,
+                  "description": "Minimum base price (inclusive)."
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "{{maxPrice}}",
+                  "disabled": true,
+                  "description": "Maximum base price (inclusive)."
+                },
+                {
+                  "key": "attributeOptions",
+                  "value": "{{attributeOptions}}",
+                  "disabled": true,
+                  "description": "Comma-separated attribute-option codes. A product matches when each code is present at the product or reference suitability layer (AND across codes)."
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "inStock",
+                  "value": "{{inStock}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "onSale",
+                  "value": "{{onSale}}",
+                  "disabled": true,
+                  "description": "Filter products with a valid compare-at/original price."
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "size",
+                  "value": "{{size}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List active products.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/slug/{slug}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/slug/{{slug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "slug",
+                ":slug"
+              ],
+              "query": [
+                {
+                  "key": "selectedReferenceId",
+                  "value": "{{selectedReferenceId}}",
+                  "disabled": true,
+                  "description": "Preferred active reference for the selected variant."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "{{slug}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get an active product by slug.\nRequired access: Public.\nRequired variables: {{slug}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "selectedReferenceId",
+                  "value": "{{selectedReferenceId}}",
+                  "disabled": true,
+                  "description": "Preferred active reference for the selected variant."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get an active product by ID.\nRequired access: Public.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /packs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/packs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{category}}",
+                  "disabled": true,
+                  "description": "Filter by Category code (case-insensitive)."
+                },
+                {
+                  "key": "tier",
+                  "value": "{{tier}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "occasion",
+                  "value": "{{occasion}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "experienceLevel",
+                  "value": "{{experienceLevel}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "customizable",
+                  "value": "{{customizable}}",
+                  "disabled": true,
+                  "description": "When true, only customizable Packs; when false, only fixed."
+                },
+                {
+                  "key": "availableNow",
+                  "value": "{{availableNow}}",
+                  "disabled": true,
+                  "description": "Filter by browsing availability. true = only Packs available now; false = only unavailable."
+                },
+                {
+                  "key": "featured",
+                  "value": "{{featured}}",
+                  "disabled": true,
+                  "description": "When true, only featured Packs."
+                },
+                {
+                  "key": "tags",
+                  "value": "{{tags}}",
+                  "disabled": true,
+                  "description": "Match Packs carrying any of these tags. Repeat the param or pass a comma-separated list."
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": "Free-text search over name, slug, keywords, and description."
+                },
+                {
+                  "key": "sort",
+                  "value": "{{sort}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List active packs (public catalog discovery).\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /packs/slug/{slug}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/packs/slug/{{slug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs",
+                "slug",
+                ":slug"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "{{slug}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get an active pack by slug.\nRequired access: Public.\nRequired variables: {{slug}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /packs/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/packs/{{packId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get an active pack by ID.\nRequired access: Public.\nRequired variables: {{packId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Quiz and Recommendations",
+      "item": [
+        {
+          "name": "GET /quiz/questions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/quiz/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quiz",
+                "questions"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: List active quiz questions.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /quiz/profiles",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/quiz/profiles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quiz",
+                "profiles"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create a customer quiz profile.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateCustomerProfileDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceChannel\": \"INSTAGRAM\",\n  \"answers\": [\n    {\n      \"attributeGroupCode\": \"SKIN_COLOR\",\n      \"attributeOptionCode\": \"MEDIUM\"\n    },\n    {\n      \"attributeGroupCode\": \"UNDERTONE\",\n      \"attributeOptionCode\": \"WARM\"\n    },\n    {\n      \"attributeGroupCode\": \"SKIN_TYPE\",\n      \"attributeOptionCode\": \"OILY\"\n    },\n    {\n      \"attributeGroupCode\": \"STYLE\",\n      \"attributeOptionCode\": \"NATURAL\"\n    },\n    {\n      \"attributeGroupCode\": \"BUDGET\",\n      \"attributeOptionCode\": \"MEDIUM\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /recommendations/{resultId}/configure",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/recommendations/{{recommendationResultId}}/configure",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recommendations",
+                ":resultId",
+                "configure"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "resultId",
+                  "value": "{{recommendationResultId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Configure a recommended pack into a checkout-ready configuration.\nRequired access: Public.\nRequired variables: {{recommendationResultId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ConfigureFromRecommendationDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selections\": [\n    {\n      \"packItemId\": \"00000000-0000-4000-8000-000000000010\",\n      \"productReferenceId\": \"00000000-0000-4000-8000-000000000020\",\n      \"quantity\": 2,\n      \"removed\": false\n    }\n  ],\n  \"addOns\": [\n    {\n      \"productId\": \"00000000-0000-4000-8000-000000000030\",\n      \"productReferenceId\": \"00000000-0000-4000-8000-000000000031\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recommendations"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Generate recommendations for a customer profile.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateRecommendationDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerProfileId\": \"00000000-0000-4000-8000-000000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /recommendations/{sessionId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recommendations/{{recommendationSessionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recommendations",
+                ":sessionId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "sessionId",
+                  "value": "{{recommendationSessionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get a stored recommendation session.\nRequired access: Public.\nRequired variables: {{recommendationSessionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 - Cart and Checkout",
+      "item": [
+        {
+          "name": "POST /packs/{packId}/order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/packs/{{packId}}/order",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs",
+                ":packId",
+                "order"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Place a Cash on Delivery order for a fixed pack.\nRequired access: Public.\nRequired variables: {{packId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreatePackOrderDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"phone\": \"0600000000\",\n  \"whatsappPhone\": \"0600000000\",\n  \"city\": \"Casablanca\",\n  \"addressLine\": \"Maarif\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /packs/{packId}/configurations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/packs/{{packId}}/configurations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs",
+                ":packId",
+                "configurations"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Persist a validated customizable pack configuration.\nRequired access: Public.\nRequired variables: {{packId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ValidatePackConfigurationDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"packItemId\": \"00000000-0000-4000-8000-000000000010\",\n      \"productReferenceId\": \"00000000-0000-4000-8000-000000000020\",\n      \"quantity\": 2,\n      \"removed\": false\n    }\n  ],\n  \"addOns\": [\n    {\n      \"productId\": \"00000000-0000-4000-8000-000000000030\",\n      \"productReferenceId\": \"00000000-0000-4000-8000-000000000031\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /configurations/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/configurations/{{configurationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "configurations",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{configurationId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get a persisted pack configuration.\nRequired access: Public.\nRequired variables: {{configurationId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /configurations/{id}/share",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/configurations/{{configurationId}}/share",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "configurations",
+                ":id",
+                "share"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{configurationId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Create (or return) a public share link for a pack configuration.\nRequired access: Public.\nRequired variables: {{configurationId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /configurations/{id}/checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/configurations/{{configurationId}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "configurations",
+                ":id",
+                "checkout"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{configurationId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Place a Cash on Delivery order from a pack configuration.\nRequired access: Public.\nRequired variables: {{configurationId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreatePackOrderDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"phone\": \"0600000000\",\n  \"whatsappPhone\": \"0600000000\",\n  \"city\": \"Casablanca\",\n  \"addressLine\": \"Maarif\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /shared/configurations/{shareToken}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shared/configurations/{{shareToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "shared",
+                "configurations",
+                ":shareToken"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "shareToken",
+                  "value": "{{shareToken}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get a shared pack configuration by its share token.\nRequired access: Public.\nRequired variables: {{shareToken}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "checkout"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create a Cash on Delivery order from cart items.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateCartOrderDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"00000000-0000-4000-8000-000000000001\",\n      \"referenceId\": \"00000000-0000-4000-8000-000000000002\",\n      \"quantity\": 2\n    }\n  ],\n  \"fullName\": \"Demo Customer\",\n  \"phone\": \"0600000000\",\n  \"whatsappPhone\": \"0600000000\",\n  \"city\": \"Casablanca\",\n  \"addressLine\": \"Maarif\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create a Cash on Delivery order.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateOrderDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recommendationResultId\": \"00000000-0000-4000-8000-000000000001\",\n  \"fullName\": \"Demo Customer\",\n  \"phone\": \"0600000000\",\n  \"whatsappPhone\": \"0600000000\",\n  \"city\": \"Casablanca\",\n  \"addressLine\": \"Maarif\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07 - Public Orders",
+      "item": [
+        {
+          "name": "GET /orders/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{orderId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get safe public order summary.\nRequired access: Public.\nRequired variables: {{orderId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08 - Reviews and Feedback",
+      "item": [
+        {
+          "name": "POST /wishlist/items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/wishlist/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wishlist",
+                "items"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Save a Product or Pack to the wishlist.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: AddWishlistItemDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetType\": \"PRODUCT\",\n  \"targetId\": \"00000000-0000-4000-8000-000000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /wishlist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/wishlist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wishlist"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: List the session wishlist.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /wishlist/items/{itemId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/wishlist/items/{{itemId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wishlist",
+                "items",
+                ":itemId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "itemId",
+                  "value": "{{itemId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Remove an item from the wishlist.\nRequired access: Public.\nRequired variables: {{itemId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /reviews",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Submit a review for a purchased product or pack.\nRequired access: Public.\nRequired variables: none.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateReviewDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"00000000-0000-4000-8000-000000000001\",\n  \"targetType\": \"PRODUCT\",\n  \"targetId\": \"00000000-0000-4000-8000-000000000002\",\n  \"rating\": 5,\n  \"title\": \"Loved it\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /reviews/{reviewId}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Edit a pending review.\nRequired access: Public.\nRequired variables: {{reviewId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateReviewDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"00000000-0000-4000-8000-000000000001\",\n  \"rating\": 4,\n  \"title\": \"Test title\",\n  \"comment\": \"Test note\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /reviews/{reviewId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId"
+              ],
+              "query": [
+                {
+                  "key": "orderId",
+                  "value": "{{orderId}}",
+                  "disabled": true,
+                  "description": "The original order the review was created from (ownership proof)."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Delete a pending review.\nRequired access: Public.\nRequired variables: {{reviewId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /reviews/{reviewId}/images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId",
+                "images"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Attach an image to a pending review.\nRequired access: Public.\nRequired variables: {{reviewId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: multipart/form-data.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "orderId",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /reviews/{reviewId}/images/{imageId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reviews/{{reviewId}}/images/{{imageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reviews",
+                ":reviewId",
+                "images",
+                ":imageId"
+              ],
+              "query": [
+                {
+                  "key": "orderId",
+                  "value": "{{orderId}}",
+                  "disabled": true,
+                  "description": "The original order the review was created from (ownership proof)."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                },
+                {
+                  "key": "imageId",
+                  "value": "{{imageId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Remove an image from a pending review.\nRequired access: Public.\nRequired variables: {{reviewId}}, {{imageId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /products/{slug}/reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{slug}}/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                ":slug",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "{{slug}}"
+                }
+              ]
+            },
+            "description": "Purpose: List approved reviews for a product.\nRequired access: Public.\nRequired variables: {{slug}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /packs/{slug}/reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/packs/{{slug}}/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs",
+                ":slug",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "slug",
+                  "value": "{{slug}}"
+                }
+              ]
+            },
+            "description": "Purpose: List approved reviews for a pack.\nRequired access: Public.\nRequired variables: {{slug}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters.."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "09 - Admin Catalog",
+      "item": [
+        {
+          "name": "GET /admin/attributes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isCustomerAttribute",
+                  "value": "{{isCustomerAttribute}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isProductAttribute",
+                  "value": "{{isProductAttribute}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin attribute groups.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/attributes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create attribute group.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateAttributeGroupDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"COVERAGE\",\n  \"name\": \"Coverage\",\n  \"description\": \"Preferred makeup coverage\",\n  \"isCustomerAttribute\": true,\n  \"isProductAttribute\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/attributes/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes/{{attributeGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{attributeGroupId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin attribute group details.\nRequired access: Admin bearer token.\nRequired variables: {{attributeGroupId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/attributes/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes/{{attributeGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{attributeGroupId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update attribute group.\nRequired access: Admin bearer token.\nRequired variables: {{attributeGroupId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateAttributeGroupDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Coverage\",\n  \"description\": \"Preferred makeup coverage\",\n  \"isCustomerAttribute\": true,\n  \"isProductAttribute\": true,\n  \"sortOrder\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/attributes/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes/{{attributeGroupId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{attributeGroupId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate attribute group.\nRequired access: Admin bearer token.\nRequired variables: {{attributeGroupId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/attributes/{attributeGroupId}/options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes/{{attributeGroupId}}/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes",
+                ":attributeGroupId",
+                "options"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "attributeGroupId",
+                  "value": "{{attributeGroupId}}"
+                }
+              ]
+            },
+            "description": "Purpose: List admin attribute options.\nRequired access: Admin bearer token.\nRequired variables: {{attributeGroupId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/attributes/{attributeGroupId}/options",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attributes/{{attributeGroupId}}/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attributes",
+                ":attributeGroupId",
+                "options"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "attributeGroupId",
+                  "value": "{{attributeGroupId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Create attribute option.\nRequired access: Admin bearer token.\nRequired variables: {{attributeGroupId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateAttributeOptionDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"FULL\",\n  \"label\": \"Full Coverage\",\n  \"description\": \"Maximum makeup coverage\",\n  \"imageUrl\": \"https://example.com/full.jpg\",\n  \"sortOrder\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/attribute-options/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attribute-options/{{attributeOptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attribute-options",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{attributeOptionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin attribute option details.\nRequired access: Admin bearer token.\nRequired variables: {{attributeOptionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/attribute-options/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attribute-options/{{attributeOptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attribute-options",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{attributeOptionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update attribute option.\nRequired access: Admin bearer token.\nRequired variables: {{attributeOptionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateAttributeOptionDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Full Coverage\",\n  \"description\": \"Maximum makeup coverage\",\n  \"imageUrl\": \"https://example.com/full.jpg\",\n  \"sortOrder\": 3,\n  \"minNumericValue\": 150\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/attribute-options/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/attribute-options/{{attributeOptionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "attribute-options",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{attributeOptionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate attribute option.\nRequired access: Admin bearer token.\nRequired variables: {{attributeOptionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "parentId",
+                  "value": "{{parentId}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin categories.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create category.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateCategoryDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"FOUNDATION\",\n  \"name\": \"Foundation\",\n  \"description\": \"Face foundation products\",\n  \"parentId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"imageUrl\": \"https://example.com/foundation.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/categories/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin category details.\nRequired access: Admin bearer token.\nRequired variables: {{categoryId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/categories/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update category.\nRequired access: Admin bearer token.\nRequired variables: {{categoryId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateCategoryDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"FOUNDATION\",\n  \"name\": \"Foundation\",\n  \"description\": \"Face foundation products\",\n  \"parentId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"imageUrl\": \"https://example.com/foundation.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/categories/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate category.\nRequired access: Admin bearer token.\nRequired variables: {{categoryId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/brands",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/brands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "brands"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin brands.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/brands",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/brands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "brands"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create brand.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateBrandDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Beauty\",\n  \"description\": \"Demo brand\",\n  \"logoUrl\": \"https://example.com/logo.png\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/brands/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/brands/{{brandId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "brands",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{brandId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin brand details.\nRequired access: Admin bearer token.\nRequired variables: {{brandId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/brands/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/brands/{{brandId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "brands",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{brandId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update brand.\nRequired access: Admin bearer token.\nRequired variables: {{brandId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateBrandDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Beauty\",\n  \"description\": \"Demo brand\",\n  \"logoUrl\": \"https://example.com/logo.png\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/brands/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/brands/{{brandId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "brands",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{brandId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate brand.\nRequired access: Admin bearer token.\nRequired variables: {{brandId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10 - Admin Products and Stock",
+      "item": [
+        {
+          "name": "POST /admin/products/{productId}/images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":productId",
+                "images"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Upload a product image.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: multipart/form-data.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "role",
+                  "type": "text",
+                  "src": "",
+                  "value": "GALLERY"
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "position",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/products/{productId}/images/reorder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/images/reorder",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":productId",
+                "images",
+                "reorder"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Reorder product images.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ReorderMediaDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"imageId\": \"00000000-0000-4000-8000-000000000001\",\n      \"position\": 0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/products/{productId}/images/{imageId}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/images/{{imageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":productId",
+                "images",
+                ":imageId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}"
+                },
+                {
+                  "key": "imageId",
+                  "value": "{{imageId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update product image metadata.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}, {{imageId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateMediaDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"COVER\",\n  \"altText\": \"Updated foundation image description\",\n  \"position\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/products/{productId}/images/{imageId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/images/{{imageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":productId",
+                "images",
+                ":imageId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}"
+                },
+                {
+                  "key": "imageId",
+                  "value": "{{imageId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Delete a product image.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}, {{imageId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/product-references/{referenceId}/image",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/product-references/{{productReferenceId}}/image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "product-references",
+                ":referenceId",
+                "image"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "referenceId",
+                  "value": "{{productReferenceId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Create or replace a product reference image.\nRequired access: Admin bearer token.\nRequired variables: {{productReferenceId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: multipart/form-data.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/product-references/{referenceId}/image",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/product-references/{{productReferenceId}}/image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "product-references",
+                ":referenceId",
+                "image"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "referenceId",
+                  "value": "{{productReferenceId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Delete a product reference image.\nRequired access: Admin bearer token.\nRequired variables: {{productReferenceId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "productType",
+                  "value": "{{productType}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "{{status}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin products.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/products",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create product.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateProductDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"brandId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"name\": \"Foundation X\",\n  \"slug\": \"foundation-x\",\n  \"productType\": \"face-serum\",\n  \"basePrice\": 120,\n  \"currency\": \"MAD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/products/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin product details.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/products/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update product.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateProductDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"brandId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"name\": \"Foundation X\",\n  \"slug\": \"foundation-x\",\n  \"productType\": \"face-serum\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/products/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Archive product.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/products/{productId}/references",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/references",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":productId",
+                "references"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "inStock",
+                  "value": "{{inStock}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: List product references for a product.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/products/{productId}/references",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/references",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "products",
+                ":productId",
+                "references"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "productId",
+                  "value": "{{productId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Create product reference.\nRequired access: Admin bearer token.\nRequired variables: {{productId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateProductReferenceDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referenceCode\": \"RF2\",\n  \"referenceName\": \"Medium Warm\",\n  \"shadeName\": \"Medium Warm\",\n  \"shadeCode\": \"N20\",\n  \"swatchHex\": \"#E8B98C\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/product-references/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/product-references/{{productReferenceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "product-references",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productReferenceId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get product reference details.\nRequired access: Admin bearer token.\nRequired variables: {{productReferenceId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/product-references/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/product-references/{{productReferenceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "product-references",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productReferenceId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update product reference.\nRequired access: Admin bearer token.\nRequired variables: {{productReferenceId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateProductReferenceDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referenceCode\": \"RF2\",\n  \"referenceName\": \"Medium Warm\",\n  \"shadeName\": \"Medium Warm\",\n  \"shadeCode\": \"N20\",\n  \"swatchHex\": \"#E8B98C\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/product-references/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/product-references/{{productReferenceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "product-references",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productReferenceId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate product reference.\nRequired access: Admin bearer token.\nRequired variables: {{productReferenceId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/product-references/{id}/stock",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/product-references/{{productReferenceId}}/stock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "product-references",
+                ":id",
+                "stock"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{productReferenceId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update product reference stock counts.\nRequired access: Admin bearer token.\nRequired variables: {{productReferenceId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateReferenceStockDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stockQuantity\": 30,\n  \"reservedQuantity\": 2,\n  \"lowStockThreshold\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "11 - Admin Packs",
+      "item": [
+        {
+          "name": "POST /admin/packs/{packId}/images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}/images",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":packId",
+                "images"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Upload a pack image.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: multipart/form-data.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "role",
+                  "type": "text",
+                  "src": "",
+                  "value": "GALLERY"
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "position",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/packs/{packId}/images/reorder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}/images/reorder",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":packId",
+                "images",
+                "reorder"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Reorder pack images.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ReorderMediaDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"imageId\": \"00000000-0000-4000-8000-000000000001\",\n      \"position\": 0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/packs/{packId}/images/{imageId}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}/images/{{imageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":packId",
+                "images",
+                ":imageId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                },
+                {
+                  "key": "imageId",
+                  "value": "{{imageId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update pack image metadata.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}, {{imageId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateMediaDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"COVER\",\n  \"altText\": \"Updated foundation image description\",\n  \"position\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/packs/{packId}/images/{imageId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}/images/{{imageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":packId",
+                "images",
+                ":imageId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                },
+                {
+                  "key": "imageId",
+                  "value": "{{imageId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Delete a pack image.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}, {{imageId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/packs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "{{status}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "priceMode",
+                  "value": "{{priceMode}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "minPrice",
+                  "value": "{{minPrice}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "{{maxPrice}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin packs.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/packs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create pack.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreatePackDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Natural Glow Pack\",\n  \"slug\": \"natural-glow-pack\",\n  \"description\": \"Natural makeup pack\",\n  \"mainImageUrl\": \"https://example.com/pack.jpg\",\n  \"priceMode\": \"FIXED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/packs/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin pack details.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/packs/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update pack.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdatePackDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Natural Glow Pack\",\n  \"slug\": \"natural-glow-pack\",\n  \"description\": \"Natural makeup pack\",\n  \"mainImageUrl\": \"https://example.com/pack.jpg\",\n  \"priceMode\": \"FIXED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/packs/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/packs/{{packId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "packs",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Archive pack.\nRequired access: Admin bearer token.\nRequired variables: {{packId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "12 - Admin Quiz and Rules",
+      "item": [
+        {
+          "name": "GET /admin/quiz/questions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/quiz/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "quiz",
+                "questions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "attributeGroupId",
+                  "value": "{{attributeGroupId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "selectionType",
+                  "value": "{{selectionType}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isRequired",
+                  "value": "{{isRequired}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin quiz questions.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/quiz/questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/quiz/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "quiz",
+                "questions"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create quiz question.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateQuizQuestionDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attributeGroupId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"questionText\": \"What coverage do you prefer?\",\n  \"helperText\": \"Choose your preferred result\",\n  \"selectionType\": \"SINGLE\",\n  \"isRequired\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/quiz/questions/reorder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/quiz/questions/reorder",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "quiz",
+                "questions",
+                "reorder"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Reorder quiz questions.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ReorderQuizQuestionsDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"questionId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n      \"stepOrder\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/quiz/questions/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/quiz/questions/{{quizQuestionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "quiz",
+                "questions",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{quizQuestionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin quiz question details.\nRequired access: Admin bearer token.\nRequired variables: {{quizQuestionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/quiz/questions/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/quiz/questions/{{quizQuestionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "quiz",
+                "questions",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{quizQuestionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update quiz question.\nRequired access: Admin bearer token.\nRequired variables: {{quizQuestionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateQuizQuestionDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attributeGroupId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"questionText\": \"What coverage do you prefer?\",\n  \"helperText\": \"Choose your preferred result\",\n  \"selectionType\": \"SINGLE\",\n  \"isRequired\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/quiz/questions/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/quiz/questions/{{quizQuestionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "quiz",
+                "questions",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{quizQuestionId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate quiz question.\nRequired access: Admin bearer token.\nRequired variables: {{quizQuestionId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/recommendation-rules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/recommendation-rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "recommendation-rules"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "targetType",
+                  "value": "{{targetType}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "conditionType",
+                  "value": "{{conditionType}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "attributeGroupId",
+                  "value": "{{attributeGroupId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "isActive",
+                  "value": "{{isActive}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List recommendation rules.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/recommendation-rules",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/recommendation-rules",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "recommendation-rules"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Create recommendation rule.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateRecommendationRuleDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"COVERAGE_MATCH\",\n  \"name\": \"Coverage match\",\n  \"targetType\": \"PACK\",\n  \"attributeGroupId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"conditionType\": \"MUST_MATCH\",\n  \"scoreValue\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /admin/recommendation-rules/preview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/recommendation-rules/preview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "recommendation-rules",
+                "preview"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Preview recommendations without persistence.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: CreateRecommendationDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerProfileId\": \"00000000-0000-4000-8000-000000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/recommendation-rules/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/recommendation-rules/{{recommendationRuleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "recommendation-rules",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{recommendationRuleId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get recommendation rule details.\nRequired access: Admin bearer token.\nRequired variables: {{recommendationRuleId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/recommendation-rules/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/recommendation-rules/{{recommendationRuleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "recommendation-rules",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{recommendationRuleId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update recommendation rule.\nRequired access: Admin bearer token.\nRequired variables: {{recommendationRuleId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateRecommendationRuleDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Coverage match\",\n  \"targetType\": \"PACK\",\n  \"attributeGroupId\": \"9f72caaa-f55b-4423-b805-911e3e7f61bb\",\n  \"conditionType\": \"MUST_MATCH\",\n  \"scoreValue\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/recommendation-rules/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/recommendation-rules/{{recommendationRuleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "recommendation-rules",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{recommendationRuleId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Deactivate recommendation rule.\nRequired access: Admin bearer token.\nRequired variables: {{recommendationRuleId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "13 - Admin Orders",
+      "item": [
+        {
+          "name": "GET /admin/orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "orderStatus",
+                  "value": "{{orderStatus}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "paymentStatus",
+                  "value": "{{paymentStatus}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "paymentMethod",
+                  "value": "{{paymentMethod}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "selectedPackId",
+                  "value": "{{selectedPackId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sourceChannel",
+                  "value": "{{sourceChannel}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "createdFrom",
+                  "value": "{{createdFrom}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "createdTo",
+                  "value": "{{createdTo}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "minTotal",
+                  "value": "{{minTotal}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "maxTotal",
+                  "value": "{{maxTotal}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List admin orders.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/orders/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "orders",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{orderId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get admin order details.\nRequired access: Admin bearer token.\nRequired variables: {{orderId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/orders/{id}/status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "orders",
+                ":id",
+                "status"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{orderId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update order status.\nRequired access: Admin bearer token.\nRequired variables: {{orderId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateOrderStatusDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\",\n  \"comment\": \"Customer confirmed by phone\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "14 - Admin Reviews",
+      "item": [
+        {
+          "name": "GET /admin/reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "{{status}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "targetType",
+                  "value": "{{targetType}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "productId",
+                  "value": "{{productId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "packId",
+                  "value": "{{packId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List reviews for moderation.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/reviews/{reviewId}/moderation",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reviews/{{reviewId}}/moderation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reviews",
+                ":reviewId",
+                "moderation"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Approve or reject a pending review.\nRequired access: Admin bearer token.\nRequired variables: {{reviewId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ModerateReviewDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\",\n  \"moderationNote\": \"Admin-only reason\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "15 - Admin Media",
+      "item": [
+        {
+          "name": "POST /admin/media/upload",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/media/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "media",
+                "upload"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Purpose: Upload an image asset.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: multipart/form-data.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/media",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/media",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "media"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "search",
+                  "value": "{{search}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "provider",
+                  "value": "{{provider}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "assetType",
+                  "value": "{{assetType}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "folder",
+                  "value": "{{folder}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "usageContext",
+                  "value": "{{usageContext}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "relatedEntity",
+                  "value": "{{relatedEntity}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "relatedEntityId",
+                  "value": "{{relatedEntityId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "includeDeleted",
+                  "value": "{{includeDeleted}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "createdFrom",
+                  "value": "{{createdFrom}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "createdTo",
+                  "value": "{{createdTo}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "{{sortBy}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "{{sortOrder}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "Purpose: List media assets.\nRequired access: Admin bearer token.\nRequired variables: none.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /admin/media/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/media/{{mediaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "media",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{mediaId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Get media asset details.\nRequired access: Admin bearer token.\nRequired variables: {{mediaId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /admin/media/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/media/{{mediaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "media",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{mediaId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Update media asset metadata.\nRequired access: Admin bearer token.\nRequired variables: {{mediaId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: UpdateMediaAssetDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"altText\": \"Updated foundation shade image\",\n  \"usageContext\": \"PACK_MAIN_IMAGE\",\n  \"relatedEntity\": \"PACK\",\n  \"relatedEntityId\": \"00000000-0000-4000-8000-000000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/media/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/media/{{mediaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "media",
+                ":id"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{mediaId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Delete a media asset.\nRequired access: Admin bearer token.\nRequired variables: {{mediaId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /admin/categories/{categoryId}/image",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}/image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories",
+                ":categoryId",
+                "image"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Create or replace a category image.\nRequired access: Admin bearer token.\nRequired variables: {{categoryId}}.\nExpected success status: 201.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: multipart/form-data.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "value": "test-value"
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "src": "",
+                  "value": "test-value"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /admin/categories/{categoryId}/image",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}/image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "categories",
+                ":categoryId",
+                "image"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Delete a category image.\nRequired access: Admin bearer token.\nRequired variables: {{categoryId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request for invalid path/query parameters..\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "16 - Other Admin",
+      "item": [
+        {
+          "name": "POST /packs/{packId}/validate-configuration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/packs/{{packId}}/validate-configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "packs",
+                ":packId",
+                "validate-configuration"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "packId",
+                  "value": "{{packId}}"
+                }
+              ]
+            },
+            "description": "Purpose: Validate a proposed customizable pack configuration.\nRequired access: Public.\nRequired variables: {{packId}}.\nExpected success status: 200.\nMain validation error: 400 Bad Request when required DTO fields are missing, invalid, or unknown..\nRequest body schema: ValidatePackConfigurationDto.\nWarning: this request can create, update, or delete data. Use disposable test records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"packItemId\": \"00000000-0000-4000-8000-000000000010\",\n      \"productReferenceId\": \"00000000-0000-4000-8000-000000000020\",\n      \"quantity\": 2,\n      \"removed\": false\n    }\n  ],\n  \"addOns\": [\n    {\n      \"productId\": \"00000000-0000-4000-8000-000000000030\",\n      \"productReferenceId\": \"00000000-0000-4000-8000-000000000031\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "adminAccessToken",
+      "value": ""
+    }
+  ]
+}
