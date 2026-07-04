@@ -116,6 +116,7 @@ describe('AttributesService admin', () => {
   it('creates an attribute option', async () => {
     prisma.attributeGroup.findUnique.mockResolvedValue({
       id: 'group-1',
+      code: 'COVERAGE',
       isActive: true,
     });
     prisma.attributeOption.findUnique.mockResolvedValue(null);
@@ -132,6 +133,7 @@ describe('AttributesService admin', () => {
   it('rejects duplicate option code inside group', async () => {
     prisma.attributeGroup.findUnique.mockResolvedValue({
       id: 'group-1',
+      code: 'COVERAGE',
       isActive: true,
     });
     prisma.attributeOption.findUnique.mockResolvedValue({ id: 'option-1' });
@@ -144,6 +146,7 @@ describe('AttributesService admin', () => {
   it('allows same option code in another group when schema permits it', async () => {
     prisma.attributeGroup.findUnique.mockResolvedValue({
       id: 'group-2',
+      code: 'COVERAGE',
       isActive: true,
     });
     prisma.attributeOption.findUnique.mockResolvedValue(null);
@@ -176,6 +179,90 @@ describe('AttributesService admin', () => {
 
     expect(errors.map((error) => error.property)).toEqual(
       expect.arrayContaining(['code', 'attributeGroupId']),
+    );
+  });
+
+  it('persists a BUDGET option with a valid numeric range', async () => {
+    prisma.attributeGroup.findUnique.mockResolvedValue({
+      id: 'budget-group',
+      code: 'BUDGET',
+      isActive: true,
+    });
+    prisma.attributeOption.findUnique.mockResolvedValue(null);
+
+    await service.adminCreateOption('budget-group', {
+      code: 'LOW',
+      label: 'Low',
+      minNumericValue: 150,
+      maxNumericValue: 220,
+    });
+
+    expect(prisma.attributeOption.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          minNumericValue: 150,
+          maxNumericValue: 220,
+        }),
+      }),
+    );
+  });
+
+  it('rejects a BUDGET option with min greater than max', async () => {
+    prisma.attributeGroup.findUnique.mockResolvedValue({
+      id: 'budget-group',
+      code: 'BUDGET',
+      isActive: true,
+    });
+    prisma.attributeOption.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreateOption('budget-group', {
+        code: 'BROKEN',
+        label: 'Broken',
+        minNumericValue: 350,
+        maxNumericValue: 220,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a BUDGET option with a negative numeric range', async () => {
+    prisma.attributeGroup.findUnique.mockResolvedValue({
+      id: 'budget-group',
+      code: 'BUDGET',
+      isActive: true,
+    });
+    prisma.attributeOption.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreateOption('budget-group', {
+        code: 'NEGATIVE',
+        label: 'Negative',
+        minNumericValue: -1,
+        maxNumericValue: 220,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('keeps a non-BUDGET option valid without a numeric range', async () => {
+    prisma.attributeGroup.findUnique.mockResolvedValue({
+      id: 'style-group',
+      code: 'STYLE',
+      isActive: true,
+    });
+    prisma.attributeOption.findUnique.mockResolvedValue(null);
+
+    await service.adminCreateOption('style-group', {
+      code: 'NATURAL',
+      label: 'Natural',
+    });
+
+    expect(prisma.attributeOption.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          minNumericValue: null,
+          maxNumericValue: null,
+        }),
+      }),
     );
   });
 

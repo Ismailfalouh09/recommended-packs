@@ -31,6 +31,7 @@ describe('ProductsService admin catalog', () => {
       product: {
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(productFixture()),
         findUnique: jest.fn(),
         create: jest.fn().mockResolvedValue(productFixture()),
         update: jest
@@ -120,12 +121,17 @@ describe('ProductsService admin catalog', () => {
       categoryId: 'category-1',
       brandId: 'brand-1',
       isActive: true,
+      basePrice: new Prisma.Decimal(120),
+      costPrice: new Prisma.Decimal(70),
+      compareAtPrice: null,
+      currency: 'MAD',
     });
+    tx.product.update.mockResolvedValue(productFixture({ name: 'Updated' }));
 
     const result = await service.adminUpdate('product-1', { name: 'Updated' });
 
     expect(result.name).toBe('Updated');
-    expect(prisma.product.update).toHaveBeenCalled();
+    expect(tx.product.update).toHaveBeenCalled();
   });
 
   it('rejects active products on inactive categories', async () => {
@@ -147,6 +153,233 @@ describe('ProductsService admin catalog', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects a cost price above the base price', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        categoryId: 'category-1',
+        name: 'Foundation X',
+        slug: 'foundation-x',
+        basePrice: 120,
+        costPrice: 130,
+        currency: 'MAD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects an unsupported currency', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        categoryId: 'category-1',
+        name: 'Foundation X',
+        slug: 'foundation-x',
+        basePrice: 120,
+        currency: 'USD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a compare-at price not above the base price', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.adminCreate({
+        categoryId: 'category-1',
+        name: 'Foundation X',
+        slug: 'foundation-x',
+        basePrice: 120,
+        compareAtPrice: 100,
+        currency: 'MAD',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('derives onSale and % saving from a valid compare-at price', async () => {
+    prisma.product.findUnique.mockResolvedValue(null);
+    prisma.product.create.mockResolvedValue(
+      productFixture({
+        basePrice: new Prisma.Decimal(120),
+        compareAtPrice: new Prisma.Decimal(150),
+      }),
+    );
+
+    const result = await service.adminCreate({
+      categoryId: 'category-1',
+      name: 'Foundation X',
+      slug: 'foundation-x',
+      basePrice: 120,
+      compareAtPrice: 150,
+      currency: 'MAD',
+    });
+
+    expect(result.onSale).toBe(true);
+    expect(result.percentageSaving).toBe(20);
+  });
+
+  it('exposes a derived stock signal (not raw reserved/threshold) on public variants', async () => {
+    prisma.product.findFirst.mockResolvedValue(
+      productFixture({
+        references: [
+          {
+            id: 'ref-1',
+            referenceCode: 'RF1',
+            referenceName: 'Medium Warm',
+            shadeName: 'Medium Warm',
+            shadeCode: 'N20',
+            swatchHex: '#E8B98C',
+            measurement: null,
+            variationType: 'SHADE',
+            priceOverride: null,
+            priceDelta: new Prisma.Decimal(10),
+            imageUrl: null,
+            image: null,
+            stockQuantity: 3,
+            reservedQuantity: 1,
+            lowStockThreshold: 5,
+            isDefault: true,
+            attributes: [],
+          },
+        ],
+      }),
+    );
+
+    const result: any = await service.findOne('product-1');
+    const reference = result.references[0];
+
+    expect(reference.inStock).toBe(true);
+    expect(reference.lowStock).toBe(true);
+    expect(reference.currentPrice).toBe(130);
+    expect(reference.price.current).toBe(130);
+    expect(reference).not.toHaveProperty('reservedQuantity');
+    expect(reference).not.toHaveProperty('lowStockThreshold');
+    expect(reference).not.toHaveProperty('stockQuantity');
+    expect(result.priceFrom).toBe(130);
+  });
+
+  it('returns safe public catalog cards without admin-only fields', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      productFixture({
+        mainImageUrl: 'https://cdn.example/legacy.jpg',
+        compareAtPrice: new Prisma.Decimal(150),
+        references: [
+          {
+            id: 'ref-1',
+            referenceCode: 'RF1',
+            referenceName: 'Medium Warm',
+            shadeName: 'Medium Warm',
+            shadeCode: 'N20',
+            swatchHex: '#E8B98C',
+            measurement: null,
+            variationType: 'SHADE',
+            priceOverride: null,
+            priceDelta: new Prisma.Decimal(10),
+            imageUrl: null,
+            image: null,
+            stockQuantity: 4,
+            reservedQuantity: 1,
+            lowStockThreshold: 5,
+            isDefault: true,
+            attributes: [],
+          },
+        ],
+        images: [imageFixture()],
+      }),
+    ]);
+
+    const result: any = await service.findAll();
+    const card = result[0];
+
+    expect(card).toMatchObject({
+      id: 'product-1',
+      slug: 'foundation-x',
+      name: 'Foundation X',
+      priceFrom: 130,
+      currentPrice: 130,
+      originalPrice: 150,
+      onSale: true,
+      inStock: true,
+    });
+    expect(card).not.toHaveProperty('references');
+    expect(card).not.toHaveProperty('status');
+    expect(card).not.toHaveProperty('isActive');
+    expect(card).not.toHaveProperty('costPrice');
+    expect(card.coverImage).not.toHaveProperty('id');
+    expect(card.coverImage).not.toHaveProperty('mediaAssetId');
+  });
+
+  it('returns a PDP response with selected and selectable references', async () => {
+    prisma.product.findFirst.mockResolvedValue(
+      productFixture({
+        compareAtPrice: new Prisma.Decimal(150),
+        references: [
+          {
+            id: 'ref-1',
+            referenceCode: 'RF1',
+            referenceName: 'Medium Warm',
+            shadeName: 'Medium Warm',
+            shadeCode: 'N20',
+            swatchHex: '#E8B98C',
+            measurement: '30ml',
+            variationType: 'SHADE',
+            sku: 'SKU-RF1',
+            priceOverride: null,
+            priceDelta: new Prisma.Decimal(10),
+            imageUrl: 'https://cdn.example/ref-legacy.jpg',
+            image: imageFixture({ role: 'SWATCH', mediaId: 'media-ref' }),
+            stockQuantity: 3,
+            reservedQuantity: 1,
+            lowStockThreshold: 5,
+            isDefault: true,
+            attributes: [],
+          },
+        ],
+        images: [imageFixture()],
+      }),
+    );
+
+    const result: any = await service.findOne('product-1', {
+      selectedReferenceId: 'ref-1',
+    });
+
+    expect(result.selectedReference).toMatchObject({
+      id: 'ref-1',
+      label: 'Medium Warm',
+      sku: 'SKU-RF1',
+      currentPrice: 130,
+      originalPrice: 150,
+      inStock: true,
+      disabledReason: null,
+      shade: {
+        name: 'Medium Warm',
+        code: 'N20',
+      },
+      swatch: {
+        hex: '#E8B98C',
+      },
+    });
+    expect(result.selectableReferences).toHaveLength(1);
+    expect(result.addToCart).toMatchObject({
+      requiresReference: true,
+      selectedReferenceId: 'ref-1',
+      canAdd: true,
+      disabledReason: null,
+    });
+    expect(result.selectedReference.image).not.toHaveProperty('mediaAssetId');
+    expect(result.selectedReference).not.toHaveProperty('barcode');
+    expect(result.selectedReference).not.toHaveProperty('stockQuantity');
+  });
+
+  it('rejects selecting a reference that is not active on the public PDP', async () => {
+    prisma.product.findFirst.mockResolvedValue(productFixture());
+
+    await expect(
+      service.findOne('product-1', { selectedReferenceId: 'missing-ref' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('archives a product and deactivates its references', async () => {
     prisma.product.findUnique.mockResolvedValue({ id: 'product-1' });
 
@@ -160,8 +393,8 @@ describe('ProductsService admin catalog', () => {
     });
   });
 
-  it('public product endpoint excludes archived or inactive products', async () => {
-    prisma.product.findFirst = jest.fn().mockResolvedValue(null);
+  it('public product endpoint excludes non-active products (status single source)', async () => {
+    prisma.product.findFirst.mockResolvedValue(null);
 
     await expect(service.findOne('product-1')).rejects.toBeInstanceOf(
       NotFoundException,
@@ -170,11 +403,184 @@ describe('ProductsService admin catalog', () => {
       expect.objectContaining({
         where: {
           id: 'product-1',
-          isActive: true,
           status: ProductStatus.ACTIVE,
         },
       }),
     );
+  });
+
+  it('public product endpoint returns active product details by ID', async () => {
+    prisma.product.findFirst.mockResolvedValue(productFixture());
+
+    const result = await service.findOne('product-1');
+
+    expect(result).toMatchObject({
+      id: 'product-1',
+      slug: 'foundation-x',
+      references: [],
+      images: [],
+    });
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'product-1',
+          status: ProductStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public product slug endpoint returns active product details', async () => {
+    prisma.product.findFirst.mockResolvedValue(productFixture());
+
+    const result = await service.findBySlug('foundation-x');
+
+    expect(result).toMatchObject({
+      id: 'product-1',
+      slug: 'foundation-x',
+      references: [],
+      images: [],
+    });
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'foundation-x',
+          status: ProductStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public product slug endpoint returns 404 for unknown slugs', async () => {
+    prisma.product.findFirst.mockResolvedValue(null);
+
+    await expect(service.findBySlug('unknown-product')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          slug: 'unknown-product',
+          status: ProductStatus.ACTIVE,
+        },
+      }),
+    );
+  });
+
+  it('public product listing keeps the plain array response without params', async () => {
+    prisma.product.findMany.mockResolvedValue([productFixture()]);
+
+    const result = await service.findAll();
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: ProductStatus.ACTIVE,
+        },
+        orderBy: [{ createdAt: 'desc' }],
+      }),
+    );
+  });
+
+  it('public product listing supports search', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ search: 'primer' });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { name: { contains: 'primer', mode: 'insensitive' } },
+            { slug: { contains: 'primer', mode: 'insensitive' } },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('public product listing supports category code filters', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ categoryCode: 'FACE' });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          category: { code: 'FACE' },
+        }),
+      }),
+    );
+  });
+
+  it('public product listing supports price sorting', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ sortBy: 'basePrice', sortOrder: 'asc' });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ basePrice: 'asc' }],
+      }),
+    );
+  });
+
+  it('public product listing supports in-stock filtering', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ inStock: true });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          references: {
+            some: {
+              isActive: true,
+              stockQuantity: { gt: 0 },
+            },
+          },
+        }),
+      }),
+    );
+  });
+
+  it('public product listing supports on-sale filtering', async () => {
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.findAll({ onSale: true });
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          compareAtPrice: { not: null },
+        }),
+      }),
+    );
+  });
+
+  it('public product listing returns a paginated response when requested', async () => {
+    prisma.product.findMany.mockResolvedValue([productFixture()]);
+    prisma.product.count.mockResolvedValue(1);
+
+    const result = await service.findAll({ page: 1, size: 1 });
+
+    expect(result).toMatchObject({
+      data: [expect.objectContaining({ id: 'product-1' })],
+      pagination: {
+        page: 1,
+        pageSize: 1,
+        totalItems: 1,
+        totalPages: 1,
+      },
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 0,
+        take: 1,
+      }),
+    );
+    expect(prisma.product.count).toHaveBeenCalled();
   });
 });
 
@@ -185,10 +591,17 @@ function productFixture(overrides: Record<string, unknown> = {}) {
     brandId: 'brand-1',
     name: 'Foundation X',
     slug: 'foundation-x',
+    productType: null,
+    shortDescription: null,
     description: null,
+    ingredients: null,
+    directions: null,
     basePrice: new Prisma.Decimal(120),
+    compareAtPrice: null,
     costPrice: new Prisma.Decimal(70),
     currency: 'MAD',
+    metaTitle: null,
+    metaDescription: null,
     mainImageUrl: null,
     status: ProductStatus.ACTIVE,
     isActive: true,
@@ -197,7 +610,29 @@ function productFixture(overrides: Record<string, unknown> = {}) {
     category: { id: 'category-1', code: 'FOUNDATION', name: 'Foundation' },
     brand: { id: 'brand-1', name: 'Demo Beauty' },
     references: [],
+    images: [],
     _count: { packItems: 0 },
+    ...overrides,
+  };
+}
+
+function imageFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'image-1',
+    mediaId: 'media-1',
+    role: 'COVER',
+    position: 0,
+    altText: 'Foundation bottle',
+    createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-12T00:00:00.000Z'),
+    media: {
+      format: 'webp',
+      mimeType: 'image/webp',
+      width: 1200,
+      height: 1200,
+      bytes: 120000,
+      secureUrl: 'https://cdn.example/product-cover.webp',
+    },
     ...overrides,
   };
 }

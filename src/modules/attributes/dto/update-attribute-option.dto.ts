@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUrl } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Min,
+} from 'class-validator';
 import { optionalTrimmedString } from '../../../common/transforms/query.transforms';
 
 export class UpdateAttributeOptionDto {
@@ -27,6 +35,28 @@ export class UpdateAttributeOptionDto {
   @Type(() => Number)
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({
+    example: 150,
+    nullable: true,
+    description: 'Budget-only numeric lower bound.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  minNumericValue?: number | null;
+
+  @ApiPropertyOptional({
+    example: 220,
+    nullable: true,
+    description: 'Budget-only numeric upper bound.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  maxNumericValue?: number | null;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()

@@ -1,18 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { VariationType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
 import {
+  optionalBoolean,
+  optionalJsonArray,
   optionalTrimmedString,
   optionalUppercase,
 } from '../../../common/transforms/query.transforms';
@@ -30,6 +35,46 @@ export class CreateProductReferenceDto {
   @IsString()
   @IsNotEmpty()
   referenceName!: string;
+
+  @ApiPropertyOptional({
+    example: 'Medium Warm',
+    description: 'Structured shade identity (augments referenceName).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
+  @IsString()
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'N20' })
+  @IsOptional()
+  @Transform(({ value }) => optionalUppercase(value))
+  @IsString()
+  shadeCode?: string | null;
+
+  @ApiPropertyOptional({
+    example: '#E8B98C',
+    description: 'Hex colour for swatch UI (#RRGGBB).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalUppercase(value))
+  @Matches(/^#[0-9A-F]{6}$/, {
+    message: 'swatchHex must be a #RRGGBB hex colour.',
+  })
+  swatchHex?: string | null;
+
+  @ApiPropertyOptional({ example: '45ml' })
+  @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
+  @IsString()
+  measurement?: string | null;
+
+  @ApiPropertyOptional({
+    enum: VariationType,
+    description: 'Single variation axis for this reference.',
+  })
+  @IsOptional()
+  @IsEnum(VariationType)
+  variationType?: VariationType | null;
 
   @ApiPropertyOptional({ example: null })
   @IsOptional()
@@ -85,16 +130,19 @@ export class CreateProductReferenceDto {
 
   @ApiPropertyOptional({ example: false, default: false })
   @IsOptional()
+  @Transform(({ value }) => optionalBoolean(value))
   @IsBoolean()
   isDefault?: boolean;
 
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()
+  @Transform(({ value }) => optionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
 
   @ApiPropertyOptional({ type: [ReferenceAttributeInputDto] })
   @IsOptional()
+  @Transform(({ value }) => optionalJsonArray(value))
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReferenceAttributeInputDto)

@@ -4,10 +4,12 @@ import {
   IsBoolean,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   Matches,
+  Min,
 } from 'class-validator';
 import {
   optionalTrimmedString,
@@ -45,6 +47,28 @@ export class CreateAttributeOptionDto {
   @Type(() => Number)
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({
+    example: 150,
+    nullable: true,
+    description: 'Budget-only numeric lower bound.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  minNumericValue?: number | null;
+
+  @ApiPropertyOptional({
+    example: 220,
+    nullable: true,
+    description: 'Budget-only numeric upper bound.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  maxNumericValue?: number | null;
 
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()

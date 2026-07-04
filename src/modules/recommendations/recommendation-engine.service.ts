@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { MatchType, ProductStatus, SelectionMode } from '@prisma/client';
+import {
+  MatchType,
+  PackCompatibilityCriterion,
+  PackCompatibilityMode,
+  PriceMode,
+  Prisma,
+  ProductStatus,
+  SelectionMode,
+} from '@prisma/client';
 
 type AnswerMap = Record<string, string>;
 
@@ -21,17 +29,23 @@ export interface EngineReference {
   id: string;
   referenceCode: string;
   referenceName: string;
+  priceOverride?: Prisma.Decimal | number | null;
+  priceDelta?: Prisma.Decimal | number | null;
   stockQuantity: number;
   reservedQuantity: number;
   isActive: boolean;
+  image?: unknown;
   attributes: EngineAttribute[];
 }
 
 export interface EngineProduct {
   id: string;
   name: string;
+  basePrice?: Prisma.Decimal | number | null;
   isActive: boolean;
   status: ProductStatus;
+  images?: unknown[];
+  attributes?: EngineAttribute[];
   references: EngineReference[];
 }
 
@@ -44,30 +58,67 @@ export interface EnginePackItem {
   product: EngineProduct;
 }
 
+/**
+ * Pack Recommendation MVP — the Pack's compatibility profile for one criterion,
+ * loaded from the PackCompatibilityProfile foundation. Consumed only by the MVP
+ * matching layer; the engine itself ignores it (its scoring stays unchanged).
+ */
+export interface EngineCompatibilityProfile {
+  criterion: PackCompatibilityCriterion;
+  mode: PackCompatibilityMode;
+  values: Array<{ attributeOption: { code: string } }>;
+}
+
 export interface EnginePack {
   id: string;
   name: string;
   priority: number;
+  images?: unknown[];
   attributes: EngineAttribute[];
   items: EnginePackItem[];
+  // Pack Recommendation MVP — additive, optional inputs for the five-criterion
+  // algorithm. The legacy engine does not read these, so existing scoring is
+  // byte-identical when they are absent.
+  priceMode?: PriceMode;
+  fixedPrice?: Prisma.Decimal | number | null;
+  discountAmount?: Prisma.Decimal | number | null;
+  discountPercentage?: Prisma.Decimal | number | null;
+  compatibilityProfiles?: EngineCompatibilityProfile[];
+}
+
+export interface SelectableReferenceOption {
+  referenceId: string;
+  referenceName: string;
+  referenceImage?: unknown;
+  quantity: number;
 }
 
 export interface SelectedRecommendationItem {
   packItemId: string;
   productId: string;
   productName: string;
-  referenceId: string;
-  referenceName: string;
+  referenceId: string | null;
+  referenceName: string | null;
+  productImages?: unknown[];
+  referenceImage?: unknown;
   quantity: number;
   itemScore: number;
   itemMaxScore: number;
   scoredForAverage: boolean;
+  /**
+   * True for a required customer-choice slot that is eligible but awaiting the
+   * customer's final reference selection. The engine intentionally does not pick
+   * a concrete reference for such a slot; `availableOptions` lists the valid ones.
+   */
+  selectionRequired?: boolean;
+  availableOptions?: SelectableReferenceOption[];
   reason: Record<string, unknown>;
 }
 
 export interface EngineRecommendation {
   packId: string;
   packName: string;
+  packImages?: unknown[];
   rank: number;
   totalScore: number;
   matchPercentage: number;
@@ -91,12 +142,29 @@ export interface EngineRecommendation {
       }
     >;
     details: Record<string, unknown>;
+    // Pack Recommendation MVP — per-criterion compatibility breakdown, set by the
+    // use-case for the final ranked results (absent in the raw engine output).
+    compatibility?: Record<string, unknown>;
   };
   selectedItems: SelectedRecommendationItem[];
+  // Pack Recommendation MVP — set by RecommendationUseCaseService on the final,
+  // re-ranked top results. Undefined on raw engine output.
+  compatibilityScore?: number;
+  customerReasons?: string[];
+  recommendationType?: 'BEST_MATCH' | 'ALTERNATIVE';
+}
+
+interface AttributeScore {
+  score: number;
+  maxScore: number;
+  matched: boolean;
+  matches: Array<Record<string, unknown>>;
 }
 
 @Injectable()
 export class RecommendationEngineService {
+  private readonly referenceFilterGroups = new Set(['SKIN_COLOR', 'UNDERTONE']);
+
   private readonly fallbackScores: RuleScores = {
     SKIN_COLOR_MATCH: 40,
     UNDERTONE_MATCH: 25,
@@ -255,6 +323,7 @@ export class RecommendationEngineService {
     return {
       packId: pack.id,
       packName: pack.name,
+      packImages: pack.images,
       rank: 0,
       totalScore,
       matchPercentage,
@@ -289,6 +358,20 @@ export class RecommendationEngineService {
     answers: AnswerMap,
     ruleScores: RuleScores,
   ): SelectedRecommendationItem | null {
+    const productScore = this.scoreAttributes(
+      item.product.attributes ?? [],
+      answers,
+      ruleScores,
+    );
+
+    if (!productScore) {
+      return null;
+    }
+
+    if (item.selectionMode === SelectionMode.CUSTOMER_CHOICE) {
+      return this.selectCustomerChoice(item, productScore, answers, ruleScores);
+    }
+
     if (item.selectionMode === SelectionMode.FIXED_REFERENCE) {
       const fixedReference = item.product.references.find(
         (reference) => reference.id === item.productReferenceId,
@@ -301,6 +384,7 @@ export class RecommendationEngineService {
       return this.scoreReference(
         item,
         fixedReference,
+        productScore,
         answers,
         ruleScores,
         'FIXED_REFERENCE',
@@ -309,73 +393,128 @@ export class RecommendationEngineService {
 
     const bestReference = item.product.references
       .filter((reference) => this.isReferenceAvailable(reference))
+      .filter((reference) =>
+        this.isReferenceCompatibleWithAnswers(item.product, reference, answers),
+      )
       .map((reference) =>
         this.scoreReference(
           item,
           reference,
+          productScore,
           answers,
           ruleScores,
           item.selectionMode,
         ),
+      )
+      .filter(
+        (selectedReference): selectedReference is SelectedRecommendationItem =>
+          selectedReference !== null,
       )
       .sort((left, right) => {
         if (right.itemScore !== left.itemScore) {
           return right.itemScore - left.itemScore;
         }
 
-        return left.referenceName.localeCompare(right.referenceName);
+        return (left.referenceName ?? '').localeCompare(
+          right.referenceName ?? '',
+        );
       })[0];
 
     return bestReference ?? null;
   }
 
+  /**
+   * A required customer-choice slot stays eligible as long as at least one
+   * compatible, active, in-stock reference exists. The engine never commits to a
+   * concrete reference here (that is the customer's decision); it only confirms
+   * eligibility and surfaces the valid options. Returns `null` only when there is
+   * zero valid candidate, in which case the slot fails and the pack is excluded.
+   */
+  private selectCustomerChoice(
+    item: EnginePackItem,
+    productScore: AttributeScore,
+    answers: AnswerMap,
+    ruleScores: RuleScores,
+  ): SelectedRecommendationItem | null {
+    const candidates = item.product.references
+      .filter((reference) => this.isReferenceAvailable(reference))
+      .filter((reference) =>
+        this.isReferenceCompatibleWithAnswers(item.product, reference, answers),
+      )
+      .map((reference) =>
+        this.scoreReference(
+          item,
+          reference,
+          productScore,
+          answers,
+          ruleScores,
+          'CUSTOMER_CHOICE',
+        ),
+      )
+      .filter(
+        (selectedReference): selectedReference is SelectedRecommendationItem =>
+          selectedReference !== null,
+      );
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    const availableOptions: SelectableReferenceOption[] = candidates
+      .slice()
+      .sort((left, right) =>
+        (left.referenceName ?? '').localeCompare(right.referenceName ?? ''),
+      )
+      .map((candidate) => ({
+        referenceId: candidate.referenceId as string,
+        referenceName: candidate.referenceName as string,
+        referenceImage: candidate.referenceImage,
+        quantity: candidate.quantity,
+      }));
+
+    return {
+      packItemId: item.id,
+      productId: item.product.id,
+      productName: item.product.name,
+      referenceId: null,
+      referenceName: null,
+      productImages: item.product.images,
+      referenceImage: null,
+      quantity: item.quantity,
+      itemScore: 0,
+      itemMaxScore: 0,
+      scoredForAverage: false,
+      selectionRequired: true,
+      availableOptions,
+      reason: {
+        selectionMode: 'CUSTOMER_CHOICE',
+        selectionRequired: true,
+        availableOptionCount: availableOptions.length,
+      },
+    };
+  }
+
   private scoreReference(
     item: EnginePackItem,
     reference: EngineReference,
+    productScore: AttributeScore,
     answers: AnswerMap,
     ruleScores: RuleScores,
     selectionReason: string,
-  ): SelectedRecommendationItem {
-    let itemScore = 0;
-    const maxScoreByGroup = new Map<string, number>();
-    const matches: Array<Record<string, unknown>> = [];
+  ): SelectedRecommendationItem | null {
+    const referenceScore = this.scoreAttributes(
+      reference.attributes,
+      answers,
+      ruleScores,
+    );
 
-    for (const attribute of reference.attributes) {
-      const groupCode = attribute.attributeGroup.code;
-      const answerOptionCode = answers[groupCode];
-      const score = this.scoreForGroup(groupCode, ruleScores);
-      const attributeBonus = this.safePositiveScore(attribute.scoreValue);
-      const totalAttributeScore = score + attributeBonus;
-
-      if (answerOptionCode && totalAttributeScore > 0) {
-        const currentMax = maxScoreByGroup.get(groupCode) ?? 0;
-        maxScoreByGroup.set(
-          groupCode,
-          Math.max(currentMax, totalAttributeScore),
-        );
-      }
-
-      const matchesCustomerAnswer =
-        answerOptionCode === attribute.attributeOption.code;
-
-      if (!matchesCustomerAnswer) {
-        continue;
-      }
-
-      itemScore += totalAttributeScore;
-      matches.push({
-        groupCode,
-        optionCode: attribute.attributeOption.code,
-        score,
-        attributeBonus,
-      });
+    if (!referenceScore) {
+      return null;
     }
 
-    const itemMaxScore = [...maxScoreByGroup.values()].reduce(
-      (sum, score) => sum + score,
-      0,
-    );
-    const scoredForAverage = matches.length > 0;
+    const itemScore = productScore.score + referenceScore.score;
+    const itemMaxScore = productScore.maxScore + referenceScore.maxScore;
+    const scoredForAverage = productScore.matched || referenceScore.matched;
 
     return {
       packItemId: item.id,
@@ -383,6 +522,8 @@ export class RecommendationEngineService {
       productName: item.product.name,
       referenceId: reference.id,
       referenceName: `${reference.referenceCode} ${reference.referenceName}`,
+      productImages: item.product.images,
+      referenceImage: reference.image,
       quantity: item.quantity,
       itemScore,
       itemMaxScore,
@@ -391,9 +532,124 @@ export class RecommendationEngineService {
         selectionMode: selectionReason,
         itemMaxScore,
         scoredForAverage,
-        matches,
+        productMatches: productScore.matches,
+        referenceMatches: referenceScore.matches,
       },
     };
+  }
+
+  private scoreAttributes(
+    attributes: EngineAttribute[],
+    answers: AnswerMap,
+    ruleScores: RuleScores,
+  ): AttributeScore | null {
+    let scoreTotal = 0;
+    const maxScoreByGroup = new Map<string, number>();
+    const matches: Array<Record<string, unknown>> = [];
+
+    for (const attribute of attributes) {
+      const groupCode = attribute.attributeGroup.code;
+      const answerOptionCode = answers[groupCode];
+      const baseScore = this.scoreForGroup(groupCode, ruleScores);
+      const attributeBonus = this.safePositiveScore(attribute.scoreValue);
+      const totalAttributeScore = baseScore + attributeBonus;
+      const matchesCustomerAnswer =
+        answerOptionCode === attribute.attributeOption.code;
+
+      if (
+        answerOptionCode &&
+        totalAttributeScore > 0 &&
+        attribute.matchType !== MatchType.NOT_COMPATIBLE
+      ) {
+        const currentMax = maxScoreByGroup.get(groupCode) ?? 0;
+        maxScoreByGroup.set(
+          groupCode,
+          Math.max(currentMax, totalAttributeScore),
+        );
+      }
+
+      if (
+        matchesCustomerAnswer &&
+        attribute.matchType === MatchType.NOT_COMPATIBLE
+      ) {
+        if (attribute.isHardFilter) {
+          return null;
+        }
+
+        continue;
+      }
+
+      if (
+        answerOptionCode &&
+        !matchesCustomerAnswer &&
+        attribute.isHardFilter &&
+        attribute.matchType !== MatchType.NOT_COMPATIBLE
+      ) {
+        return null;
+      }
+
+      if (
+        matchesCustomerAnswer &&
+        (attribute.matchType === MatchType.COMPATIBLE ||
+          attribute.matchType === MatchType.BOOST)
+      ) {
+        scoreTotal += totalAttributeScore;
+        matches.push({
+          groupCode,
+          optionCode: attribute.attributeOption.code,
+          score: baseScore,
+          attributeBonus,
+        });
+      }
+    }
+
+    return {
+      score: scoreTotal,
+      maxScore: [...maxScoreByGroup.values()].reduce(
+        (sum, score) => sum + score,
+        0,
+      ),
+      matched: matches.length > 0,
+      matches,
+    };
+  }
+
+  private isReferenceCompatibleWithAnswers(
+    product: EngineProduct,
+    reference: EngineReference,
+    answers: AnswerMap,
+  ): boolean {
+    for (const groupCode of this.referenceFilterGroups) {
+      const answerOptionCode = answers[groupCode];
+
+      if (!answerOptionCode) {
+        continue;
+      }
+
+      const productUsesGroup = product.references.some((candidate) =>
+        candidate.attributes.some(
+          (attribute) => attribute.attributeGroup.code === groupCode,
+        ),
+      );
+
+      if (!productUsesGroup) {
+        continue;
+      }
+
+      const matchesCompatibleAnswer = reference.attributes.some(
+        (attribute) =>
+          attribute.attributeGroup.code === groupCode &&
+          attribute.attributeOption.code === answerOptionCode &&
+          (attribute.matchType === MatchType.COMPATIBLE ||
+            attribute.matchType === MatchType.BOOST),
+      );
+
+      if (!matchesCompatibleAnswer) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private scoreForGroup(groupCode: string, ruleScores: RuleScores): number {

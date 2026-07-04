@@ -1,0 +1,417 @@
+{
+    "sku": "BFBB0426F",
+    "parentProductId": "6r3KBSErcZMMAKFLv6BNNN",
+    "name": "Renew + Smooth Serum",
+    "description": "A retinol-based serum.\n\nFor skin that is hydrated, smooth and clear, make an appointment with By BEAUTY BAY's Renew + Smooth Serum with Retinol and Peptides. This skin-loving serum helps to improve the appearance of pigmentation, dark spots, fine lines, and wrinkles thanks to the 0.2% retinol complex while added peptides infuse the skin with moisture, helping to improve the skin’s clarity. Perfect for first-time retinol users, this serum is soon to be your new BFF. \n\n- Vegan\n- Cruelty-free\n- Fragrance-free\n- We recommend easing into using daily\n- Perfect for first-time retinol users\n- If you aren’t obsessed with your BY BEAUTY BAY product, we’ll give you __100% of your money back__ with our 100% Obsessed Promise. See full [T&Cs here](https://www.beautybay.com/s/obsessed-promise).\n",
+    "ingredients": "Aqua (Water), Propanediol, Polysorbate 20, Tocopherol, Acetyl Hexapeptide-1, Retinol, Benzyl Alcohol, Xanthan Gum, Hydroxyethylcellulose, Ethylhexylglycerin, disodium Edta, Undecane, 1,2-hexanediol, Tridecane, Citric Acid.\n\n*Please be aware that ingredient lists for products in our brand are updated regularly. Please refer to the ingredient list on the product package for the most up-to-date list of ingredients to ensure it is suitable for your personal use.",
+    "directions": "- Warnings – This product contains Vitamin A. It is not recommended to use in pregnancy and while breastfeeding. Use with caution if taking dietary supplements or using other products containing Vitamin A.\n\n- When first starting to use this serum, do not use daily, as your skin needs to build a tolerance to the retinol.\n- Use a couple of times a week at first and then build up to daily use.\n- Apply 1 to 2 drops directly onto the skin. \n- Use as part of your PM skincare routine. \n- Follow with SPF the morning after.\n",
+    "comingSoon": null,
+    "outOfStockMessage": null,
+    "measurement": "45ml",
+    "shadeDescription": null,
+    "variationType": "size",
+    "showBackInStock": false,
+    "accentColour": "#FFFFFF",
+    "category": "skincare",
+    "categoryName": "skincare",
+    "productType": "Face Serums",
+    "maxPerCustomer": 5,
+    "tribeExclusive": false,
+    "tribePoints": null,
+    "tribe": null,
+    "brand": {
+        "name": "By BEAUTY BAY",
+        "slug": "beautybay",
+        "lookupName": "By BEAUTY BAY"
+    },
+    "media": {
+        "images": [
+            "https://images.beautybay.com/eoaaqxyywn6o/6jo1Mp70Dw7DAKgBS1Pnh0/58e46f1b5ea08bd5dc4bfbe28bb0cf99/BFBB0426F.jpg",
+            "https://images.beautybay.com/eoaaqxyywn6o/5yvRVbcc1ZNE8hn7bFLgSf/e3b7b9ebb2f09cc65e8a424b705eadcd/PDP_RENEW.jpg",
+            "https://images.beautybay.com/eoaaqxyywn6o/7asqp629PihR4Ep9Wg2KZr/c8d7b32c54909617d7ec725c5df8e7d3/JANUARY_SERUMS0501.jpg",
+            "https://images.beautybay.com/eoaaqxyywn6o/6Bu6RlcBntTdLN7dAhGnHR/038a20ab5edcdf1e9309eed3ec1e6f31/BFBB0426F_3.jpg"
+        ],
+        "video": null
+    },
+    "variants": {
+        "inStock": [
+            {
+                "name": "Renew + Smooth Serum",
+                "swatch": null,
+                "sku": "BFBB0426F",
+                "url": "45",
+                "measurement": "45ml",
+                "shadeDescription": null,
+                "imageUrl": "https://images.beautybay.com/eoaaqxyywn6o/6jo1Mp70Dw7DAKgBS1Pnh0/58e46f1b5ea08bd5dc4bfbe28bb0cf99/BFBB0426F.jpg",
+                "price": {
+                    "amount": "£3.95",
+                    "originalAmount": "£10.00",
+                    "originalItemPrice": 10,
+                    "itemPrice": 3.95,
+                    "itemCurrency": "GBP",
+                    "displayPrice": {
+                        "symbol": "£",
+                        "majorAmount": "3",
+                        "minorAmount": "95"
+                    },
+                    "priceRange": null
+                }
+            }
+        ],
+        "outOfStock": [
+            {
+                "name": "Renew + Smooth Serum",
+                "swatch": null,
+                "sku": "BFBB0806F",
+                "url": "2-x-45ml",
+                "measurement": "2 x 45ml",
+                "shadeDescription": null,
+                "imageUrl": "https://images.beautybay.com/eoaaqxyywn6o/4tb35uod7emPPm0l9mlr8F/94add6bd913887449a89a70946faa87e/BFBB0806F.jpg",
+                "price": {
+                    "amount": "£16.00",
+                    "originalAmount": null,
+                    "originalItemPrice": null,
+                    "itemPrice": 16,
+                    "itemCurrency": "GBP",
+                    "displayPrice": {
+                        "symbol": "£",
+                        "majorAmount": "16",
+                        "minorAmount": "00"
+                    },
+                    "priceRange": null
+                }
+            }
+        ],
+        "showSwatch": false
+    },
+    "inStock": true,
+    "price": {
+        "amount": "£3.95",
+        "originalAmount": "£10.00",
+        "originalItemPrice": 10,
+        "itemPrice": 3.95,
+        "itemCurrency": "GBP",
+        "displayPrice": {
+            "symbol": "£",
+            "majorAmount": "3",
+            "minorAmount": "95"
+        },
+        "priceRange": null
+    },
+    "prices": [
+        {
+            "currencyCode": "GBP",
+            "price": 3.95
+        },
+        {
+            "currencyCode": "GBP",
+            "price": 3.95
+        },
+        {
+            "currencyCode": "EUR",
+            "price": 4.8
+        },
+        {
+            "currencyCode": "EUR",
+            "price": 4.8
+        },
+        {
+            "currencyCode": "EUR",
+            "price": 4.8
+        },
+        {
+            "currencyCode": "EUR",
+            "price": 4.8
+        },
+        {
+            "currencyCode": "AUD",
+            "price": 8
+        },
+        {
+            "currencyCode": "SEK",
+            "price": 52
+        },
+        {
+            "currencyCode": "DKK",
+            "price": 36
+        },
+        {
+            "currencyCode": "NOK",
+            "price": 52
+        },
+        {
+            "currencyCode": "USD",
+            "price": 5.2
+        },
+        {
+            "currencyCode": "USD",
+            "price": 5.2
+        },
+        {
+            "currencyCode": "EUR",
+            "price": 4.75
+        },
+        {
+            "currencyCode": "SGD",
+            "price": 7
+        },
+        {
+            "currencyCode": "HKD",
+            "price": 40
+        },
+        {
+            "currencyCode": "THB",
+            "price": 184
+        },
+        {
+            "currencyCode": "BRL",
+            "price": 24
+        },
+        {
+            "currencyCode": "RUB",
+            "price": 400
+        },
+        {
+            "currencyCode": "JPY",
+            "price": 760
+        },
+        {
+            "currencyCode": "INR",
+            "price": 427
+        },
+        {
+            "currencyCode": "CHF",
+            "price": 4.4
+        },
+        {
+            "currencyCode": "NZD",
+            "price": 7.95
+        },
+        {
+            "currencyCode": "CAD",
+            "price": 7
+        },
+        {
+            "currencyCode": "ILS",
+            "price": 18
+        },
+        {
+            "currencyCode": "TWD",
+            "price": 160
+        },
+        {
+            "currencyCode": "SAR",
+            "price": 20
+        },
+        {
+            "currencyCode": "AED",
+            "price": 19
+        },
+        {
+            "currencyCode": "BHD",
+            "price": 1.8
+        },
+        {
+            "currencyCode": "QAR",
+            "price": 18
+        },
+        {
+            "currencyCode": "OMR",
+            "price": 2
+        },
+        {
+            "currencyCode": "KWD",
+            "price": 1.6
+        },
+        {
+            "currencyCode": "JOD",
+            "price": 3.6
+        }
+    ],
+    "reviewSummary": {
+        "count": 189,
+        "overallRating": "4.7"
+    },
+    "isRestricted": false,
+    "priceRange": null,
+    "displayPriceRange": null,
+    "supplement": {
+        "reviewProductInfo": {
+            "BFBB0426F": {
+                "name": "Renew + Smooth Serum",
+                "swatch": null
+            },
+            "BFBB0806F": {
+                "name": "Renew + Smooth Serum",
+                "swatch": null
+            }
+        },
+        "skus": [
+            "BFBB0426F"
+        ]
+    },
+    "onSale": true,
+    "attraqt": {
+        "id": "variant-BFBB0426F",
+        "category": "skincare",
+        "productType": "Face Serums",
+        "facets": [
+            {
+                "facet": "preference",
+                "values": [
+                    "Plant/Fruit Extracts",
+                    "Peptides",
+                    "Retinol"
+                ]
+            },
+            {
+                "facet": "formulation",
+                "values": [
+                    "Serum"
+                ]
+            },
+            {
+                "facet": "concern",
+                "values": [
+                    "Blackheads/Blemishes",
+                    "Fine Lines & Wrinkles",
+                    "Discolouration",
+                    "Hyperpigmentation",
+                    "Uneven Skin Tone/Texture",
+                    "Dullness"
+                ]
+            },
+            {
+                "facet": "feature",
+                "values": [
+                    "3x15",
+                    "New"
+                ]
+            },
+            {
+                "facet": "skinType",
+                "values": [
+                    "Balanced",
+                    "Mature",
+                    "Oily",
+                    "Dry",
+                    "All",
+                    "Combination"
+                ]
+            },
+            {
+                "facet": "ingredients-conscious",
+                "values": [
+                    "Fragrance Free",
+                    "Cruelty Free",
+                    "Vegan Friendly",
+                    "Vegan & Cruelty Free"
+                ]
+            }
+        ],
+        "currency": "GB_GBP"
+    },
+    "seoData": {
+        "metaTitle": "By BEAUTY BAY Renew + Smooth Serum -  at BEAUTY BAY",
+        "metaDescription": "A retinol-based serum.\n\nFor skin that is hydrated, smooth and clear, make an appointment with By BEAUTY BAY's Renew + Smooth Serum with Retinol and Peptides. This skin-loving serum helps to improve the appearance of pigmentation, dark spots, fine lines, and wrinkles thanks to the 0.2% retinol complex while added peptides infuse the skin with moisture, helping to improve the skin’s clarity. Perfect for first-time retinol users, this serum is soon to be your new BFF. \n\n- Vegan\n- Cruelty-free\n- Fragrance-free\n- We recommend easing into using daily\n- Perfect for first-time retinol users\n- If you aren’t obsessed with your BY BEAUTY BAY product, we’ll give you __100% of your money back__ with our 100% Obsessed Promise. See full [T&Cs here](https://www.beautybay.com/s/obsessed-promise).\n",
+        "metaKeywords": null,
+        "canonical": "https://www.beautybay.com/p/beauty-bay/renew-smooth-serum/",
+        "structuredMarkup": {
+            "breadcrumbs": "{\"@context\":\"http://schema.org\",\"@type\":\"BreadcrumbList\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"item\":{\"@id\":\"https://www.beautybay.com/\",\"name\":\"Homepage\"}},{\"@type\":\"ListItem\",\"position\":2,\"item\":{\"@id\":\"https://www.beautybay.com/l/skincare/\",\"name\":\"Skincare\"}},{\"@type\":\"ListItem\",\"position\":3,\"item\":{\"@id\":\"https://www.beautybay.com/l/beautybay/\",\"name\":\"By BEAUTY BAY\"}},{\"@type\":\"ListItem\",\"position\":4,\"item\":{\"@id\":\"https://www.beautybay.com/l/beautybay/faceserums/\",\"name\":\"Face Serums\"}},{\"@type\":\"ListItem\",\"position\":5,\"item\":{\"@id\":\"https://www.beautybay.com/p/beauty-bay/renew-smooth-serum/\",\"name\":\"Renew + Smooth Serum\"}}]}"
+        }
+    },
+    "sticker": null,
+    "promoText": [
+        {
+            "headerIcon": null,
+            "header": "Get an extra £5 off when you spend £40+ on By BEAUTY BAY",
+            "text": "Your extra £5 discount has been applied",
+            "promoTitle": "Extra £5 off when you spend £40+ on By BEAUTY BAY",
+            "promoTextColor": null,
+            "promoBackgroundColor": null,
+            "imageText": null,
+            "locale": [
+                "GB"
+            ],
+            "shortDescription": "Get an extra £5 off when you spend £40+ on By BEAUTY BAY",
+            "slideoutDescription": null,
+            "slideoutImage": "",
+            "slideoutLinks": null,
+            "termsAndConditions": "Discount will be added at checkout once code is entered. This offer is for a limited time only.",
+            "includedCountries": null,
+            "destination": "WEB",
+            "surfaceDiscountToPdp": false
+        }
+    ],
+    "calloutAnimation": null,
+    "languagesUsingFallback": [
+        "en-US",
+        "en-AU"
+    ],
+    "exclusive": false,
+    "hideDescription": false,
+    "enhancedMediaZones": [
+        {
+            "content": null,
+            "media": {
+                "image": {
+                    "mobile": "https://images.beautybay.com/eoaaqxyywn6o/57aar06S5RnO6LHC3oHRAt/57db85dae90852aedb2346f4b21759c1/MicrosoftTeams-image__2_.png?fm=jpg&fl=progressive&w=700&q=75",
+                    "desktop": "https://images.beautybay.com/eoaaqxyywn6o/57aar06S5RnO6LHC3oHRAt/57db85dae90852aedb2346f4b21759c1/MicrosoftTeams-image__2_.png?fm=jpg&fl=progressive&w=1520&q=75"
+                },
+                "video": null
+            },
+            "mediaBackground": null,
+            "contentAlignment": null
+        },
+        {
+            "content": null,
+            "media": {
+                "image": {
+                    "mobile": "https://images.beautybay.com/eoaaqxyywn6o/31AZP7YT6H6b6Kbg8ogjdC/216b9c7a8835145cc761fd1b619ca423/EPDP-Renew_and_Smooth_Routine.jpg?fm=jpg&fl=progressive&w=700&q=75",
+                    "desktop": "https://images.beautybay.com/eoaaqxyywn6o/31AZP7YT6H6b6Kbg8ogjdC/216b9c7a8835145cc761fd1b619ca423/EPDP-Renew_and_Smooth_Routine.jpg?fm=jpg&fl=progressive&w=1520&q=75"
+                },
+                "video": null
+            },
+            "mediaBackground": null,
+            "contentAlignment": null
+        },
+        {
+            "content": {
+                "title": "Not obsessed? We’ll refund you.",
+                "markdown": "Our 100% Obsessed Promise means we'll give you 100% of your money back on any By BEAUTY BAY item you don't love. Available within 60 days of your purchase.\n",
+                "button": {
+                    "text": "Read our T&C's",
+                    "link": "https://www.beautybay.com/s/obsessed-promise/"
+                }
+            },
+            "media": {
+                "image": {
+                    "mobile": "https://images.beautybay.com/eoaaqxyywn6o/2zSta8GjnHFeSZYSXJBQxH/a02ae0a6ae115984a7b8e07753a8dc79/EPDP.jpg?fm=jpg&fl=progressive&w=700&q=75",
+                    "desktop": "https://images.beautybay.com/eoaaqxyywn6o/2zSta8GjnHFeSZYSXJBQxH/a02ae0a6ae115984a7b8e07753a8dc79/EPDP.jpg?fm=jpg&fl=progressive&w=1520&q=75"
+                },
+                "video": null
+            },
+            "mediaBackground": null,
+            "contentAlignment": "right"
+        }
+    ],
+    "newStock": false,
+    "backInStock": false,
+    "percentageSaving": 60,
+    "showOptions": {
+        "description": true,
+        "ingredients": true,
+        "directions": true,
+        "delivery": true,
+        "deliveryMessages": true,
+        "reviews": true,
+        "brandLink": true
+    },
+    "saleablePlatform": "both",
+    "deliveryCountdown": {
+        "cutOffTime": "14:00",
+        "header": "WANT IT BY TOMORROW?",
+        "message": "Order today by 2pm for Next Day*",
+        "subMessage": "Free on hauls over £40"
+    }
+}

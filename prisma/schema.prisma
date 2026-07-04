@@ -29,7 +29,14 @@ enum SelectionType {
 enum ProductStatus {
   DRAFT
   ACTIVE
+  HIDDEN
   ARCHIVED
+}
+
+enum VariationType {
+  SHADE
+  SIZE
+  BUNDLE
 }
 
 enum PackStatus {
@@ -50,10 +57,75 @@ enum SelectionMode {
   CUSTOMER_CHOICE
 }
 
+enum PackItemRole {
+  FIXED
+  REQUIRED_SELECTABLE
+  OPTIONAL_INCLUDED
+  OPTIONAL_ADDON
+}
+
+// Pack Core Evolution (Phase 4A) — public catalog discovery facets. These are
+// coarse marketing classifications used only for browsing/filtering. They are
+// intentionally distinct from PackCompatibilityProfile (which expresses the full
+// suitability set consumed by the recommendation engine) and are never used for
+// scoring, pricing, or eligibility.
+enum PackTier {
+  ESSENTIAL
+  PREMIUM
+  LUXE
+}
+
+enum PackOccasion {
+  EVERYDAY
+  WORK
+  EVENING
+  PARTY
+  WEDDING
+  SPECIAL_EVENT
+}
+
+enum PackExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  EXPERT
+}
+
 enum MatchType {
   COMPATIBLE
   NOT_COMPATIBLE
   BOOST
+}
+
+// Pack Core Evolution (Phase 2.5) — the five admin-managed compatibility
+// dimensions a Pack can express suitability for. Each criterion maps to a
+// canonical AttributeGroup (single source of truth shared with the quiz):
+//   SKIN_TONE -> SKIN_COLOR, SKIN_TYPE -> SKIN_TYPE, MAKEUP_STYLE -> STYLE,
+//   BUDGET -> BUDGET, OCCASION -> OCCASION.
+enum PackCompatibilityCriterion {
+  SKIN_TONE
+  SKIN_TYPE
+  MAKEUP_STYLE
+  BUDGET
+  OCCASION
+}
+
+// Per-criterion applicability mode. Absence of a profile row for a (pack,
+// criterion) means UNCONFIGURED (legacy default) — distinct from an explicit
+// UNIVERSAL row. UNIVERSAL needs no values; RESTRICTED needs >= 1 value.
+enum PackCompatibilityMode {
+  UNIVERSAL
+  RESTRICTED
+}
+
+// Pack Core Evolution (Phase 6) — how a persisted PackConfiguration originated.
+// Mirrors the string union used by the Order snapshot builder. Phase 6 only
+// persists CUSTOMIZED configurations; the other values are reserved for later
+// phases (fixed capture, quiz recommendation, generated packs).
+enum PackConfigurationSourceType {
+  FIXED
+  CUSTOMIZED
+  QUIZ_RECOMMENDED
+  QUIZ_GENERATED
 }
 
 enum RecommendationTargetType {
@@ -113,6 +185,22 @@ enum MessageStatus {
   FAILED
 }
 
+enum MediaAssetProvider {
+  CLOUDINARY
+}
+
+enum MediaAssetType {
+  IMAGE
+}
+
+enum MediaRole {
+  COVER
+  GALLERY
+  THUMBNAIL
+  SWATCH
+  ICON
+}
+
 /**
  * =========================================================
  * 1. ATTRIBUTES / QUIZ FOUNDATION
@@ -135,6 +223,7 @@ model AttributeGroup {
   quizQuestions              QuizQuestion[]
   customerProfileAnswers     CustomerProfileAnswer[]
   productReferenceAttributes ProductReferenceAttribute[]
+  productAttributes          ProductAttribute[]
   packAttributes             PackAttribute[]
   recommendationRules        RecommendationRule[]
 
@@ -142,21 +231,25 @@ model AttributeGroup {
 }
 
 model AttributeOption {
-  id               String  @id @default(uuid()) @db.Uuid
-  attributeGroupId String  @map("attribute_group_id") @db.Uuid
-  code             String  @db.VarChar(80)
-  label            String  @db.VarChar(120)
+  id               String   @id @default(uuid()) @db.Uuid
+  attributeGroupId String   @map("attribute_group_id") @db.Uuid
+  code             String   @db.VarChar(80)
+  label            String   @db.VarChar(120)
   description      String?
-  imageUrl         String? @map("image_url")
-  sortOrder        Int     @default(0) @map("sort_order")
-  isActive         Boolean @default(true) @map("is_active")
+  imageUrl         String?  @map("image_url")
+  sortOrder        Int      @default(0) @map("sort_order")
+  isActive         Boolean  @default(true) @map("is_active")
+  minNumericValue  Decimal? @map("min_numeric_value") @db.Decimal(10, 2)
+  maxNumericValue  Decimal? @map("max_numeric_value") @db.Decimal(10, 2)
 
   attributeGroup AttributeGroup @relation(fields: [attributeGroupId], references: [id], onDelete: Cascade)
 
   quizQuestionOptions        QuizQuestionOption[]
   customerProfileAnswers     CustomerProfileAnswer[]
   productReferenceAttributes ProductReferenceAttribute[]
+  productAttributes          ProductAttribute[]
   packAttributes             PackAttribute[]
+  packCompatibilityValues    PackCompatibilityValue[]
 
   @@unique([attributeGroupId, code])
   @@index([attributeGroupId])
@@ -221,6 +314,7 @@ model CustomerProfile {
   recommendationSessions RecommendationSession[]
   orders                 Order[]
   events                 CustomerEvent[]
+  wishlistItems          WishlistItem[]
 
   @@index([sourceChannel])
   @@index([createdAt])
@@ -249,6 +343,46 @@ model CustomerProfileAnswer {
 }
 
 /**
+ * Pack Core Evolution (Phase 8A) — Universal Wishlist foundation.
+ *
+ * A WishlistItem is owned by the anonymous session (`CustomerProfile`, the same
+ * `sessionToken` identity produced by the quiz). It saves exactly one of a public
+ * PRODUCT or a public PACK; `targetType` records which. `productId`/`packId` are
+ * real, cascading foreign keys (only one is ever set per row), so the wishlist
+ * stays consistent if the underlying catalog entry is later removed.
+ *
+ * Duplicate protection is enforced at the database level per owner + target via
+ * two composite unique indexes. Postgres treats NULLs as distinct, so a
+ * `(profile, productId)` unique never conflicts across the NULL productId of
+ * PACK rows (and vice versa). PackConfiguration wishlisting is intentionally out
+ * of scope for this phase.
+ */
+enum WishlistTargetType {
+  PRODUCT
+  PACK
+}
+
+model WishlistItem {
+  id                String             @id @default(uuid()) @db.Uuid
+  customerProfileId String             @map("customer_profile_id") @db.Uuid
+  targetType        WishlistTargetType @map("target_type")
+  productId         String?            @map("product_id") @db.Uuid
+  packId            String?            @map("pack_id") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  customerProfile CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  product         Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pack            Pack?           @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([customerProfileId, productId])
+  @@unique([customerProfileId, packId])
+  @@index([customerProfileId])
+  @@index([productId])
+  @@index([packId])
+  @@map("wishlist_items")
+}
+
+/**
  * =========================================================
  * 3. PRODUCT CATALOG
  * =========================================================
@@ -270,6 +404,8 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
 
   products Product[]
+  packs    Pack[]
+  image    CategoryImage?
 
   @@index([parentId])
   @@index([sortOrder])
@@ -291,58 +427,81 @@ model Brand {
 }
 
 model Product {
-  id           String        @id @default(uuid()) @db.Uuid
-  categoryId   String        @map("category_id") @db.Uuid
-  brandId      String?       @map("brand_id") @db.Uuid
-  name         String        @db.VarChar(180)
-  slug         String        @unique @db.VarChar(200)
-  description  String?
-  basePrice    Decimal       @map("base_price") @db.Decimal(10, 2)
-  costPrice    Decimal?      @map("cost_price") @db.Decimal(10, 2)
-  currency     String        @default("MAD") @db.Char(3)
-  mainImageUrl String?       @map("main_image_url")
-  status       ProductStatus @default(DRAFT)
-  isActive     Boolean       @default(true) @map("is_active")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  id               String        @id @default(uuid()) @db.Uuid
+  categoryId       String        @map("category_id") @db.Uuid
+  brandId          String?       @map("brand_id") @db.Uuid
+  name             String        @db.VarChar(180)
+  slug             String        @unique @db.VarChar(200)
+  productType      String?       @map("product_type") @db.VarChar(60)
+  shortDescription String?       @map("short_description") @db.VarChar(280)
+  description      String?
+  ingredients      String?       @db.Text
+  directions       String?       @db.Text
+  basePrice        Decimal       @map("base_price") @db.Decimal(10, 2)
+  compareAtPrice   Decimal?      @map("compare_at_price") @db.Decimal(10, 2)
+  costPrice        Decimal?      @map("cost_price") @db.Decimal(10, 2)
+  currency         String        @default("MAD") @db.Char(3)
+  metaTitle        String?       @map("meta_title") @db.VarChar(180)
+  metaDescription  String?       @map("meta_description") @db.VarChar(320)
+  mainImageUrl     String?       @map("main_image_url")
+  status           ProductStatus @default(DRAFT)
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   brand    Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
   references                ProductReference[]
+  attributes                ProductAttribute[]
+  images                    ProductImage[]
   packItems                 PackItem[]
+  packAllowedAddOns         PackAllowedAddOn[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
+  wishlistItems             WishlistItem[]
+  reviews                   Review[]
 
   @@index([categoryId])
   @@index([brandId])
   @@index([status])
   @@index([isActive])
+  @@index([productType])
+  @@index([status, categoryId])
   @@map("products")
 }
 
 model ProductReference {
-  id                String   @id @default(uuid()) @db.Uuid
-  productId         String   @map("product_id") @db.Uuid
-  referenceCode     String   @map("reference_code") @db.VarChar(80)
-  referenceName     String   @map("reference_name") @db.VarChar(160)
-  barcode           String?  @unique @db.VarChar(120)
-  sku               String?  @unique @db.VarChar(120)
-  priceOverride     Decimal? @map("price_override") @db.Decimal(10, 2)
-  priceDelta        Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
-  imageUrl          String?  @map("image_url")
-  stockQuantity     Int      @default(0) @map("stock_quantity")
-  reservedQuantity  Int      @default(0) @map("reserved_quantity")
-  lowStockThreshold Int      @default(5) @map("low_stock_threshold")
-  isDefault         Boolean  @default(false) @map("is_default")
-  isActive          Boolean  @default(true) @map("is_active")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                String         @id @default(uuid()) @db.Uuid
+  productId         String         @map("product_id") @db.Uuid
+  referenceCode     String         @map("reference_code") @db.VarChar(80)
+  referenceName     String         @map("reference_name") @db.VarChar(160)
+  shadeName         String?        @map("shade_name") @db.VarChar(120)
+  shadeCode         String?        @map("shade_code") @db.VarChar(60)
+  swatchHex         String?        @map("swatch_hex") @db.VarChar(7)
+  measurement       String?        @db.VarChar(40)
+  variationType     VariationType? @map("variation_type")
+  barcode           String?        @unique @db.VarChar(120)
+  sku               String?        @unique @db.VarChar(120)
+  priceOverride     Decimal?       @map("price_override") @db.Decimal(10, 2)
+  priceDelta        Decimal        @default(0) @map("price_delta") @db.Decimal(10, 2)
+  imageUrl          String?        @map("image_url")
+  stockQuantity     Int            @default(0) @map("stock_quantity")
+  reservedQuantity  Int            @default(0) @map("reserved_quantity")
+  lowStockThreshold Int            @default(5) @map("low_stock_threshold")
+  isDefault         Boolean        @default(false) @map("is_default")
+  isActive          Boolean        @default(true) @map("is_active")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   attributes                ProductReferenceAttribute[]
+  image                     ProductReferenceImage?
+  galleryImages             ProductReferenceGalleryImage[]
   packItems                 PackItem[]
+  packItemAllowedReferences PackItemAllowedReference[]
+  packAllowedAddOns         PackAllowedAddOn[]
   recommendationResultItems RecommendationResultItem[]
   orderItems                OrderItem[]
 
@@ -350,6 +509,7 @@ model ProductReference {
   @@index([productId])
   @@index([isActive])
   @@index([stockQuantity])
+  @@index([variationType])
   @@map("product_references")
 }
 
@@ -375,6 +535,28 @@ model ProductReferenceAttribute {
   @@map("product_reference_attributes")
 }
 
+model ProductAttribute {
+  id                String    @id @default(uuid()) @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  attributeGroupId  String    @map("attribute_group_id") @db.Uuid
+  attributeOptionId String    @map("attribute_option_id") @db.Uuid
+  matchType         MatchType @default(COMPATIBLE) @map("match_type")
+  scoreValue        Int       @default(0) @map("score_value")
+  isHardFilter      Boolean   @default(false) @map("is_hard_filter")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  product         Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeGroup  AttributeGroup  @relation(fields: [attributeGroupId], references: [id], onDelete: Restrict)
+  attributeOption AttributeOption @relation(fields: [attributeOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, attributeGroupId, attributeOptionId])
+  @@index([productId])
+  @@index([attributeGroupId])
+  @@index([attributeOptionId])
+  @@index([matchType])
+  @@map("product_attributes")
+}
+
 /**
  * =========================================================
  * 4. PACKS
@@ -397,19 +579,54 @@ model Pack {
   priority           Int        @default(0)
   status             PackStatus @default(DRAFT)
   isActive           Boolean    @default(true) @map("is_active")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
 
+  // Pack Core Evolution (Phase 2) — additive customization foundation.
+  // Foundation-only: stored and returned, but inert in current runtime logic.
+  isCustomizable   Boolean  @default(false) @map("is_customizable")
+  minRequiredItems Int?     @map("min_required_items")
+  maxItemCount     Int?     @map("max_item_count")
+  minAllowedPrice  Decimal? @map("min_allowed_price") @db.Decimal(10, 2)
+
+  // Pack Core Evolution (Phase 4A) — additive public discovery fields. Optional
+  // and defaulted so existing Packs read back byte-identically. `category` reuses
+  // the shared Category entity (no PackCategory duplication).
+  categoryId      String?              @map("category_id") @db.Uuid
+  tier            PackTier?
+  occasion        PackOccasion?
+  experienceLevel PackExperienceLevel? @map("experience_level")
+  isFeatured      Boolean              @default(false) @map("is_featured")
+  isNew           Boolean              @default(false) @map("is_new")
+  isBestSeller    Boolean              @default(false) @map("is_best_seller")
+  tags            String[]             @default([])
+  searchKeywords  String?              @map("search_keywords")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  category              Category?                  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   items                 PackItem[]
   attributes            PackAttribute[]
+  images                PackImage[]
+  allowedAddOns         PackAllowedAddOn[]
+  compatibilityProfiles PackCompatibilityProfile[]
   recommendationResults RecommendationResult[]
-  orders                Order[]                @relation("SelectedPackOrders")
-  orderItems            OrderItem[]            @relation("PackOrderItems")
+  orders                Order[]                    @relation("SelectedPackOrders")
+  orderItems            OrderItem[]                @relation("PackOrderItems")
+  configurations        PackConfiguration[]        @relation("PackConfigurations")
+  wishlistItems         WishlistItem[]
+  reviews               Review[]
 
   @@index([status])
   @@index([isActive])
   @@index([priority])
   @@index([minBudget, maxBudget])
+  @@index([categoryId])
+  @@index([tier])
+  @@index([occasion])
+  @@index([experienceLevel])
+  @@index([isFeatured])
+  @@index([isNew])
+  @@index([isBestSeller])
   @@map("packs")
 }
 
@@ -422,19 +639,31 @@ model PackItem {
   selectionMode      SelectionMode @default(AUTO_BEST_REFERENCE) @map("selection_mode")
   isRequired         Boolean       @default(true) @map("is_required")
   sortOrder          Int           @default(0) @map("sort_order")
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  // Pack Core Evolution (Phase 2) — additive role taxonomy & customization rules.
+  // Foundation-only: `selectionMode`/`isRequired` remain authoritative at runtime.
+  role               PackItemRole @default(FIXED)
+  minQuantity        Int?         @map("min_quantity")
+  maxQuantity        Int?         @map("max_quantity")
+  quantityEditable   Boolean      @default(false) @map("quantity_editable")
+  removalAllowed     Boolean      @default(false) @map("removal_allowed")
+  replacementAllowed Boolean      @default(false) @map("replacement_allowed")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   pack             Pack              @relation(fields: [packId], references: [id], onDelete: Cascade)
   product          Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
-  productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: SetNull)
+  productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: Restrict)
 
+  allowedReferences         PackItemAllowedReference[]
   recommendationResultItems RecommendationResultItem[]
 
   @@index([packId])
   @@index([productId])
   @@index([productReferenceId])
   @@index([selectionMode])
+  @@index([role])
   @@map("pack_items")
 }
 
@@ -458,6 +687,162 @@ model PackAttribute {
   @@index([attributeOptionId])
   @@index([matchType])
   @@map("pack_attributes")
+}
+
+/**
+ * Pack Core Evolution (Phase 2) — additive customization foundation tables.
+ * These store the *allowed* selections for future customizable Packs. They are
+ * foundation data only and are NOT consumed by recommendation, pricing, cart,
+ * checkout, order, or stock logic in this phase.
+ */
+
+model PackItemAllowedReference {
+  id                 String   @id @default(uuid()) @db.Uuid
+  packItemId         String   @map("pack_item_id") @db.Uuid
+  productReferenceId String   @map("product_reference_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  packItem         PackItem         @relation(fields: [packItemId], references: [id], onDelete: Cascade)
+  productReference ProductReference @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([packItemId, productReferenceId])
+  @@index([packItemId])
+  @@index([productReferenceId])
+  @@map("pack_item_allowed_references")
+}
+
+model PackAllowedAddOn {
+  id                 String   @id @default(uuid()) @db.Uuid
+  packId             String   @map("pack_id") @db.Uuid
+  productId          String   @map("product_id") @db.Uuid
+  productReferenceId String?  @map("product_reference_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  pack             Pack              @relation(fields: [packId], references: [id], onDelete: Cascade)
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productReference ProductReference? @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, productId, productReferenceId])
+  @@index([packId])
+  @@index([productId])
+  @@index([productReferenceId])
+  @@map("pack_allowed_add_ons")
+}
+
+/**
+ * Pack Core Evolution (Phase 2.5) — Pack Compatibility Profile foundation.
+ * Declares, per Pack and per supported criterion, which canonical customer-answer
+ * values a Pack is suitable for. Stored as normalized links to canonical
+ * AttributeOption records (single source of truth shared with the quiz) — never
+ * free text. This data is admin-managed foundation only and is NOT consumed by
+ * the recommendation engine, scoring, filtering, pricing, cart, checkout, order,
+ * or stock logic in this phase. A missing profile row for a (pack, criterion)
+ * pair means UNCONFIGURED.
+ */
+model PackCompatibilityProfile {
+  id        String                     @id @default(uuid()) @db.Uuid
+  packId    String                     @map("pack_id") @db.Uuid
+  criterion PackCompatibilityCriterion
+  mode      PackCompatibilityMode      @default(RESTRICTED)
+  createdAt DateTime                   @default(now()) @map("created_at")
+  updatedAt DateTime                   @updatedAt @map("updated_at")
+
+  pack   Pack                     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  values PackCompatibilityValue[]
+
+  @@unique([packId, criterion])
+  @@index([packId])
+  @@index([criterion])
+  @@map("pack_compatibility_profiles")
+}
+
+model PackCompatibilityValue {
+  id                String   @id @default(uuid()) @db.Uuid
+  profileId         String   @map("profile_id") @db.Uuid
+  attributeOptionId String   @map("attribute_option_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  profile         PackCompatibilityProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  attributeOption AttributeOption          @relation(fields: [attributeOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([profileId, attributeOptionId])
+  @@index([profileId])
+  @@index([attributeOptionId])
+  @@map("pack_compatibility_values")
+}
+
+/**
+ * Pack Core Evolution (Phase 6) — persisted, server-authoritative Pack
+ * configuration. Created only after {@link validatePackConfiguration} passes, so
+ * a stored row always reflects a valid, server-recomputed composition and price
+ * (never a client-supplied price). The immutable `validationResult` JSON freezes
+ * the validator output at persistence time; `items` capture the normalized
+ * server-calculated composition (selected references, quantities, removed
+ * optional items, and added add-ons). A configuration is revalidated again at
+ * checkout before an order is created.
+ */
+model PackConfiguration {
+  id               String                      @id @default(uuid()) @db.Uuid
+  sourcePackId     String                      @map("source_pack_id") @db.Uuid
+  sourceType       PackConfigurationSourceType @default(CUSTOMIZED) @map("source_type")
+  // Pack Core Evolution (Phase 9) — additive, nullable link to the persisted
+  // RecommendationResult a QUIZ_RECOMMENDED configuration was created from. Null
+  // for all CUSTOMIZED (Phase 6) configurations. SetNull on delete so historical
+  // configurations survive if the recommendation session is later pruned.
+  recommendationResultId String?                @map("recommendation_result_id") @db.Uuid
+  finalPrice       Decimal                     @map("final_price") @db.Decimal(10, 2)
+  currency         String                      @default("MAD") @db.Char(3)
+  minAllowedPrice  Decimal?                    @map("min_allowed_price") @db.Decimal(10, 2)
+  isValid          Boolean                     @default(true) @map("is_valid")
+  stockStatus      String                      @map("stock_status") @db.VarChar(20)
+  validationResult Json                        @map("validation_result")
+  // Pack Core Evolution (Phase 8B) — opt-in public share capability. Null until
+  // the configuration is explicitly shared; once minted it is a unique, opaque
+  // token that resolves the read-only, customer-safe shared view. No customer,
+  // quiz, validation, or cost data is ever exposed through it.
+  shareToken       String?                     @unique @map("share_token") @db.VarChar(64)
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+
+  sourcePack           Pack                    @relation("PackConfigurations", fields: [sourcePackId], references: [id], onDelete: Restrict)
+  recommendationResult RecommendationResult?   @relation("RecommendedConfigurations", fields: [recommendationResultId], references: [id], onDelete: SetNull)
+  items                PackConfigurationItem[]
+  orders               Order[]                 @relation("PackConfigurationOrders")
+
+  @@index([sourcePackId])
+  @@index([sourceType])
+  @@index([recommendationResultId])
+  @@map("pack_configurations")
+}
+
+/**
+ * Pack Core Evolution (Phase 6) — one normalized line of a persisted
+ * PackConfiguration. `role` stores the PackItemRole for base items or the
+ * literal "ADD_ON" for add-ons. `productId`/`productReferenceId` are stored as
+ * plain identifiers (snapshot-style, no hard FK) so the configuration stays
+ * historically readable even if the underlying product/reference later changes;
+ * live existence/stock/price are re-checked from the source Pack at checkout.
+ */
+model PackConfigurationItem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  configurationId    String   @map("configuration_id") @db.Uuid
+  packItemId         String?  @map("pack_item_id") @db.Uuid
+  productId          String   @map("product_id") @db.Uuid
+  productReferenceId String?  @map("product_reference_id") @db.Uuid
+  role               String   @db.VarChar(30)
+  quantity           Int      @default(1)
+  unitPrice          Decimal  @map("unit_price") @db.Decimal(10, 2)
+  lineTotal          Decimal  @map("line_total") @db.Decimal(10, 2)
+  isAddOn            Boolean  @default(false) @map("is_add_on")
+  removed            Boolean  @default(false) @map("removed")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  configuration PackConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId])
+  @@index([productId])
+  @@index([productReferenceId])
+  @@map("pack_configuration_items")
 }
 
 /**
@@ -522,8 +907,12 @@ model RecommendationResult {
   recommendationSession RecommendationSession @relation(fields: [recommendationSessionId], references: [id], onDelete: Cascade)
   pack                  Pack                  @relation(fields: [packId], references: [id], onDelete: Restrict)
 
-  items  RecommendationResultItem[]
-  orders Order[]
+  items          RecommendationResultItem[]
+  orders         Order[]
+  // Pack Core Evolution (Phase 9) — QUIZ_RECOMMENDED configurations created from
+  // this recommendation result (customer selected required options, then this
+  // recommended Pack was persisted as a configuration).
+  configurations PackConfiguration[]        @relation("RecommendedConfigurations")
 
   @@unique([recommendationSessionId, packId])
   @@index([recommendationSessionId, rank])
@@ -574,6 +963,7 @@ model Customer {
   orders    Order[]
   events    CustomerEvent[]
   messages  MessageLog[]
+  reviews   Review[]
 
   @@index([phone])
   @@index([whatsappPhone])
@@ -605,7 +995,7 @@ model Order {
   customerId             String        @map("customer_id") @db.Uuid
   customerProfileId      String?       @map("customer_profile_id") @db.Uuid
   recommendationResultId String?       @map("recommendation_result_id") @db.Uuid
-  selectedPackId         String        @map("selected_pack_id") @db.Uuid
+  selectedPackId         String?       @map("selected_pack_id") @db.Uuid
   customerAddressId      String        @map("customer_address_id") @db.Uuid
   paymentMethod          PaymentMethod @default(CASH_ON_DELIVERY) @map("payment_method")
   paymentStatus          PaymentStatus @default(UNPAID) @map("payment_status")
@@ -616,24 +1006,40 @@ model Order {
   totalAmount            Decimal       @default(0) @map("total_amount") @db.Decimal(10, 2)
   currency               String        @default("MAD") @db.Char(3)
   notes                  String?
+
+  // Pack Core Evolution (Phase 3) — additive, immutable pack-configuration
+  // snapshot. Frozen at order creation to preserve the configured composition,
+  // final validated price, floor, currency, and validation outcome even if the
+  // source pack/product later changes. Null for all legacy/non-configured orders.
+  // Never stores private quiz answers, internal scores, costs, or margins.
+  packConfigurationSnapshot Json? @map("pack_configuration_snapshot")
+
+  // Pack Core Evolution (Phase 6) — additive, nullable link to the persisted
+  // PackConfiguration this order was checked out from (if any). Null for legacy,
+  // recommendation-funnel, cart, and fixed-pack orders.
+  packConfigurationId String? @map("pack_configuration_id") @db.Uuid
+
   createdAt              DateTime      @default(now()) @map("created_at")
   updatedAt              DateTime      @updatedAt @map("updated_at")
 
   customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   customerProfile      CustomerProfile?      @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   recommendationResult RecommendationResult? @relation(fields: [recommendationResultId], references: [id], onDelete: SetNull)
-  selectedPack         Pack                  @relation("SelectedPackOrders", fields: [selectedPackId], references: [id], onDelete: Restrict)
+  selectedPack         Pack?                 @relation("SelectedPackOrders", fields: [selectedPackId], references: [id], onDelete: Restrict)
   customerAddress      CustomerAddress       @relation(fields: [customerAddressId], references: [id], onDelete: Restrict)
+  packConfiguration    PackConfiguration?    @relation("PackConfigurationOrders", fields: [packConfigurationId], references: [id], onDelete: SetNull)
 
   items         OrderItem[]
   statusHistory OrderStatusHistory[]
   messages      MessageLog[]
+  reviews       Review[]
 
   @@index([customerId])
   @@index([customerProfileId])
   @@index([recommendationResultId])
   @@index([selectedPackId])
   @@index([customerAddressId])
+  @@index([packConfigurationId])
   @@index([orderStatus])
   @@index([paymentStatus])
   @@index([createdAt])
@@ -641,17 +1047,22 @@ model Order {
 }
 
 model OrderItem {
-  id                    String   @id @default(uuid()) @db.Uuid
-  orderId               String   @map("order_id") @db.Uuid
-  packId                String?  @map("pack_id") @db.Uuid
-  productId             String   @map("product_id") @db.Uuid
-  productReferenceId    String   @map("product_reference_id") @db.Uuid
-  productNameSnapshot   String   @map("product_name_snapshot") @db.VarChar(180)
-  referenceNameSnapshot String   @map("reference_name_snapshot") @db.VarChar(160)
-  unitPriceSnapshot     Decimal  @map("unit_price_snapshot") @db.Decimal(10, 2)
-  quantity              Int      @default(1)
-  totalPrice            Decimal  @map("total_price") @db.Decimal(10, 2)
-  createdAt             DateTime @default(now()) @map("created_at")
+  id                        String   @id @default(uuid()) @db.Uuid
+  orderId                   String   @map("order_id") @db.Uuid
+  packId                    String?  @map("pack_id") @db.Uuid
+  productId                 String   @map("product_id") @db.Uuid
+  productReferenceId        String   @map("product_reference_id") @db.Uuid
+  productNameSnapshot       String   @map("product_name_snapshot") @db.VarChar(180)
+  referenceNameSnapshot     String   @map("reference_name_snapshot") @db.VarChar(160)
+  skuSnapshot               String?  @map("sku_snapshot") @db.VarChar(120)
+  variationSnapshot         String?  @map("variation_snapshot") @db.VarChar(160)
+  productImageUrlSnapshot   String?  @map("product_image_url_snapshot") @db.Text
+  brandNameSnapshot         String?  @map("brand_name_snapshot") @db.VarChar(120)
+  unitPriceSnapshot         Decimal  @map("unit_price_snapshot") @db.Decimal(10, 2)
+  originalUnitPriceSnapshot Decimal? @map("original_unit_price_snapshot") @db.Decimal(10, 2)
+  quantity                  Int      @default(1)
+  totalPrice                Decimal  @map("total_price") @db.Decimal(10, 2)
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   order            Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   pack             Pack?            @relation("PackOrderItems", fields: [packId], references: [id], onDelete: SetNull)
@@ -701,7 +1112,8 @@ model AdminUser {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  orderStatusChanges OrderStatusHistory[]
+  orderStatusChanges  OrderStatusHistory[]
+  uploadedMediaAssets MediaAsset[]
 
   @@index([role])
   @@index([isActive])
@@ -710,7 +1122,174 @@ model AdminUser {
 
 /**
  * =========================================================
- * 8. FUTURE READY: EVENTS / MESSAGES
+ * 8. MEDIA ASSETS
+ * =========================================================
+ */
+
+model MediaAsset {
+  id                String             @id @default(uuid()) @db.Uuid
+  provider          MediaAssetProvider @default(CLOUDINARY)
+  assetType         MediaAssetType     @default(IMAGE) @map("asset_type")
+  providerAssetId   String?            @map("provider_asset_id") @db.VarChar(255)
+  publicId          String             @unique @map("public_id") @db.VarChar(255)
+  secureUrl         String             @map("secure_url")
+  url               String?
+  resourceType      String             @default("image") @map("resource_type") @db.VarChar(40)
+  folder            String?            @db.VarChar(180)
+  originalName      String?            @map("original_name") @db.VarChar(255)
+  mimeType          String             @map("mime_type") @db.VarChar(120)
+  format            String?            @db.VarChar(40)
+  width             Int?
+  height            Int?
+  bytes             Int
+  version           String?            @db.VarChar(80)
+  altText           String?            @map("alt_text") @db.VarChar(255)
+  usageContext      String?            @map("usage_context") @db.VarChar(120)
+  relatedEntity     String?            @map("related_entity") @db.VarChar(80)
+  relatedEntityId   String?            @map("related_entity_id") @db.Uuid
+  uploadedByAdminId String?            @map("uploaded_by_admin_id") @db.Uuid
+  isDeleted         Boolean            @default(false) @map("is_deleted")
+  deletedAt         DateTime?          @map("deleted_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  uploadedByAdmin AdminUser? @relation(fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
+
+  productImages                 ProductImage[]
+  packImages                    PackImage[]
+  categoryImages                CategoryImage[]
+  productReferenceImages        ProductReferenceImage[]
+  productReferenceGalleryImages ProductReferenceGalleryImage[]
+  reviewImages                  ReviewImage[]
+
+  @@index([provider])
+  @@index([assetType])
+  @@index([providerAssetId])
+  @@index([folder])
+  @@index([usageContext])
+  @@index([relatedEntity, relatedEntityId])
+  @@index([uploadedByAdminId])
+  @@index([isDeleted])
+  @@index([createdAt])
+  @@map("media_assets")
+}
+
+model ProductImage {
+  id        String    @id @default(uuid()) @db.Uuid
+  productId String    @map("product_id") @db.Uuid
+  mediaId   String    @map("media_id") @db.Uuid
+  role      MediaRole @default(GALLERY)
+  position  Int       @default(0)
+  altText   String?   @map("alt_text") @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  media   MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, mediaId])
+  @@index([productId, position])
+  @@index([productId, role])
+  @@index([mediaId])
+  @@map("product_images")
+}
+
+model PackImage {
+  id        String    @id @default(uuid()) @db.Uuid
+  packId    String    @map("pack_id") @db.Uuid
+  mediaId   String    @map("media_id") @db.Uuid
+  role      MediaRole @default(GALLERY)
+  position  Int       @default(0)
+  altText   String?   @map("alt_text") @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  pack  Pack       @relation(fields: [packId], references: [id], onDelete: Cascade)
+  media MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, mediaId])
+  @@index([packId, position])
+  @@index([packId, role])
+  @@index([mediaId])
+  @@map("pack_images")
+}
+
+model CategoryImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  categoryId String   @unique @map("category_id") @db.Uuid
+  mediaId    String   @unique @map("media_id") @db.Uuid
+  altText    String?  @map("alt_text") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  media    MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([mediaId])
+  @@map("category_images")
+}
+
+model ProductReferenceImage {
+  id                 String    @id @default(uuid()) @db.Uuid
+  productReferenceId String    @unique @map("product_reference_id") @db.Uuid
+  mediaId            String    @unique @map("media_id") @db.Uuid
+  role               MediaRole @default(SWATCH)
+  altText            String?   @map("alt_text") @db.VarChar(255)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  productReference ProductReference @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+  media            MediaAsset       @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([productReferenceId])
+  @@index([mediaId])
+  @@map("product_reference_images")
+}
+
+/**
+ * Media Management (Task 14) — additive per-reference (per-shade) gallery.
+ *
+ * A ProductReference already carries exactly one swatch image via
+ * {@link ProductReferenceImage} (role SWATCH — the shade selector thumbnail).
+ * This model adds an ORDERED, MANY-image gallery scoped to one exact reference
+ * (e.g. multiple photos of "Cherry Red" lipstick: on-lip, on-hand, packaging of
+ * that shade). It is intentionally separate from the product-level
+ * {@link ProductImage} gallery, which stays reserved for images shared across
+ * every reference (packaging, texture, tips).
+ *
+ * Ordering mirrors ProductImage / ReviewImage (`position`, ascending). Exactly
+ * one row per reference may have `isPrimary = true`; that invariant is enforced
+ * both by the service layer (inside a transaction) and, at the database level,
+ * by a partial unique index added in the migration
+ * (`WHERE is_primary`) — not expressible in the Prisma schema itself. The first
+ * uploaded image becomes primary; deleting the primary promotes the next image
+ * by position. Each row links one reference to one MediaAsset and reuses the
+ * shared media pipeline — no image bytes live in PostgreSQL.
+ */
+model ProductReferenceGalleryImage {
+  id                 String   @id @default(uuid()) @db.Uuid
+  productReferenceId String   @map("product_reference_id") @db.Uuid
+  mediaId            String   @map("media_id") @db.Uuid
+  position           Int      @default(0)
+  isPrimary          Boolean  @default(false) @map("is_primary")
+  altText            String?  @map("alt_text") @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  productReference ProductReference @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+  media            MediaAsset       @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([productReferenceId, mediaId])
+  @@index([productReferenceId, position])
+  @@index([productReferenceId, isPrimary])
+  @@index([mediaId])
+  @@map("product_reference_gallery_images")
+}
+
+/**
+ * =========================================================
+ * 9. FUTURE READY: EVENTS / MESSAGES
  * =========================================================
  */
 
@@ -755,4 +1334,99 @@ model MessageLog {
   @@index([messageType])
   @@index([createdAt])
   @@map("message_logs")
+}
+
+/**
+ * =========================================================
+ * 10. REVIEWS & RATINGS (Phase R1 — foundation)
+ * =========================================================
+ *
+ * One shared Review model covers both PRODUCT and PACK reviews via the same
+ * polymorphic pattern used by WishlistItem: a `targetType` discriminator plus
+ * two nullable, cascading foreign keys of which exactly one is ever set. The XOR
+ * (and its consistency with `targetType`) is enforced by a database CHECK
+ * constraint added in the migration, and rating is bounded 1–5 by a second CHECK
+ * — neither is expressible in the Prisma schema itself.
+ *
+ * A review is always tied to a real, delivered Order that belongs to the
+ * reviewing Customer and actually contains the target (see
+ * `assertReviewEligibility`). `customerId`, `orderId`, `isVerifiedPurchase`, and
+ * `status` are strictly server-owned; they are never accepted from a client.
+ * Duplicate protection is per (customer, order, target): NULLs are distinct in
+ * Postgres, so the product-scoped unique never conflicts with PACK rows
+ * (product_id NULL) and vice versa.
+ *
+ * Phase R1 is schema + verified-purchase eligibility only. Customer review APIs,
+ * public rating reads, moderation, and rating aggregates are intentionally out of
+ * scope.
+ */
+enum ReviewTargetType {
+  PRODUCT
+  PACK
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Review {
+  id                 String           @id @default(uuid()) @db.Uuid
+  targetType         ReviewTargetType @map("target_type")
+  productId          String?          @map("product_id") @db.Uuid
+  packId             String?          @map("pack_id") @db.Uuid
+  customerId         String           @map("customer_id") @db.Uuid
+  orderId            String           @map("order_id") @db.Uuid
+  rating             Int
+  title              String?          @db.VarChar(160)
+  comment            String?          @db.Text
+  status             ReviewStatus     @default(PENDING)
+  isVerifiedPurchase Boolean          @default(true) @map("is_verified_purchase")
+  authorDisplayName  String           @map("author_display_name") @db.VarChar(160)
+  moderationNote     String?          @map("moderation_note") @db.Text
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  product  Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pack     Pack?     @relation(fields: [packId], references: [id], onDelete: Cascade)
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  images ReviewImage[]
+
+  @@unique([customerId, orderId, productId])
+  @@unique([customerId, orderId, packId])
+  @@index([productId])
+  @@index([packId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([targetType])
+  @@index([status])
+  @@map("reviews")
+}
+
+/// Reviews & Ratings (Phase R2.5) — customer-attached review photos.
+///
+/// A customer may attach optional images to their own PENDING Product or Pack
+/// review (up to 5, ordered by `position`). Each row links one Review to one
+/// MediaAsset — the same reuse-the-media-module pattern as ProductImage /
+/// PackImage; no separate file store and no image bytes in PostgreSQL. Images
+/// are surfaced publicly only once the parent review is APPROVED (enforced by
+/// the read layer, which never returns non-APPROVED reviews).
+model ReviewImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  reviewId  String   @map("review_id") @db.Uuid
+  mediaId   String   @map("media_id") @db.Uuid
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  review Review     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  media  MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, mediaId])
+  @@index([reviewId, position])
+  @@index([mediaId])
+  @@map("review_images")
 }

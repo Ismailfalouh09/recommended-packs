@@ -12,6 +12,7 @@ import {
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import {
   optionalBoolean,
+  optionalLowercase,
   optionalTrimmedString,
 } from '../../../common/transforms/query.transforms';
 
@@ -31,6 +32,12 @@ export class QueryProductsDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   brandId?: string;
+
+  @ApiPropertyOptional({ example: 'face-serum' })
+  @IsOptional()
+  @Transform(({ value }) => optionalLowercase(value))
+  @IsString()
+  productType?: string;
 
   @ApiPropertyOptional({ enum: ProductStatus })
   @IsOptional()

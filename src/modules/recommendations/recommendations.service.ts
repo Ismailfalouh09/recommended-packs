@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  MediaRole,
   PackStatus,
   Prisma,
   RecommendationConditionType,
@@ -17,6 +18,7 @@ import {
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreateRecommendationDto } from './dto/create-recommendation.dto';
 import { CreateRecommendationRuleDto } from './dto/create-recommendation-rule.dto';
 import { QueryRecommendationRulesDto } from './dto/query-recommendation-rules.dto';
@@ -27,12 +29,19 @@ import {
   RecommendationEngineService,
   RuleScores,
 } from './recommendation-engine.service';
+import { BudgetRange } from './matching/criterion-matcher.interface';
+import { RecommendationUseCaseService } from './recommendation-use-case.service';
 
 @Injectable()
 export class RecommendationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly recommendationEngine: RecommendationEngineService,
+    // Pack Recommendation MVP — the five-criterion algorithm. Optional so the
+    // existing admin-rule unit spec can construct the service without it; when
+    // absent (only in that spec) we fall back to the raw engine output.
+    private readonly recommendationUseCase?: RecommendationUseCaseService,
+    private readonly mediaUrlService?: MediaUrlService,
   ) {}
 
   async create(createRecommendationDto: CreateRecommendationDto) {
@@ -60,22 +69,34 @@ export class RecommendationsService {
             rank: recommendation.rank,
             totalScore: recommendation.totalScore,
             matchPercentage: recommendation.matchPercentage,
-            reasonSummary: `Matched ${recommendation.packName} with score ${recommendation.totalScore}.`,
-            reasonJson: recommendation.reason as Prisma.InputJsonValue,
+            reasonSummary: this.buildReasonSummary(recommendation),
+            reasonJson: this.toStoredReasonJson(recommendation),
           },
         });
         recommendationResultIds.set(recommendation.packId, result.id);
 
         await tx.recommendationResultItem.createMany({
-          data: recommendation.selectedItems.map((item) => ({
-            recommendationResultId: result.id,
-            packItemId: item.packItemId,
-            productId: item.productId,
-            selectedProductReferenceId: item.referenceId,
-            quantity: item.quantity,
-            itemScore: item.itemScore,
-            reasonJson: item.reason as Prisma.InputJsonValue,
-          })),
+          // Customer-choice slots that are still pending selection have no
+          // concrete reference yet. `selectedProductReferenceId` is NOT NULL, so
+          // we persist only items with a committed reference; pending slots are
+          // surfaced in the runtime response only (no schema change required).
+          data: recommendation.selectedItems
+            .filter(
+              (
+                item,
+              ): item is (typeof recommendation.selectedItems)[number] & {
+                referenceId: string;
+              } => !item.selectionRequired && item.referenceId !== null,
+            )
+            .map((item) => ({
+              recommendationResultId: result.id,
+              packItemId: item.packItemId,
+              productId: item.productId,
+              selectedProductReferenceId: item.referenceId,
+              quantity: item.quantity,
+              itemScore: item.itemScore,
+              reasonJson: item.reason as Prisma.InputJsonValue,
+            })),
         });
       }
 
@@ -109,6 +130,9 @@ export class RecommendationsService {
   private async calculateRecommendations(customerProfileId: string) {
     const customerProfile = await this.loadCustomerProfile(customerProfileId);
     const answers = this.buildAnswerMap(customerProfile.answers);
+    const budgetRangesByOptionCode = this.buildBudgetRangesByOptionCode(
+      customerProfile.answers,
+    );
 
     if (Object.keys(answers).length === 0) {
       throw new BadRequestException('Customer profile has no quiz answers.');
@@ -119,11 +143,18 @@ export class RecommendationsService {
       this.loadRuleScores(),
     ]);
 
-    const recommendations = this.recommendationEngine.generateRecommendations({
-      answers,
-      packs,
-      ruleScores,
-    });
+    const recommendations = this.recommendationUseCase
+      ? this.recommendationUseCase.recommend({
+          answers,
+          packs,
+          ruleScores,
+          budgetRangesByOptionCode,
+        })
+      : this.recommendationEngine.generateRecommendations({
+          answers,
+          packs,
+          ruleScores,
+        });
 
     return {
       customerProfileId: customerProfile.id,
@@ -156,6 +187,19 @@ export class RecommendationsService {
             pack: {
               select: {
                 name: true,
+                images: {
+                  orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                  select: {
+                    id: true,
+                    mediaId: true,
+                    role: true,
+                    position: true,
+                    altText: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    media: true,
+                  },
+                },
               },
             },
             items: {
@@ -171,12 +215,36 @@ export class RecommendationsService {
                 product: {
                   select: {
                     name: true,
+                    images: {
+                      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                      select: {
+                        id: true,
+                        mediaId: true,
+                        role: true,
+                        position: true,
+                        altText: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        media: true,
+                      },
+                    },
                   },
                 },
                 selectedProductReference: {
                   select: {
                     referenceCode: true,
                     referenceName: true,
+                    image: {
+                      select: {
+                        id: true,
+                        mediaId: true,
+                        role: true,
+                        altText: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        media: true,
+                      },
+                    },
                   },
                 },
               },
@@ -200,27 +268,43 @@ export class RecommendationsService {
       totalRecommendedPacks: session.totalRecommendedPacks,
       status: session.status,
       createdAt: session.createdAt,
-      recommendedPacks: session.results.map((result) => ({
-        recommendationResultId: result.id,
-        packId: result.packId,
-        packName: result.pack.name,
-        rank: result.rank,
-        totalScore: result.totalScore,
-        matchPercentage: Number(result.matchPercentage),
-        reasonSummary: result.reasonSummary,
-        reason: result.reasonJson,
-        selectedItems: result.items.map((item) => ({
-          recommendationResultItemId: item.id,
-          packItemId: item.packItemId,
-          productId: item.productId,
-          productName: item.product.name,
-          referenceId: item.selectedProductReferenceId,
-          referenceName: `${item.selectedProductReference.referenceCode} ${item.selectedProductReference.referenceName}`,
-          quantity: item.quantity,
-          itemScore: item.itemScore,
-          reason: item.reasonJson,
-        })),
-      })),
+      recommendedPacks: session.results.map((result) => {
+        const metadata = this.extractStoredRecommendationMetadata(
+          result.reasonJson,
+        );
+
+        return {
+          recommendationResultId: result.id,
+          packId: result.packId,
+          packName: result.pack.name,
+          packCoverImage: this.coverImage(result.pack.images),
+          packImages: result.pack.images.map((image) =>
+            this.toImageResponse(image),
+          ),
+          rank: result.rank,
+          totalScore: result.totalScore,
+          matchPercentage: Number(result.matchPercentage),
+          reasonSummary: result.reasonSummary,
+          reason: this.toPublicReasonJson(result.reasonJson),
+          customerReasons: metadata.customerReasons,
+          recommendationType: metadata.recommendationType,
+          selectedItems: result.items.map((item) => ({
+            recommendationResultItemId: item.id,
+            packItemId: item.packItemId,
+            productId: item.productId,
+            productName: item.product.name,
+            productCoverImage: this.coverImage(item.product.images),
+            referenceId: item.selectedProductReferenceId,
+            referenceName: `${item.selectedProductReference.referenceCode} ${item.selectedProductReference.referenceName}`,
+            referenceImage: this.toReferenceImageResponse(
+              item.selectedProductReference.image,
+            ),
+            quantity: item.quantity,
+            itemScore: item.itemScore,
+            reason: item.reasonJson,
+          })),
+        };
+      }),
     };
   }
 
@@ -239,6 +323,8 @@ export class RecommendationsService {
             attributeOption: {
               select: {
                 code: true,
+                minNumericValue: true,
+                maxNumericValue: true,
               },
             },
           },
@@ -270,6 +356,40 @@ export class RecommendationsService {
     }, {});
   }
 
+  private buildBudgetRangesByOptionCode(
+    answers: Array<{
+      attributeGroup: { code: string };
+      attributeOption: {
+        code: string;
+        minNumericValue: Prisma.Decimal | null;
+        maxNumericValue: Prisma.Decimal | null;
+      } | null;
+    }>,
+  ): Record<string, BudgetRange> {
+    return answers.reduce<Record<string, BudgetRange>>((ranges, answer) => {
+      if (answer.attributeGroup.code !== 'BUDGET' || !answer.attributeOption) {
+        return ranges;
+      }
+
+      const min = toMoneyNumber(answer.attributeOption.minNumericValue);
+      const max = toMoneyNumber(answer.attributeOption.maxNumericValue);
+
+      if (
+        min === null ||
+        max === null ||
+        !Number.isFinite(min) ||
+        !Number.isFinite(max) ||
+        min < 0 ||
+        max < min
+      ) {
+        return ranges;
+      }
+
+      ranges[answer.attributeOption.code] = { min, max };
+      return ranges;
+    }, {});
+  }
+
   private async loadActivePacks(): Promise<EnginePack[]> {
     return this.prisma.pack.findMany({
       where: {
@@ -281,6 +401,40 @@ export class RecommendationsService {
         id: true,
         name: true,
         priority: true,
+        // Pack Recommendation MVP — authoritative price + the compatibility
+        // profile that drives the five-criterion matching layer.
+        priceMode: true,
+        fixedPrice: true,
+        discountAmount: true,
+        discountPercentage: true,
+        compatibilityProfiles: {
+          select: {
+            criterion: true,
+            mode: true,
+            values: {
+              select: {
+                attributeOption: {
+                  select: {
+                    code: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        images: {
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            mediaId: true,
+            role: true,
+            position: true,
+            altText: true,
+            createdAt: true,
+            updatedAt: true,
+            media: true,
+          },
+        },
         attributes: {
           select: {
             matchType: true,
@@ -310,8 +464,22 @@ export class RecommendationsService {
               select: {
                 id: true,
                 name: true,
+                basePrice: true,
                 isActive: true,
                 status: true,
+                images: {
+                  orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+                  select: {
+                    id: true,
+                    mediaId: true,
+                    role: true,
+                    position: true,
+                    altText: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    media: true,
+                  },
+                },
                 references: {
                   where: {
                     isActive: true,
@@ -323,6 +491,19 @@ export class RecommendationsService {
                     id: true,
                     referenceCode: true,
                     referenceName: true,
+                    priceOverride: true,
+                    priceDelta: true,
+                    image: {
+                      select: {
+                        id: true,
+                        mediaId: true,
+                        role: true,
+                        altText: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        media: true,
+                      },
+                    },
                     stockQuantity: true,
                     reservedQuantity: true,
                     isActive: true,
@@ -341,6 +522,23 @@ export class RecommendationsService {
                             code: true,
                           },
                         },
+                      },
+                    },
+                  },
+                },
+                attributes: {
+                  select: {
+                    matchType: true,
+                    scoreValue: true,
+                    isHardFilter: true,
+                    attributeGroup: {
+                      select: {
+                        code: true,
+                      },
+                    },
+                    attributeOption: {
+                      select: {
+                        code: true,
                       },
                     },
                   },
@@ -381,20 +579,147 @@ export class RecommendationsService {
       ),
       packId: recommendation.packId,
       packName: recommendation.packName,
+      packCoverImage: this.coverImage(recommendation.packImages ?? []),
+      packImages: (recommendation.packImages ?? []).map((image) =>
+        this.toImageResponse(image),
+      ),
       rank: recommendation.rank,
       totalScore: recommendation.totalScore,
       matchPercentage: recommendation.matchPercentage,
-      reason: recommendation.reason,
+      reason: this.toPublicReasonJson(recommendation.reason),
+      customerReasons: recommendation.customerReasons ?? [],
+      recommendationType: recommendation.recommendationType,
       selectedItems: recommendation.selectedItems.map((item) => ({
+        packItemId: item.packItemId,
         productId: item.productId,
         productName: item.productName,
+        productCoverImage: this.coverImage(item.productImages ?? []),
         referenceId: item.referenceId,
         referenceName: item.referenceName,
+        referenceImage: this.toReferenceImageResponse(item.referenceImage),
         quantity: item.quantity,
         itemScore: item.itemScore,
+        selectionRequired: item.selectionRequired ?? false,
+        availableOptions: item.availableOptions
+          ? item.availableOptions.map((option) => ({
+              referenceId: option.referenceId,
+              referenceName: option.referenceName,
+              referenceImage: this.toReferenceImageResponse(
+                option.referenceImage,
+              ),
+              quantity: option.quantity,
+            }))
+          : undefined,
         reason: item.reason,
       })),
     }));
+  }
+
+  private buildReasonSummary(recommendation: EngineRecommendation) {
+    const label =
+      recommendation.recommendationType === 'ALTERNATIVE'
+        ? 'Alternative match'
+        : 'Best match';
+    const reasons = recommendation.customerReasons ?? [];
+
+    if (reasons.length === 0) {
+      return `${label} for your profile.`;
+    }
+
+    return `${label}: ${reasons.slice(0, 2).join('; ')}.`;
+  }
+
+  private toStoredReasonJson(
+    recommendation: EngineRecommendation,
+  ): Prisma.InputJsonValue {
+    return {
+      ...this.toPublicReasonJson(recommendation.reason),
+      customerReasons: recommendation.customerReasons ?? [],
+      recommendationType: recommendation.recommendationType ?? null,
+    } as Prisma.InputJsonValue;
+  }
+
+  private toPublicReasonJson(reasonJson: unknown) {
+    const reason =
+      reasonJson && typeof reasonJson === 'object'
+        ? { ...(reasonJson as Record<string, unknown>) }
+        : {};
+
+    delete reason.compatibility;
+    delete reason.customerReasons;
+    delete reason.recommendationType;
+
+    return reason;
+  }
+
+  private extractStoredRecommendationMetadata(reasonJson: unknown): {
+    customerReasons: string[];
+    recommendationType?: 'BEST_MATCH' | 'ALTERNATIVE';
+  } {
+    const reason =
+      reasonJson && typeof reasonJson === 'object'
+        ? (reasonJson as Record<string, unknown>)
+        : {};
+    const recommendationType = reason.recommendationType;
+
+    return {
+      customerReasons: Array.isArray(reason.customerReasons)
+        ? reason.customerReasons.filter(
+            (customerReason): customerReason is string =>
+              typeof customerReason === 'string',
+          )
+        : [],
+      recommendationType:
+        recommendationType === 'BEST_MATCH' ||
+        recommendationType === 'ALTERNATIVE'
+          ? recommendationType
+          : undefined,
+    };
+  }
+
+  private coverImage(images: unknown[]) {
+    const typedImages = images as any[];
+    const cover = typedImages.find((image) => image.role === MediaRole.COVER);
+    return cover ? this.toImageResponse(cover) : null;
+  }
+
+  private toReferenceImageResponse(image: unknown) {
+    if (!image) {
+      return null;
+    }
+
+    return this.toImageResponse(
+      {
+        ...(image as any),
+        role: MediaRole.SWATCH,
+        position: 0,
+      },
+      true,
+    );
+  }
+
+  private toImageResponse(image: any, includeSwatch = false) {
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: image.role,
+      position: image.position,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.mediaUrlService?.buildUrls(image.media, { includeSwatch }) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+        ...(includeSwatch ? { swatch: image.media.secureUrl } : {}),
+      },
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
+    };
   }
 
   async adminFindRules(query: QueryRecommendationRulesDto) {

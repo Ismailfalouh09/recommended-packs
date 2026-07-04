@@ -3,19 +3,35 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProductStatus } from '@prisma/client';
 import {
   paginatedResponse,
   paginationParams,
 } from '../../common/utils/pagination.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MediaUrlService } from '../media/media-url.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { QueryCategoriesDto } from './dto/query-categories.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaUrlService?: MediaUrlService,
+  ) {}
+
+  async publicFindAll() {
+    const categories = await this.prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: this.publicListSelect(),
+    });
+
+    return categories.map((category) =>
+      this.toPublicCategoryResponse(category),
+    );
+  }
 
   async findAll(query: QueryCategoriesDto) {
     const pagination = paginationParams(query);
@@ -175,6 +191,51 @@ export class CategoriesService {
           children: true,
         },
       },
+      image: {
+        select: {
+          id: true,
+          mediaId: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
+    } satisfies Prisma.CategorySelect;
+  }
+
+  private publicListSelect() {
+    return {
+      id: true,
+      code: true,
+      name: true,
+      description: true,
+      sortOrder: true,
+      _count: {
+        select: {
+          products: {
+            where: {
+              isActive: true,
+              status: ProductStatus.ACTIVE,
+            },
+          },
+          children: {
+            where: {
+              isActive: true,
+            },
+          },
+        },
+      },
+      image: {
+        select: {
+          id: true,
+          mediaId: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
     } satisfies Prisma.CategorySelect;
   }
 
@@ -191,6 +252,7 @@ export class CategoriesService {
       createdAt: category.createdAt,
       updatedAt: category.updatedAt,
       parent: category.parent,
+      image: this.toCategoryImageResponse(category.image),
       productCount: category._count.products,
       childCategoryCount: category._count.children,
     };
@@ -200,6 +262,62 @@ export class CategoriesService {
     return {
       ...this.toListResponse(category),
       children: category.children,
+    };
+  }
+
+  private toPublicCategoryResponse(category: any) {
+    return {
+      id: category.id,
+      code: category.code,
+      name: category.name,
+      description: category.description,
+      image: this.toPublicCategoryImageResponse(category.image),
+      sortOrder: category.sortOrder,
+      productCount: category._count.products,
+      childCategoryCount: category._count.children,
+    };
+  }
+
+  private toPublicCategoryImageResponse(image: any) {
+    if (!image) {
+      return null;
+    }
+
+    return {
+      urls: this.mediaUrlService?.buildUrls(image.media) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+      },
+      altText: image.altText,
+    };
+  }
+
+  private toCategoryImageResponse(image: any) {
+    if (!image) {
+      return null;
+    }
+
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: 'ICON',
+      position: 0,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.mediaUrlService?.buildUrls(image.media) ?? {
+        original: image.media.secureUrl,
+        thumbnail: image.media.secureUrl,
+        card: image.media.secureUrl,
+        detail: image.media.secureUrl,
+      },
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
     };
   }
 

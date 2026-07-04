@@ -4,7 +4,7 @@ NestJS backend for beauty-pack personalization, recommendations, Cash on Deliver
 
 Current status:
 
-The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Task 15.5 Admin Dashboard Backend Readiness is implemented on `feature/task-14-media-management`. The backend is prepared for a separate admin-dashboard frontend with environment-controlled CORS, current OpenAPI artifacts, and a `frontend-handoff/` bundle.
 
 ## Stack
 
@@ -32,8 +32,10 @@ The backend feature implementation is paused after Admin Order Management. The c
 - Admin Pack CRUD
 - Admin Quiz, Attributes, and Recommendation Rules CRUD
 - Admin Order Management and Status Workflow
+- Media Management and Image Upload API
 - Swagger/OpenAPI documentation generation
 - Manual API test documentation
+- Admin dashboard frontend handoff package
 
 ## Setup
 
@@ -65,6 +67,24 @@ OpenAPI JSON endpoint:
 http://localhost:3000/api/docs-json
 ```
 
+## Admin Dashboard Integration
+
+Configure the dashboard origin in local backend `.env`:
+
+```env
+ADMIN_DASHBOARD_ORIGIN="http://localhost:5173"
+```
+
+The backend only enables browser CORS for the configured origin. Do not use unrestricted production CORS.
+
+Frontend handoff files are available in:
+
+```text
+frontend-handoff/
+```
+
+That folder contains copied OpenAPI JSON/YAML, login instructions, page-to-endpoint mapping, role permissions, known limitations, frontend `.env.example`, and backend version notes.
+
 ## Documentation
 
 Start here:
@@ -76,6 +96,22 @@ Start here:
 - [docs/API_CLIENT_IMPORT_GUIDE.md](./docs/API_CLIENT_IMPORT_GUIDE.md)
 - [docs/API_CURL_TESTS.md](./docs/API_CURL_TESTS.md)
 - [BACKEND_ROADMAP.md](./BACKEND_ROADMAP.md)
+
+## Media Upload Environment
+
+Task 14 uses Cloudinary for image storage. Configure these values in local `.env` only:
+
+```env
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+CLOUDINARY_FOLDER_PREFIX="beauty-app"
+MEDIA_MAX_FILE_SIZE_MB=5
+```
+
+Never commit real Cloudinary credentials.
+
+Uploads currently flow through the backend: admin client to NestJS multipart endpoint to Cloudinary. Direct signed browser-to-Cloudinary upload is intentionally left as a future optimization.
 
 ## OpenAPI Generation
 

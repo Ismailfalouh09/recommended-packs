@@ -6,12 +6,15 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AttributesModule } from './modules/attributes/attributes.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { MediaModule } from './modules/media/media.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PacksModule } from './modules/packs/packs.module';
 import { ProductReferencesModule } from './modules/product-references/product-references.module';
 import { ProductsModule } from './modules/products/products.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -28,6 +31,9 @@ import { PrismaModule } from './prisma/prisma.module';
     PacksModule,
     RecommendationsModule,
     OrdersModule,
+    MediaModule,
+    WishlistModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

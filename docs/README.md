@@ -2,7 +2,7 @@
 
 Current status:
 
-The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Task 14 Media Management and Image Upload API is implemented on `feature/task-14-media-management`. Documentation now includes protected admin media endpoints, entity image endpoints, Cloudinary environment placeholders, public image response behavior, and manual media API checks.
 
 ## Core Documentation
 
@@ -11,6 +11,12 @@ The backend feature implementation is paused after Admin Order Management. The c
 
 - [DOMAIN_MODEL.md](./DOMAIN_MODEL.md)  
   Database/domain documentation for every Prisma model and enum, including relations, lifecycle, module usage, and API exposure.
+
+- [ADMIN_RULES_GUIDE.md](./ADMIN_RULES_GUIDE.md)  
+  Practical admin guide: how to set up attributes, products, product references, pack attributes, and recommendation rules so the recommendation engine scores correctly, with concrete request bodies and a preview-and-verify workflow.
+
+- [SEED_DATA_QUIZ_AND_RULES.md](./SEED_DATA_QUIZ_AND_RULES.md)  
+  Clean reference data for the 5 quiz attribute groups (skin color, undertone, skin type, style, budget), their options, quiz questions, and matching recommendation rules, with copy-paste request bodies in creation order.
 
 - [MANUAL_API_TEST_PLAN.md](./MANUAL_API_TEST_PLAN.md)  
   Ordered manual test plan for Swagger, Bruno, or Postman. Includes prerequisites, variables, test suites, expected results, DB checks, and pass/fail fields.
@@ -22,7 +28,7 @@ The backend feature implementation is paused after Admin Order Management. The c
   Ready-to-run Windows PowerShell and Windows CMD curl examples.
 
 - [TEST_PLAN_CURRENT_BACKEND.md](./TEST_PLAN_CURRENT_BACKEND.md)  
-  Earlier running backend test plan through Task 13.
+  Running backend test plan through Task 14.
 
 - [PROGRESS_LOG.md](./PROGRESS_LOG.md)  
   Task-by-task implementation history and current stopping point.

@@ -2,8 +2,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   AdminRole,
   MatchType,
+  MediaAssetProvider,
+  MediaAssetType,
+  MediaRole,
   OrderStatus,
+  PackExperienceLevel,
+  PackOccasion,
   PackStatus,
+  PackTier,
   PaymentMethod,
   PaymentStatus,
   PriceMode,
@@ -14,6 +20,7 @@ import {
   SelectionMode,
   SelectionType,
   SourceChannel,
+  VariationType,
 } from '@prisma/client';
 
 const uuidExample = '00000000-0000-4000-8000-000000000001';
@@ -94,6 +101,12 @@ export class AttributeOptionResponse {
 
   @ApiProperty({ example: 'Medium' })
   label!: string;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  minNumericValue?: number | null;
+
+  @ApiPropertyOptional({ example: 220, nullable: true })
+  maxNumericValue?: number | null;
 }
 
 export class AttributeGroupResponse {
@@ -195,6 +208,49 @@ export class CategorySummaryResponse {
 
   @ApiProperty({ example: 'Foundation' })
   name!: string;
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  image?: MediaImageResponse | null;
+}
+
+export class PublicCategoryImageResponse {
+  @ApiProperty({ type: () => MediaUrlVariantsResponse })
+  urls!: Record<string, string>;
+
+  @ApiPropertyOptional({ example: 'Foundation category tile', nullable: true })
+  altText?: string | null;
+}
+
+export class PublicCategoryResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'FOUNDATION' })
+  code!: string;
+
+  @ApiProperty({ example: 'Foundation' })
+  name!: string;
+
+  @ApiPropertyOptional({
+    example: 'Complexion products for a smooth base.',
+    nullable: true,
+  })
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    type: () => PublicCategoryImageResponse,
+    nullable: true,
+  })
+  image?: PublicCategoryImageResponse | null;
+
+  @ApiPropertyOptional({ example: 1, nullable: true })
+  sortOrder?: number | null;
+
+  @ApiPropertyOptional({ example: 12 })
+  productCount?: number;
+
+  @ApiPropertyOptional({ example: 3 })
+  childCategoryCount?: number;
 }
 
 export class BrandSummaryResponse {
@@ -203,6 +259,31 @@ export class BrandSummaryResponse {
 
   @ApiProperty({ example: 'Demo Beauty' })
   name!: string;
+}
+
+export class PublicBrandResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Demo Beauty' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'Clean beauty essentials.', nullable: true })
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://example.com/demo-beauty-logo.png',
+    nullable: true,
+    description:
+      'Returned only when the existing brand logoUrl field has a value.',
+  })
+  logoUrl?: string | null;
+
+  @ApiPropertyOptional({
+    example: 8,
+    description: 'Count of active products with status ACTIVE for this brand.',
+  })
+  productCount?: number;
 }
 
 export class AttributeMatchResponse {
@@ -225,6 +306,212 @@ export class AttributeMatchResponse {
   attributeOption!: AttributeOptionResponse;
 }
 
+export class MediaUrlVariantsResponse {
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/v123/beauty-app/products/sample-image',
+  })
+  original!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_fill,w_200,h_200,g_auto,q_auto,f_auto/beauty-app/products/sample-image',
+  })
+  thumbnail!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_fill,w_600,h_600,g_auto,q_auto,f_auto/beauty-app/products/sample-image',
+  })
+  card!: string;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_limit,w_1200,h_1200,q_auto,f_auto/beauty-app/products/sample-image',
+  })
+  detail!: string;
+
+  @ApiPropertyOptional({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/c_fill,w_300,h_300,q_auto,f_auto/beauty-app/product-references/sample-swatch',
+  })
+  swatch?: string;
+}
+
+export class MediaImageResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: '00000000-0000-4000-8000-000000000002' })
+  mediaAssetId!: string;
+
+  @ApiProperty({ enum: MediaRole, example: MediaRole.COVER })
+  role!: MediaRole;
+
+  @ApiProperty({ example: 0 })
+  position!: number;
+
+  @ApiPropertyOptional({
+    example: 'Foundation bottle shade medium warm',
+    nullable: true,
+  })
+  altText?: string | null;
+
+  @ApiPropertyOptional({ example: 'webp', nullable: true })
+  format?: string | null;
+
+  @ApiPropertyOptional({ example: 'image/webp', nullable: true })
+  mimeType?: string | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  height?: number | null;
+
+  @ApiPropertyOptional({ example: 143000, nullable: true })
+  bytes?: number | null;
+
+  @ApiProperty({ type: MediaUrlVariantsResponse })
+  urls!: MediaUrlVariantsResponse;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  updatedAt!: string;
+}
+
+export class PublicMediaImageResponse {
+  @ApiProperty({ enum: MediaRole, example: MediaRole.COVER })
+  role!: MediaRole;
+
+  @ApiProperty({ example: 0 })
+  position!: number;
+
+  @ApiPropertyOptional({
+    example: 'Foundation bottle shade medium warm',
+    nullable: true,
+  })
+  altText?: string | null;
+
+  @ApiPropertyOptional({ example: 'webp', nullable: true })
+  format?: string | null;
+
+  @ApiPropertyOptional({ example: 'image/webp', nullable: true })
+  mimeType?: string | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  height?: number | null;
+
+  @ApiProperty({ type: MediaUrlVariantsResponse })
+  urls!: MediaUrlVariantsResponse;
+}
+
+export class PublicProductAvailabilityResponse {
+  @ApiProperty({ example: true })
+  inStock!: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  lowStock?: boolean;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  disabledReason?: string | null;
+}
+
+export class PublicProductPriceResponse {
+  @ApiProperty({ example: 120 })
+  current!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  original?: number | null;
+
+  @ApiProperty({ example: true })
+  onSale!: boolean;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+}
+
+export class PublicProductVariantResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'Medium Warm' })
+  label!: string;
+
+  @ApiProperty({ example: 'Medium Warm' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
+  sku?: string | null;
+
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'N20', nullable: true })
+  shadeCode?: string | null;
+
+  @ApiPropertyOptional({ example: '30ml', nullable: true })
+  measurement?: string | null;
+
+  @ApiPropertyOptional({ example: '#E8B98C', nullable: true })
+  swatchHex?: string | null;
+
+  @ApiPropertyOptional({ type: () => PublicMediaImageResponse, nullable: true })
+  image?: PublicMediaImageResponse | null;
+
+  @ApiProperty({ type: PublicProductPriceResponse })
+  price!: PublicProductPriceResponse;
+
+  @ApiProperty({ type: PublicProductAvailabilityResponse })
+  availability!: PublicProductAvailabilityResponse;
+}
+
+export class PublicProductCardResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'foundation-x' })
+  slug!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  name!: string;
+
+  @ApiPropertyOptional({ type: BrandSummaryResponse, nullable: true })
+  brand?: BrandSummaryResponse | null;
+
+  @ApiProperty({ type: CategorySummaryResponse })
+  category!: CategorySummaryResponse;
+
+  @ApiPropertyOptional({ example: 'face-serum', nullable: true })
+  productType?: string | null;
+
+  @ApiPropertyOptional({ type: () => PublicMediaImageResponse, nullable: true })
+  coverImage?: PublicMediaImageResponse | null;
+
+  @ApiProperty({ example: 120 })
+  currentPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  priceFrom!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  originalPrice?: number | null;
+
+  @ApiProperty({ example: true })
+  onSale!: boolean;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ type: PublicProductAvailabilityResponse })
+  availability!: PublicProductAvailabilityResponse;
+}
+
 export class ProductReferenceResponse {
   @ApiProperty({ example: uuidExample })
   id!: string;
@@ -235,6 +522,21 @@ export class ProductReferenceResponse {
   @ApiProperty({ example: 'Medium Warm' })
   referenceName!: string;
 
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'N20', nullable: true })
+  shadeCode?: string | null;
+
+  @ApiPropertyOptional({ example: '#E8B98C', nullable: true })
+  swatchHex?: string | null;
+
+  @ApiPropertyOptional({ example: '45ml', nullable: true })
+  measurement?: string | null;
+
+  @ApiPropertyOptional({ enum: VariationType, nullable: true })
+  variationType?: VariationType | null;
+
   @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
   sku?: string | null;
 
@@ -244,14 +546,41 @@ export class ProductReferenceResponse {
   @ApiProperty({ example: 0 })
   priceDelta!: number;
 
-  @ApiProperty({ example: 20 })
-  stockQuantity!: number;
+  @ApiPropertyOptional({
+    example: 120,
+    description: 'Effective unit price (priceOverride or basePrice + delta).',
+  })
+  effectivePrice?: number;
 
-  @ApiProperty({ example: 0 })
-  reservedQuantity!: number;
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Derived public stock signal (exact count hidden).',
+  })
+  inStock?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Low-stock badge derived from the reference threshold.',
+  })
+  lowStock?: boolean;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Exact stock count (admin projection only).',
+  })
+  stockQuantity?: number;
+
+  @ApiPropertyOptional({
+    example: 0,
+    description: 'Reserved stock (admin projection only).',
+  })
+  reservedQuantity?: number;
 
   @ApiProperty({ example: true })
   isActive!: boolean;
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  image?: MediaImageResponse | null;
 
   @ApiProperty({ type: [AttributeMatchResponse] })
   attributes!: AttributeMatchResponse[];
@@ -267,14 +596,69 @@ export class ProductResponse {
   @ApiProperty({ example: 'foundation-x' })
   slug!: string;
 
+  @ApiPropertyOptional({ example: 'face-serum', nullable: true })
+  productType?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Lightweight buildable foundation.',
+    nullable: true,
+  })
+  shortDescription?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Aqua, Glycerin, Niacinamide.',
+    nullable: true,
+  })
+  ingredients?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Apply morning and evening.',
+    nullable: true,
+  })
+  directions?: string | null;
+
   @ApiProperty({ example: 120 })
   basePrice!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  compareAtPrice?: number | null;
+
+  @ApiPropertyOptional({
+    example: 120,
+    description: 'Lowest effective reference price.',
+  })
+  priceFrom?: number;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Derived from compareAtPrice.',
+  })
+  onSale?: boolean;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Derived % saving when on sale.',
+  })
+  percentageSaving?: number;
 
   @ApiProperty({ example: 'MAD' })
   currency!: string;
 
-  @ApiProperty({ enum: ProductStatus, example: ProductStatus.ACTIVE })
-  status!: ProductStatus;
+  @ApiPropertyOptional({
+    example: 'Foundation X | Demo Beauty',
+    nullable: true,
+  })
+  metaTitle?: string | null;
+
+  @ApiPropertyOptional({ example: 'Shop Foundation X.', nullable: true })
+  metaDescription?: string | null;
+
+  @ApiPropertyOptional({
+    enum: ProductStatus,
+    example: ProductStatus.ACTIVE,
+    description: 'Admin projection only; omitted from the public contract.',
+  })
+  status?: ProductStatus;
 
   @ApiProperty({ type: CategorySummaryResponse })
   category!: CategorySummaryResponse;
@@ -284,6 +668,122 @@ export class ProductResponse {
 
   @ApiProperty({ type: [ProductReferenceResponse] })
   references!: ProductReferenceResponse[];
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  coverImage?: MediaImageResponse | null;
+
+  @ApiProperty({ type: [MediaImageResponse] })
+  images!: MediaImageResponse[];
+}
+
+export class ShareMetadataResponse {
+  @ApiProperty({
+    example: '/products/foundation-x',
+    description:
+      'Canonical public share URL. Absolute when STORE_FRONTEND_ORIGIN is ' +
+      'configured; otherwise the canonical relative path.',
+  })
+  shareUrl!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  shareTitle!: string;
+
+  @ApiPropertyOptional({
+    example: 'Lightweight buildable foundation.',
+    nullable: true,
+  })
+  shareDescription?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/foundation-x.jpg',
+    nullable: true,
+  })
+  shareImageUrl?: string | null;
+}
+
+export class PublicProductDetailResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: 'foundation-x' })
+  slug!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'face-serum', nullable: true })
+  productType?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Lightweight buildable foundation.',
+    nullable: true,
+  })
+  shortDescription?: string | null;
+
+  @ApiPropertyOptional({ example: 'Demo foundation', nullable: true })
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Aqua, Glycerin, Niacinamide.',
+    nullable: true,
+  })
+  ingredients?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Apply morning and evening.',
+    nullable: true,
+  })
+  directions?: string | null;
+
+  @ApiProperty({ example: 120 })
+  currentPrice!: number;
+
+  @ApiPropertyOptional({ example: 150, nullable: true })
+  originalPrice?: number | null;
+
+  @ApiProperty({ example: 120 })
+  priceFrom!: number;
+
+  @ApiProperty({ example: true })
+  onSale!: boolean;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ type: CategorySummaryResponse })
+  category!: CategorySummaryResponse;
+
+  @ApiPropertyOptional({ type: BrandSummaryResponse, nullable: true })
+  brand?: BrandSummaryResponse | null;
+
+  @ApiPropertyOptional({
+    type: () => PublicProductVariantResponse,
+    nullable: true,
+  })
+  selectedReference?: PublicProductVariantResponse | null;
+
+  @ApiProperty({ type: [PublicProductVariantResponse] })
+  selectableReferences!: PublicProductVariantResponse[];
+
+  @ApiProperty({
+    example: {
+      requiresReference: true,
+      selectedReferenceId: uuidExample,
+      canAdd: true,
+      disabledReason: null,
+    },
+  })
+  addToCart!: Record<string, unknown>;
+
+  @ApiPropertyOptional({ type: () => PublicMediaImageResponse, nullable: true })
+  coverImage?: PublicMediaImageResponse | null;
+
+  @ApiProperty({ type: [PublicMediaImageResponse] })
+  mediaGallery!: PublicMediaImageResponse[];
+
+  // Phase 8B — storefront-safe share metadata for the active public product.
+  @ApiProperty({ type: ShareMetadataResponse })
+  share!: ShareMetadataResponse;
 }
 
 export class PackItemResponse {
@@ -336,6 +836,356 @@ export class PackResponse {
 
   @ApiProperty({ type: [PackItemResponse] })
   items!: PackItemResponse[];
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  coverImage?: MediaImageResponse | null;
+
+  @ApiProperty({ type: [MediaImageResponse] })
+  images!: MediaImageResponse[];
+
+  // Pack Core Evolution (Phase 4A) — public discovery fields. Present on the
+  // filtered/paginated catalog response; omitted on the legacy no-filter array.
+  @ApiPropertyOptional({
+    type: () => CategorySummaryResponse,
+    nullable: true,
+    description: 'Reused shared Category the Pack is filed under, if any.',
+  })
+  category?: CategorySummaryResponse | null;
+
+  @ApiPropertyOptional({ enum: PackTier, nullable: true })
+  tier?: PackTier | null;
+
+  @ApiPropertyOptional({ enum: PackOccasion, nullable: true })
+  occasion?: PackOccasion | null;
+
+  @ApiPropertyOptional({ enum: PackExperienceLevel, nullable: true })
+  experienceLevel?: PackExperienceLevel | null;
+
+  @ApiPropertyOptional({ example: true })
+  isFeatured?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  isNew?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  isBestSeller?: boolean;
+
+  @ApiPropertyOptional({ type: [String], example: ['bridal', 'glam'] })
+  tags?: string[];
+
+  @ApiPropertyOptional({
+    example: 'wedding bridal soft glam',
+    nullable: true,
+  })
+  searchKeywords?: string | null;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Browsing availability: true when every FIXED/REQUIRED_SELECTABLE item has an active reference with enough available stock. Present only on the filtered catalog response.',
+  })
+  availableNow?: boolean;
+
+  // Phase 8B — storefront-safe share metadata for the active public pack.
+  @ApiPropertyOptional({ type: ShareMetadataResponse })
+  share?: ShareMetadataResponse;
+}
+
+export class NormalizedConfigurationItemResponse {
+  @ApiPropertyOptional({
+    example: uuidExample,
+    nullable: true,
+    description: 'Source PackItem id for base items; null for add-ons.',
+  })
+  packItemId?: string | null;
+
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productReferenceId?: string | null;
+
+  @ApiProperty({
+    example: 'REQUIRED_SELECTABLE',
+    description: 'PackItemRole for base items, or "ADD_ON" for add-ons.',
+  })
+  role!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  unitPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  lineTotal!: number;
+
+  @ApiProperty({ example: false })
+  isAddOn!: boolean;
+
+  @ApiProperty({ example: false })
+  removed!: boolean;
+}
+
+export class ConfigurationValidationErrorResponse {
+  @ApiProperty({ example: 'REFERENCE_NOT_ALLOWED' })
+  code!: string;
+
+  @ApiProperty({ example: 'The chosen reference is not allowed for Foundation X.' })
+  message!: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  packItemId?: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productId?: string;
+}
+
+export class PackConfigurationValidationResponse {
+  @ApiProperty({
+    example: true,
+    description: 'True only when no validation error was recorded.',
+  })
+  isValid!: boolean;
+
+  @ApiProperty({
+    example: 349,
+    description:
+      'Server-recomputed price from the current allowed references. Never taken from the client.',
+  })
+  computedPrice!: number;
+
+  @ApiPropertyOptional({
+    example: 300,
+    nullable: true,
+    description: 'The Pack price floor, if configured.',
+  })
+  minAllowedPrice?: number | null;
+
+  @ApiProperty({
+    enum: ['IN_STOCK', 'OUT_OF_STOCK'],
+    example: 'IN_STOCK',
+    description:
+      'Aggregate stock status across all resolved references in the configuration.',
+  })
+  stockStatus!: 'IN_STOCK' | 'OUT_OF_STOCK';
+
+  @ApiProperty({ type: [NormalizedConfigurationItemResponse] })
+  normalizedItems!: NormalizedConfigurationItemResponse[];
+
+  @ApiProperty({ type: [ConfigurationValidationErrorResponse] })
+  validationErrors!: ConfigurationValidationErrorResponse[];
+}
+
+export class PackConfigurationItemLineResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiPropertyOptional({
+    example: uuidExample,
+    nullable: true,
+    description: 'Source PackItem id for base items; null for add-ons.',
+  })
+  packItemId?: string | null;
+
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productReferenceId?: string | null;
+
+  @ApiProperty({
+    example: 'REQUIRED_SELECTABLE',
+    description: 'PackItemRole for base items, or "ADD_ON" for add-ons.',
+  })
+  role!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  unitPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  lineTotal!: number;
+
+  @ApiProperty({ example: false })
+  isAddOn!: boolean;
+
+  @ApiProperty({ example: false })
+  removed!: boolean;
+}
+
+export class PackConfigurationResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({ example: uuidExample })
+  sourcePackId!: string;
+
+  @ApiProperty({
+    example: 'CUSTOMIZED',
+    description:
+      'How the configuration originated. QUIZ_RECOMMENDED for a configuration ' +
+      'created from a recommended pack (Phase 9).',
+  })
+  sourceType!: string;
+
+  @ApiPropertyOptional({
+    example: null,
+    nullable: true,
+    description:
+      'For a QUIZ_RECOMMENDED configuration, the recommendation result it was ' +
+      'created from. Null for CUSTOMIZED configurations.',
+  })
+  recommendationResultId?: string | null;
+
+  @ApiProperty({
+    example: 349,
+    description: 'Server-recomputed final price. Never a client-supplied price.',
+  })
+  finalPrice!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiPropertyOptional({ example: 300, nullable: true })
+  minAllowedPrice?: number | null;
+
+  @ApiProperty({ example: true })
+  isValid!: boolean;
+
+  @ApiProperty({ enum: ['IN_STOCK', 'OUT_OF_STOCK'], example: 'IN_STOCK' })
+  stockStatus!: string;
+
+  @ApiProperty({
+    type: PackConfigurationValidationResponse,
+    description: 'Immutable validator result frozen at persistence time.',
+  })
+  validationResult!: PackConfigurationValidationResponse;
+
+  @ApiProperty({ type: [PackConfigurationItemLineResponse] })
+  items!: PackConfigurationItemLineResponse[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: [],
+    description:
+      'Pack item ids still awaiting a customer selection (QUIZ_RECOMMENDED ' +
+      'configurations only). Empty when the configuration is ready to check out.',
+  })
+  pendingSelections?: string[];
+
+  @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
+  updatedAt!: string;
+}
+
+export class ConfigurationShareResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({
+    example: 'a3f1c2b4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7081920a1b2c3d4e5f6',
+    description: 'Opaque, unique public share token for the configuration.',
+  })
+  shareToken!: string;
+
+  @ApiProperty({
+    example: '/shared/configurations/a3f1c2b4d5e6f7081920a1b2c3d4e5f6',
+    description:
+      'Public share link resolving the read-only shared configuration view. ' +
+      'Absolute when STORE_FRONTEND_ORIGIN is configured; otherwise relative.',
+  })
+  shareUrl!: string;
+}
+
+export class SharedConfigurationSourcePackResponse {
+  @ApiPropertyOptional({ example: 'Natural Glow Pack', nullable: true })
+  name?: string | null;
+
+  @ApiPropertyOptional({ example: 'natural-glow-pack', nullable: true })
+  slug?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/natural-glow.jpg',
+    nullable: true,
+  })
+  imageUrl?: string | null;
+}
+
+export class SharedConfigurationItemResponse {
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiPropertyOptional({ example: 'Foundation X', nullable: true })
+  productName?: string | null;
+
+  @ApiPropertyOptional({ example: 'foundation-x', nullable: true })
+  productSlug?: string | null;
+
+  @ApiPropertyOptional({ example: uuidExample, nullable: true })
+  productReferenceId?: string | null;
+
+  @ApiPropertyOptional({ example: 'RF2 Medium Warm', nullable: true })
+  referenceName?: string | null;
+
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  shadeName?: string | null;
+
+  @ApiPropertyOptional({ example: 'RF2', nullable: true })
+  shadeCode?: string | null;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({
+    example: 120,
+    description: 'Customer-facing displayed line price (selling price).',
+  })
+  lineTotal!: number;
+
+  @ApiProperty({ example: false })
+  isAddOn!: boolean;
+}
+
+export class SharedPackConfigurationResponse {
+  @ApiProperty({ type: SharedConfigurationSourcePackResponse })
+  sourcePack!: SharedConfigurationSourcePackResponse;
+
+  @ApiProperty({ type: [SharedConfigurationItemResponse] })
+  items!: SharedConfigurationItemResponse[];
+
+  @ApiProperty({
+    example: 349,
+    description: 'Final displayed price (server-recomputed; never client-set).',
+  })
+  finalPrice!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ example: '2026-07-01T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ type: ShareMetadataResponse })
+  share!: ShareMetadataResponse;
+}
+
+export class SelectableReferenceOptionResponse {
+  @ApiProperty({ example: uuidExample })
+  referenceId!: string;
+
+  @ApiProperty({ example: 'RF2 Medium Warm' })
+  referenceName!: string;
+
+  @ApiPropertyOptional({ type: () => MediaImageResponse, nullable: true })
+  referenceImage?: MediaImageResponse | null;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
 }
 
 export class RecommendationResultItemResponse {
@@ -351,8 +1201,22 @@ export class RecommendationResultItemResponse {
   @ApiProperty({ type: ProductResponse })
   product!: ProductResponse;
 
-  @ApiProperty({ type: ProductReferenceResponse })
-  selectedProductReference!: ProductReferenceResponse;
+  @ApiPropertyOptional({ type: ProductReferenceResponse, nullable: true })
+  selectedProductReference?: ProductReferenceResponse | null;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'True when this is a required customer-choice slot that is eligible but awaiting the customer’s final reference selection. The engine does not pick a reference for such a slot.',
+  })
+  selectionRequired?: boolean;
+
+  @ApiPropertyOptional({
+    type: [SelectableReferenceOptionResponse],
+    description:
+      'Valid, compatible, in-stock references the customer may choose from when selectionRequired is true.',
+  })
+  availableOptions?: SelectableReferenceOptionResponse[];
 }
 
 export class RecommendationPackResponse {
@@ -370,6 +1234,18 @@ export class RecommendationPackResponse {
 
   @ApiProperty({ example: 'Strong match for your selected profile.' })
   reasonSummary!: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['Matches your makeup style', 'Fits your selected budget'],
+  })
+  customerReasons?: string[];
+
+  @ApiPropertyOptional({
+    enum: ['BEST_MATCH', 'ALTERNATIVE'],
+    example: 'BEST_MATCH',
+  })
+  recommendationType?: 'BEST_MATCH' | 'ALTERNATIVE';
 
   @ApiProperty({ type: PackResponse })
   pack!: PackResponse;
@@ -444,6 +1320,21 @@ export class OrderItemResponse {
   @ApiProperty({ example: 'Medium Warm' })
   referenceNameSnapshot!: string;
 
+  @ApiPropertyOptional({ example: 'FOUNDATION-X-RF2', nullable: true })
+  skuSnapshot?: string | null;
+
+  @ApiPropertyOptional({ example: 'Medium Warm', nullable: true })
+  variationSnapshot?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'https://example.com/product.jpg',
+    nullable: true,
+  })
+  productImageUrlSnapshot?: string | null;
+
+  @ApiPropertyOptional({ example: 'Demo Beauty', nullable: true })
+  brandNameSnapshot?: string | null;
+
   @ApiProperty({ example: 120 })
   unitPriceSnapshot!: number;
 
@@ -457,6 +1348,92 @@ export class OrderItemResponse {
 export class OrderCreateResponse extends PublicOrderResponse {
   @ApiProperty({ type: [OrderItemResponse] })
   items!: OrderItemResponse[];
+}
+
+export class CartOrderCustomerResponse {
+  @ApiProperty({ example: 'Demo Customer' })
+  fullName!: string;
+
+  @ApiProperty({ example: '0600000000' })
+  phone!: string;
+}
+
+export class CartOrderAddressResponse {
+  @ApiProperty({ example: 'Casablanca' })
+  city!: string;
+
+  @ApiProperty({ example: 'Maarif' })
+  addressLine!: string;
+}
+
+export class CartOrderLineResponse {
+  @ApiProperty({ example: uuidExample })
+  productId!: string;
+
+  @ApiProperty({ example: 'Foundation X' })
+  productName!: string;
+
+  @ApiProperty({ example: '00000000-0000-4000-8000-000000000002' })
+  referenceId!: string;
+
+  @ApiProperty({ example: 'RF2 Medium Warm' })
+  referenceName!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 120 })
+  unitPrice!: number;
+
+  @ApiProperty({ example: 120 })
+  totalPrice!: number;
+}
+
+export class CartOrderCreateResponse {
+  @ApiProperty({ example: uuidExample })
+  orderId!: string;
+
+  @ApiProperty({ example: 'ORD-20260612-0001' })
+  orderNumber!: string;
+
+  @ApiProperty({ enum: OrderStatus, example: OrderStatus.PENDING_CONFIRMATION })
+  orderStatus!: OrderStatus;
+
+  @ApiProperty({
+    enum: PaymentMethod,
+    example: PaymentMethod.CASH_ON_DELIVERY,
+  })
+  paymentMethod!: PaymentMethod;
+
+  @ApiProperty({ enum: PaymentStatus, example: PaymentStatus.UNPAID })
+  paymentStatus!: PaymentStatus;
+
+  @ApiProperty({ example: 120 })
+  subtotalAmount!: number;
+
+  @ApiProperty({ example: 0 })
+  discountAmount!: number;
+
+  @ApiProperty({ example: 0 })
+  deliveryFee!: number;
+
+  @ApiProperty({ example: 120 })
+  totalAmount!: number;
+
+  @ApiProperty({ example: 'MAD' })
+  currency!: string;
+
+  @ApiProperty({ type: CartOrderCustomerResponse })
+  customer!: CartOrderCustomerResponse;
+
+  @ApiProperty({ type: CartOrderAddressResponse })
+  address!: CartOrderAddressResponse;
+
+  @ApiProperty({ type: Object, nullable: true, example: null })
+  pack!: null;
+
+  @ApiProperty({ type: [CartOrderLineResponse] })
+  items!: CartOrderLineResponse[];
 }
 
 export class AdminOrderCustomerResponse {
@@ -561,4 +1538,96 @@ export class RecommendationRuleResponse {
 
   @ApiProperty({ example: true })
   isActive!: boolean;
+}
+
+export class MediaAssetResponse {
+  @ApiProperty({ example: uuidExample })
+  id!: string;
+
+  @ApiProperty({
+    enum: MediaAssetProvider,
+    example: MediaAssetProvider.CLOUDINARY,
+  })
+  provider!: MediaAssetProvider;
+
+  @ApiProperty({ enum: MediaAssetType, example: MediaAssetType.IMAGE })
+  assetType!: MediaAssetType;
+
+  @ApiProperty({ example: 'recommended-packs/products/sample-image' })
+  publicId!: string;
+
+  @ApiPropertyOptional({ example: '1234567890abcdef', nullable: true })
+  providerAssetId?: string | null;
+
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/demo/image/upload/v123/recommended-packs/products/sample-image.jpg',
+  })
+  secureUrl!: string;
+
+  @ApiPropertyOptional({
+    example: 'recommended-packs/products',
+    nullable: true,
+  })
+  folder?: string | null;
+
+  @ApiProperty({ example: 'image' })
+  resourceType!: string;
+
+  @ApiPropertyOptional({ example: 'foundation.jpg', nullable: true })
+  originalName?: string | null;
+
+  @ApiProperty({ example: 'image/jpeg' })
+  mimeType!: string;
+
+  @ApiPropertyOptional({ example: 'jpg', nullable: true })
+  format?: string | null;
+
+  @ApiPropertyOptional({ example: '1718292000', nullable: true })
+  version?: string | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  width?: number | null;
+
+  @ApiPropertyOptional({ example: 1200, nullable: true })
+  height?: number | null;
+
+  @ApiProperty({ example: 245000 })
+  bytes!: number;
+
+  @ApiPropertyOptional({
+    example: 'Foundation bottle shade medium warm',
+    nullable: true,
+  })
+  altText?: string | null;
+
+  @ApiPropertyOptional({ example: 'PRODUCT_MAIN_IMAGE', nullable: true })
+  usageContext?: string | null;
+
+  @ApiPropertyOptional({ example: 'PRODUCT', nullable: true })
+  relatedEntity?: string | null;
+
+  @ApiPropertyOptional({
+    example: '00000000-0000-4000-8000-000000000002',
+    nullable: true,
+  })
+  relatedEntityId?: string | null;
+
+  @ApiPropertyOptional({ type: AdminSummaryResponse, nullable: true })
+  uploadedByAdmin?: AdminSummaryResponse | null;
+
+  @ApiProperty({ type: MediaUrlVariantsResponse })
+  urls!: MediaUrlVariantsResponse;
+
+  @ApiProperty({ example: false })
+  isDeleted!: boolean;
+
+  @ApiPropertyOptional({ example: null, nullable: true })
+  deletedAt?: string | null;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-06-13T10:00:00.000Z' })
+  updatedAt!: string;
 }

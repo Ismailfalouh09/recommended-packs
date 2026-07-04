@@ -10,6 +10,7 @@ It also covers Protected Admin Pack CRUD V1.
 It also covers Protected Admin Quiz, Attributes, and Recommendation Rules CRUD V1.
 It also covers Protected Admin Order Management and Status Workflow V1.
 It also covers Task 14-DOC OpenAPI generation and manual API documentation preparation.
+It also covers Task 14 Media Management and Image Upload API.
 
 ## Prerequisites
 
@@ -19,6 +20,7 @@ It also covers Task 14-DOC OpenAPI generation and manual API documentation prepa
 - Local database exists and is reachable through `.env`.
 - Prisma migration has been applied.
 - Seed data has been inserted.
+- Cloudinary local environment placeholders have been replaced with valid local test credentials only when testing uploads.
 
 ## Environment Setup
 
@@ -119,6 +121,19 @@ After admin order workflow smoke tests, verify:
 - final order status matches the last valid transition
 - COD payment status changes to `PAID` on delivery and `REFUNDED` on return
 - public order fetch does not expose phone, address, notes, or status history
+
+After media upload smoke tests, verify:
+- `media_assets`
+- `product_images`
+- `pack_images`
+- `category_images`
+- `product_reference_images`
+- uploaded rows include Cloudinary public IDs and secure URLs
+- product and pack image roles/positions are stored correctly
+- each category has at most one category image
+- each product reference has at most one reference image
+- soft-deleted rows have `isDeleted = true` and `deletedAt` set
+- uploader admin relation is set when uploaded by an authenticated admin
 
 ## Seed Checks
 
@@ -381,6 +396,42 @@ Expected result:
 - Conditional update protects against stale concurrent transitions.
 - Public order detail returns only the safe summary.
 
+## Admin Media Management Test
+
+1. Configure local Cloudinary values in `.env`.
+2. Log in with `POST /auth/login`.
+3. Copy the `accessToken`.
+4. Upload an unassigned image with `POST /admin/media/upload` using multipart form field `file`.
+5. Copy the returned `mediaAssetId`.
+6. Fetch media assets with `GET /admin/media`.
+7. Fetch detail with `GET /admin/media/:id`.
+8. Patch metadata with `PATCH /admin/media/:id`.
+9. Delete the asset with `DELETE /admin/media/:id`.
+10. Fetch detail again with `GET /admin/media/:id`.
+11. Upload a product gallery image with `POST /admin/products/:productId/images`.
+12. Upload a product cover image with `POST /admin/products/:productId/images`.
+13. Upload a second product cover and confirm the previous cover becomes `GALLERY`.
+14. Reorder product images with `PATCH /admin/products/:productId/images/reorder`.
+15. Repeat equivalent cover/gallery/reorder checks for packs.
+16. Create and replace a category image with `PUT /admin/categories/:categoryId/image`.
+17. Create and replace a product-reference image with `PUT /admin/product-references/:referenceId/image`.
+18. Confirm `GET /products/:id`, `GET /packs/:id`, and recommendation responses include image URL variants.
+
+Expected result:
+- Admin media endpoints require `Authorization: Bearer ACCESS_TOKEN`.
+- `OWNER` and `ADMIN` can upload, update, and delete.
+- `STAFF` can read media assets but receives `403` for upload, update, and delete.
+- Upload accepts JPEG, PNG, and WEBP images.
+- Upload rejects missing files, unsupported MIME types, corrupted files, MIME/signature mismatches, and oversized files.
+- Upload returns Cloudinary metadata and stores a local `MediaAsset` row.
+- Product and pack cover behavior never leaves two covers for one entity.
+- Category and product-reference replacement leaves the old relationship intact if the new database write fails.
+- Deletion removes the relationship before provider cleanup.
+- Public and recommendation responses include generated `thumbnail`, `card`, `detail`, and swatch URLs where applicable.
+- Listing hides deleted assets by default.
+- Delete removes the Cloudinary image and soft-deletes the local row.
+- Detail fetch for a deleted asset returns `404`.
+
 ## Negative Tests
 
 Quiz profile:
@@ -482,6 +533,23 @@ Admin orders:
 - Invalid total amount range should return `400`.
 - Simulated stale concurrent transition should return `409`.
 
+Admin media:
+- Missing bearer token should return `401`.
+- `STAFF` upload, update, or delete attempts should return `403`.
+- Missing file should return `400`.
+- Unsupported MIME type should return `415`.
+- Browser MIME/signature mismatch should return `415`.
+- Empty file or corrupted image should return `400`.
+- Oversized file should return `413`.
+- Missing Cloudinary credentials should return `503`.
+- Unknown media asset ID should return `404`.
+- Deleted media asset detail should return `404`.
+- Invalid date range in list filters should return `400`.
+- Duplicate reorder image IDs should return `400`.
+- Duplicate reorder positions should return `400`.
+- Foreign image IDs in a reorder payload should return `400`.
+- Product/pack image update through the wrong entity ID should return `404`.
+
 Read APIs:
 - Unknown attribute group code should return `404`.
 - Unknown product ID should return `404`.
@@ -492,6 +560,8 @@ Read APIs:
 No active known issue for recommendation score calibration. Task 7B fixed the previous pack-size scoring bias by averaging scored item compatibility instead of summing all selected item scores.
 
 Order stock is still not reserved or deducted. That is intentional for the current backend stage.
+
+Direct signed browser-to-Cloudinary uploads, brand logo upload relationships, attribute option image relationships, and quiz-option image relationships remain future work.
 
 ## Next Tests After Task 7B
 
@@ -510,7 +580,8 @@ Task 8 acceptance checks:
 - Confirm status history is ordered by creation time.
 - Confirm selected recommendation result is marked selected after order creation.
 
-Next tests after Task 13:
+Next tests after Task 14:
 - Add stock reservation/deduction tests only when stock workflow is explicitly requested.
+- Add direct signed upload tests only if that optimization is explicitly requested.
 - Test payment provider workflows only after payment integration is explicitly requested.
 - Test delivery and WhatsApp workflows only after integrations are explicitly requested.

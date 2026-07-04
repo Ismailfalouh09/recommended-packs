@@ -29,6 +29,8 @@ export function buildOpenApiConfig() {
     .addTag('Authentication', 'Admin login and current-admin identity.')
     .addTag('Attributes', 'Public active attribute groups and options.')
     .addTag('Quiz', 'Public quiz questions and customer profile creation.')
+    .addTag('Categories', 'Public active category catalog reads.')
+    .addTag('Brands', 'Public active brand catalog reads.')
     .addTag('Products', 'Public active product catalog reads.')
     .addTag(
       'Product References',
@@ -58,6 +60,23 @@ export function buildOpenApiConfig() {
       'Protected recommendation rule management and preview.',
     )
     .addTag('Admin Orders', 'Protected order inspection and status workflow.')
+    .addTag('Admin Media', 'Protected image upload and media asset management.')
+    .addTag(
+      'Admin Product Media',
+      'Protected product image upload, update, reorder, and deletion.',
+    )
+    .addTag(
+      'Admin Pack Media',
+      'Protected pack image upload, update, reorder, and deletion.',
+    )
+    .addTag(
+      'Admin Category Media',
+      'Protected category image create, replace, and deletion.',
+    )
+    .addTag(
+      'Admin Product Reference Media',
+      'Protected product-reference shade or swatch image create, replace, and deletion.',
+    )
     .build();
 }
 

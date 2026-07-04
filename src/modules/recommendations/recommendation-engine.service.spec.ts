@@ -44,6 +44,7 @@ function reference(
   referenceCode: string,
   referenceName: string,
   attributes: EngineAttribute[],
+  overrides: Partial<EngineReference> = {},
 ): EngineReference {
   return {
     id,
@@ -53,6 +54,7 @@ function reference(
     reservedQuantity: 0,
     isActive: true,
     attributes,
+    ...overrides,
   };
 }
 
@@ -60,12 +62,14 @@ function product(
   id: string,
   name: string,
   references: EngineReference[],
+  attributes: EngineAttribute[] = [],
 ): EngineProduct {
   return {
     id,
     name,
     isActive: true,
     status: ProductStatus.ACTIVE,
+    attributes,
     references,
   };
 }
@@ -186,7 +190,7 @@ describe('RecommendationEngineService', () => {
             {
               id: 'full-lipstick',
               product: lipstick,
-              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+              selectionMode: SelectionMode.AUTO_BEST_REFERENCE,
             },
             {
               id: 'full-mascara',
@@ -197,7 +201,7 @@ describe('RecommendationEngineService', () => {
             {
               id: 'full-blush',
               product: blush,
-              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+              selectionMode: SelectionMode.AUTO_BEST_REFERENCE,
             },
             {
               id: 'full-powder',
@@ -226,7 +230,7 @@ describe('RecommendationEngineService', () => {
             {
               id: 'natural-blush',
               product: blush,
-              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+              selectionMode: SelectionMode.AUTO_BEST_REFERENCE,
             },
           ],
         }),
@@ -383,6 +387,152 @@ describe('RecommendationEngineService', () => {
     );
   });
 
+  it('scores general suitability from product-level attributes', () => {
+    const foundation = product(
+      'foundation-x',
+      'Foundation X',
+      [
+        reference('foundation-medium-warm', 'RF2', 'Medium Warm', [
+          attribute('SKIN_COLOR', 'MEDIUM'),
+          attribute('UNDERTONE', 'WARM'),
+        ]),
+      ],
+      [attribute('SKIN_TYPE', 'OILY')],
+    );
+
+    const [recommendation] = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'foundation-pack',
+          name: 'Foundation Pack',
+          items: [{ id: 'foundation-item', product: foundation }],
+        }),
+      ],
+    });
+
+    expect(recommendation.totalScore).toBe(80);
+    expect(
+      recommendation.selectedItems[0].reason.productMatches,
+    ).toContainEqual(
+      expect.objectContaining({
+        groupCode: 'SKIN_TYPE',
+        optionCode: 'OILY',
+      }),
+    );
+  });
+
+  it('skips unavailable references during automatic selection', () => {
+    const foundation = product('foundation-x', 'Foundation X', [
+      reference(
+        'foundation-medium-warm-oos',
+        'RF1',
+        'Medium Warm Out',
+        [attribute('SKIN_COLOR', 'MEDIUM'), attribute('UNDERTONE', 'WARM')],
+        { stockQuantity: 0 },
+      ),
+      reference('foundation-medium-warm-live', 'RF2', 'Medium Warm Live', [
+        attribute('SKIN_COLOR', 'MEDIUM'),
+        attribute('UNDERTONE', 'WARM'),
+      ]),
+    ]);
+
+    const [recommendation] = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'foundation-pack',
+          name: 'Foundation Pack',
+          items: [{ id: 'foundation-item', product: foundation }],
+        }),
+      ],
+    });
+
+    expect(recommendation.selectedItems[0].referenceId).toBe(
+      'foundation-medium-warm-live',
+    );
+  });
+
+  it('returns no recommendation when no compatible shade exists', () => {
+    const foundation = product('foundation-x', 'Foundation X', [
+      reference('foundation-light-cool', 'RF1', 'Light Cool', [
+        attribute('SKIN_COLOR', 'LIGHT'),
+        attribute('UNDERTONE', 'COOL'),
+      ]),
+      reference('foundation-dark-cool', 'RF2', 'Dark Cool', [
+        attribute('SKIN_COLOR', 'DARK'),
+        attribute('UNDERTONE', 'COOL'),
+      ]),
+    ]);
+
+    const recommendations = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'foundation-pack',
+          name: 'Foundation Pack',
+          items: [{ id: 'foundation-item', product: foundation }],
+        }),
+      ],
+    });
+
+    expect(recommendations).toEqual([]);
+  });
+
+  it('returns actual selected references for mixed fixed and automatic items', () => {
+    const fixedProduct = product('mascara-z', 'Mascara Z', [
+      reference('mascara-black', 'DEFAULT', 'Black', [
+        attribute('STYLE', 'NATURAL'),
+      ]),
+    ]);
+    const dynamicProduct = product('foundation-x', 'Foundation X', [
+      reference('foundation-light-cool', 'RF1', 'Light Cool', [
+        attribute('SKIN_COLOR', 'LIGHT'),
+        attribute('UNDERTONE', 'COOL'),
+      ]),
+      reference('foundation-medium-warm', 'RF2', 'Medium Warm', [
+        attribute('SKIN_COLOR', 'MEDIUM'),
+        attribute('UNDERTONE', 'WARM'),
+      ]),
+    ]);
+
+    const [recommendation] = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'mixed-pack',
+          name: 'Mixed Pack',
+          items: [
+            {
+              id: 'fixed-item',
+              product: fixedProduct,
+              selectionMode: SelectionMode.FIXED_REFERENCE,
+              productReferenceId: 'mascara-black',
+            },
+            { id: 'auto-item', product: dynamicProduct },
+          ],
+        }),
+      ],
+    });
+
+    expect(recommendation.selectedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          packItemId: 'fixed-item',
+          referenceId: 'mascara-black',
+        }),
+        expect.objectContaining({
+          packItemId: 'auto-item',
+          referenceId: 'foundation-medium-warm',
+        }),
+      ]),
+    );
+  });
+
   it('uses dynamic group match rule keys when configured', () => {
     const coverageProduct = product('product-coverage', 'Coverage Product', [
       reference('coverage-full', 'FULL', 'Full Coverage', [
@@ -405,7 +555,100 @@ describe('RecommendationEngineService', () => {
     expect(recommendation.totalScore).toBe(15);
   });
 
-  it('CUSTOMER_CHOICE selects the best compatible reference for MVP', () => {
+  it('keeps a pack eligible when a required customer-choice item has at least one valid option', () => {
+    const { foundation, mascara } = buildAcceptanceProducts();
+
+    const [recommendation] = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'soft-glam',
+          name: 'Soft Glam Pack',
+          items: [
+            {
+              id: 'fixed-mascara',
+              product: mascara,
+              selectionMode: SelectionMode.FIXED_REFERENCE,
+              productReferenceId: 'mascara-black',
+            },
+            {
+              id: 'choice-foundation',
+              product: foundation,
+              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+            },
+          ],
+        }),
+      ],
+    });
+
+    expect(recommendation).toBeDefined();
+    expect(recommendation.packName).toBe('Soft Glam Pack');
+
+    const choiceItem = recommendation.selectedItems.find(
+      (item) => item.packItemId === 'choice-foundation',
+    );
+    expect(choiceItem?.selectionRequired).toBe(true);
+    // No arbitrary reference is forced as the final selection.
+    expect(choiceItem?.referenceId).toBeNull();
+    expect(choiceItem?.availableOptions?.length).toBeGreaterThan(0);
+    // Only compatible references are offered (RF2 Medium Warm for this profile).
+    expect(
+      choiceItem?.availableOptions?.map((option) => option.referenceId),
+    ).toEqual(['foundation-medium-warm']);
+
+    // Fixed items remain selected normally.
+    const fixedItem = recommendation.selectedItems.find(
+      (item) => item.packItemId === 'fixed-mascara',
+    );
+    expect(fixedItem?.referenceId).toBe('mascara-black');
+  });
+
+  it('excludes a pack when a required customer-choice item has zero valid options', () => {
+    const foundation = product('foundation-x', 'Foundation X', [
+      reference('foundation-light-cool', 'RF1', 'Light Cool', [
+        attribute('SKIN_COLOR', 'LIGHT'),
+        attribute('UNDERTONE', 'COOL'),
+      ]),
+      reference('foundation-dark-cool', 'RF2', 'Dark Cool', [
+        attribute('SKIN_COLOR', 'DARK'),
+        attribute('UNDERTONE', 'COOL'),
+      ]),
+    ]);
+
+    const recommendations = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'foundation-pack',
+          name: 'Foundation Pack',
+          items: [
+            {
+              id: 'choice-foundation',
+              product: foundation,
+              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+            },
+          ],
+        }),
+      ],
+    });
+
+    expect(recommendations).toEqual([]);
+  });
+
+  it('leaves existing item scoring unchanged when a pending customer-choice item is added', () => {
+    const foundation = product(
+      'foundation-x',
+      'Foundation X',
+      [
+        reference('foundation-medium-warm', 'RF2', 'Medium Warm', [
+          attribute('SKIN_COLOR', 'MEDIUM'),
+          attribute('UNDERTONE', 'WARM'),
+        ]),
+      ],
+      [attribute('SKIN_TYPE', 'OILY')],
+    );
     const { blush } = buildAcceptanceProducts();
 
     const [recommendation] = service.generateRecommendations({
@@ -413,11 +656,12 @@ describe('RecommendationEngineService', () => {
       ruleScores,
       packs: [
         pack({
-          id: 'blush-pack',
-          name: 'Blush Pack',
+          id: 'mixed-pack',
+          name: 'Mixed Pack',
           items: [
+            { id: 'auto-foundation', product: foundation },
             {
-              id: 'blush-item',
+              id: 'choice-blush',
               product: blush,
               selectionMode: SelectionMode.CUSTOMER_CHOICE,
             },
@@ -426,10 +670,54 @@ describe('RecommendationEngineService', () => {
       ],
     });
 
-    expect(recommendation.selectedItems[0].referenceName).toBe('RF1 Peach');
-    expect(recommendation.selectedItems[0].reason.selectionMode).toBe(
-      SelectionMode.CUSTOMER_CHOICE,
+    // Same score as the foundation-only pack: the pending slot does not score.
+    expect(recommendation.totalScore).toBe(80);
+    expect(recommendation.reason.scoredItemCount).toBe(1);
+
+    const pendingItem = recommendation.selectedItems.find(
+      (item) => item.packItemId === 'choice-blush',
     );
+    expect(pendingItem?.selectionRequired).toBe(true);
+    expect(pendingItem?.itemScore).toBe(0);
+  });
+
+  it('excludes a pack when every compatible customer-choice reference is inactive or out of stock', () => {
+    const foundation = product('foundation-x', 'Foundation X', [
+      reference(
+        'foundation-medium-warm-oos',
+        'RF1',
+        'Medium Warm Out',
+        [attribute('SKIN_COLOR', 'MEDIUM'), attribute('UNDERTONE', 'WARM')],
+        { stockQuantity: 0 },
+      ),
+      reference(
+        'foundation-medium-warm-inactive',
+        'RF2',
+        'Medium Warm Inactive',
+        [attribute('SKIN_COLOR', 'MEDIUM'), attribute('UNDERTONE', 'WARM')],
+        { isActive: false },
+      ),
+    ]);
+
+    const recommendations = service.generateRecommendations({
+      answers,
+      ruleScores,
+      packs: [
+        pack({
+          id: 'foundation-pack',
+          name: 'Foundation Pack',
+          items: [
+            {
+              id: 'choice-foundation',
+              product: foundation,
+              selectionMode: SelectionMode.CUSTOMER_CHOICE,
+            },
+          ],
+        }),
+      ],
+    });
+
+    expect(recommendations).toEqual([]);
   });
 });
 

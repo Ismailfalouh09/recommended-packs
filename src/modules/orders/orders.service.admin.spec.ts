@@ -9,9 +9,13 @@ import { OrdersService } from './orders.service';
 
 describe('OrdersService admin reads and public safety', () => {
   let prisma: any;
+  let orderStockService: any;
   let service: OrdersService;
 
   beforeEach(() => {
+    orderStockService = {
+      reserveForNewOrder: jest.fn(),
+    };
     prisma = {
       $transaction: jest.fn((operations: unknown[]) => Promise.all(operations)),
       recommendationResult: { findUnique: jest.fn() },
@@ -21,7 +25,7 @@ describe('OrdersService admin reads and public safety', () => {
         findUnique: jest.fn(),
       },
     };
-    service = new OrdersService(prisma);
+    service = new OrdersService(prisma, orderStockService);
   });
 
   it('returns paginated admin order list with decimal serialization', async () => {
@@ -93,6 +97,17 @@ describe('OrdersService admin reads and public safety', () => {
 
     expect(result.customer.phone).toBe('0600000000');
     expect(result.address.addressLine).toBe('Maarif');
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        productName: 'Foundation X',
+        referenceName: 'RF2 Medium Warm',
+        sku: 'SKU-RF2',
+        variation: 'Medium Warm / 30ml',
+        imageUrl: 'https://cdn.example/ref-medium.jpg',
+        brandName: 'Glow Brand',
+        originalUnitPrice: 159,
+      }),
+    );
     expect(result.statusHistory).toHaveLength(2);
     expect(result.statusHistory[1].changedByAdmin).toEqual({
       id: 'admin-1',
@@ -106,6 +121,38 @@ describe('OrdersService admin reads and public safety', () => {
     const result = await service.adminFindOne('order-1');
 
     expect(JSON.stringify(result)).not.toContain('passwordHash');
+  });
+
+  it('omits packConfigurationSnapshot when the order has none (legacy order)', async () => {
+    prisma.order.findUnique.mockResolvedValue(orderDetailFixture());
+
+    const result = await service.adminFindOne('order-1');
+
+    expect(result).not.toHaveProperty('packConfigurationSnapshot');
+  });
+
+  it('returns packConfigurationSnapshot only when present', async () => {
+    const snapshot = {
+      version: 1,
+      sourcePackId: 'pack-1',
+      sourcePackName: 'Natural Glow Pack',
+      sourceType: 'FIXED',
+      currency: 'MAD',
+      finalPrice: 299,
+      minAllowedPrice: 150,
+      validation: { status: 'VALID', priceFloorRespected: true, messages: [] },
+      selectedItems: [],
+      removedItems: [],
+      addedItems: [],
+    };
+    prisma.order.findUnique.mockResolvedValue({
+      ...orderDetailFixture(),
+      packConfigurationSnapshot: snapshot,
+    });
+
+    const result = await service.adminFindOne('order-1');
+
+    expect(result).toHaveProperty('packConfigurationSnapshot', snapshot);
   });
 
   it('throws NotFound for missing admin order details', async () => {
@@ -214,7 +261,12 @@ function orderDetailFixture() {
         productReferenceId: 'reference-1',
         productNameSnapshot: 'Foundation X',
         referenceNameSnapshot: 'RF2 Medium Warm',
+        skuSnapshot: 'SKU-RF2',
+        variationSnapshot: 'Medium Warm / 30ml',
+        productImageUrlSnapshot: 'https://cdn.example/ref-medium.jpg',
+        brandNameSnapshot: 'Glow Brand',
         unitPriceSnapshot: decimal(120),
+        originalUnitPriceSnapshot: decimal(159),
         quantity: 1,
         totalPrice: decimal(120),
       },

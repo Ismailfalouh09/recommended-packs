@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PackStatus, PriceMode } from '@prisma/client';
+import {
+  PackExperienceLevel,
+  PackOccasion,
+  PackStatus,
+  PackTier,
+  PriceMode,
+} from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
@@ -11,6 +17,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
   Max,
   Min,
@@ -21,7 +28,9 @@ import {
   optionalTrimmedString,
   optionalUppercase,
 } from '../../../common/transforms/query.transforms';
+import { PackAllowedAddOnInputDto } from './pack-allowed-add-on-input.dto';
 import { PackAttributeInputDto } from './pack-attribute-input.dto';
+import { PackCompatibilityInputDto } from './pack-compatibility-input.dto';
 import { PackItemInputDto } from './pack-item-input.dto';
 
 export class CreatePackDto {
@@ -111,6 +120,126 @@ export class CreatePackDto {
   @IsBoolean()
   isActive?: boolean;
 
+  /**
+   * Pack Core Evolution (Phase 2) — additive customization foundation fields.
+   * Foundation-only: persisted and returned, but inert in current runtime
+   * logic. Existing Packs default to a fixed (non-customizable) Pack.
+   */
+  @ApiPropertyOptional({
+    example: false,
+    default: false,
+    description:
+      'Foundation-only flag. Does NOT activate customization in Phase 2.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCustomizable?: boolean;
+
+  @ApiPropertyOptional({ example: 2 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minRequiredItems?: number | null;
+
+  @ApiPropertyOptional({ example: 6 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxItemCount?: number | null;
+
+  @ApiPropertyOptional({ example: 150 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minAllowedPrice?: number | null;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Legacy allowed add-on Product IDs. Prefer allowedAddOns when a pinned reference is needed.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  allowedAddOnIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [PackAllowedAddOnInputDto],
+    description:
+      'Allowed add-ons for configurable packs. Each entry may allow a whole product or pin one product reference.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PackAllowedAddOnInputDto)
+  allowedAddOns?: PackAllowedAddOnInputDto[];
+
+  /**
+   * Pack Core Evolution (Phase 4A) — additive public discovery fields. Optional
+   * marketing/browsing classifications surfaced by the public catalog filters.
+   * `categoryId` reuses the shared Category entity.
+   */
+  @ApiPropertyOptional({
+    example: '00000000-0000-4000-8000-000000000001',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string | null;
+
+  @ApiPropertyOptional({ enum: PackTier, nullable: true })
+  @IsOptional()
+  @IsEnum(PackTier)
+  tier?: PackTier | null;
+
+  @ApiPropertyOptional({ enum: PackOccasion, nullable: true })
+  @IsOptional()
+  @IsEnum(PackOccasion)
+  occasion?: PackOccasion | null;
+
+  @ApiPropertyOptional({ enum: PackExperienceLevel, nullable: true })
+  @IsOptional()
+  @IsEnum(PackExperienceLevel)
+  experienceLevel?: PackExperienceLevel | null;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isNew?: boolean;
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isBestSeller?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['bridal', 'glam'],
+    description: 'Free-form discovery tags used by the public catalog filter.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({
+    example: 'wedding bridal soft glam',
+    nullable: true,
+    description: 'Extra keywords matched by public free-text search.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
+  @IsString()
+  searchKeywords?: string | null;
+
   @ApiPropertyOptional({ type: [PackItemInputDto] })
   @IsOptional()
   @IsArray()
@@ -124,4 +253,22 @@ export class CreatePackDto {
   @ValidateNested({ each: true })
   @Type(() => PackAttributeInputDto)
   attributes?: PackAttributeInputDto[];
+
+  /**
+   * Pack Core Evolution (Phase 2.5) — Pack Compatibility Profile foundation.
+   * Declares which canonical customer-answer values the Pack is suitable for,
+   * across the five supported dimensions. Foundation-only: persisted and
+   * returned, but NOT consumed by recommendation/scoring/pricing in this phase.
+   * Omitting a criterion leaves it UNCONFIGURED.
+   */
+  @ApiPropertyOptional({
+    type: [PackCompatibilityInputDto],
+    description:
+      'Per-criterion compatibility profile (skin tone, skin type, makeup style, budget, occasion). Foundation-only; not consumed by recommendation in this phase.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PackCompatibilityInputDto)
+  compatibility?: PackCompatibilityInputDto[];
 }

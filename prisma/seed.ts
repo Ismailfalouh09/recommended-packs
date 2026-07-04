@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import {
   MatchType,
+  PackCompatibilityCriterion,
+  PackCompatibilityMode,
   PackStatus,
   PriceMode,
   PrismaClient,
@@ -9,6 +11,7 @@ import {
   RecommendationTargetType,
   SelectionMode,
   SelectionType,
+  VariationType,
 } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
@@ -44,6 +47,15 @@ const ids = {
   dailyMascara: '00000000-0000-4000-8000-000000000401',
   dailyLipstick: '00000000-0000-4000-8000-000000000402',
   dailyPowder: '00000000-0000-4000-8000-000000000403',
+  autoTestFoundation: '00000000-0000-4000-8000-000000000501',
+  autoTestMascara: '00000000-0000-4000-8000-000000000502',
+  autoTestPowder: '00000000-0000-4000-8000-000000000503',
+  manualRecExactFoundation: '00000000-0000-4000-8000-000000000601',
+  manualRecToneMismatchFoundation: '00000000-0000-4000-8000-000000000602',
+  manualRecSkinMismatchFoundation: '00000000-0000-4000-8000-000000000603',
+  manualRecStyleMismatchFoundation: '00000000-0000-4000-8000-000000000604',
+  manualRecBudgetMismatchFoundation: '00000000-0000-4000-8000-000000000605',
+  manualRecUnconfiguredFoundation: '00000000-0000-4000-8000-000000000606',
 };
 
 type AttributeGroupCode =
@@ -51,7 +63,8 @@ type AttributeGroupCode =
   | 'UNDERTONE'
   | 'SKIN_TYPE'
   | 'STYLE'
-  | 'BUDGET';
+  | 'BUDGET'
+  | 'OCCASION';
 
 type ProductCode =
   | 'foundation-x'
@@ -60,6 +73,27 @@ type ProductCode =
   | 'mascara-z'
   | 'blush-a'
   | 'setting-powder-b';
+
+type AttributeOptionDefinition = {
+  code: string;
+  label: string;
+  minNumericValue?: string;
+  maxNumericValue?: string;
+};
+
+type PackCompatibilitySeedDefinition = {
+  criterion: PackCompatibilityCriterion;
+  mode?: PackCompatibilityMode;
+  optionCodes?: string[];
+};
+
+const compatibilityGroupByCriterion = {
+  [PackCompatibilityCriterion.SKIN_TONE]: 'SKIN_COLOR',
+  [PackCompatibilityCriterion.SKIN_TYPE]: 'SKIN_TYPE',
+  [PackCompatibilityCriterion.MAKEUP_STYLE]: 'STYLE',
+  [PackCompatibilityCriterion.BUDGET]: 'BUDGET',
+  [PackCompatibilityCriterion.OCCASION]: 'OCCASION',
+} satisfies Record<PackCompatibilityCriterion, AttributeGroupCode>;
 
 async function seedAttributeGroups() {
   const groups = [
@@ -103,6 +137,17 @@ async function seedAttributeGroups() {
       isProductAttribute: false,
       sortOrder: 5,
     },
+    {
+      // Pack Core Evolution (Phase 2.5) — canonical OCCASION dimension used by the
+      // Pack Compatibility Profile. Customer-facing taxonomy only (no product
+      // physical attribute); not yet wired into the quiz or recommendation rules.
+      code: 'OCCASION',
+      name: 'Occasion',
+      description: 'Occasion the makeup look is intended for.',
+      isCustomerAttribute: true,
+      isProductAttribute: false,
+      sortOrder: 6,
+    },
   ] satisfies Array<{
     code: AttributeGroupCode;
     name: string;
@@ -112,7 +157,10 @@ async function seedAttributeGroups() {
     sortOrder: number;
   }>;
 
-  const result = new Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>();
+  const result = new Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >();
 
   for (const group of groups) {
     const saved = await prisma.attributeGroup.upsert({
@@ -138,51 +186,91 @@ async function seedAttributeGroups() {
 }
 
 async function seedAttributeOptions(
-  groups: Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
 ) {
   const optionDefinitions = {
     SKIN_COLOR: [
-      ['LIGHT', 'Light'],
-      ['MEDIUM', 'Medium'],
-      ['DARK', 'Dark'],
+      { code: 'LIGHT', label: 'Light' },
+      { code: 'MEDIUM', label: 'Medium' },
+      { code: 'DARK', label: 'Dark' },
     ],
     UNDERTONE: [
-      ['COOL', 'Cool'],
-      ['NEUTRAL', 'Neutral'],
-      ['WARM', 'Warm'],
+      { code: 'COOL', label: 'Cool' },
+      { code: 'NEUTRAL', label: 'Neutral' },
+      { code: 'WARM', label: 'Warm' },
     ],
     SKIN_TYPE: [
-      ['DRY', 'Dry'],
-      ['OILY', 'Oily'],
-      ['COMBINATION', 'Combination'],
-      ['SENSITIVE', 'Sensitive'],
-      ['NORMAL', 'Normal'],
+      { code: 'DRY', label: 'Dry' },
+      { code: 'OILY', label: 'Oily' },
+      { code: 'COMBINATION', label: 'Combination' },
+      { code: 'SENSITIVE', label: 'Sensitive' },
+      { code: 'NORMAL', label: 'Normal' },
     ],
     STYLE: [
-      ['NATURAL', 'Natural'],
-      ['SOFT_GLAM', 'Soft Glam'],
-      ['GLAM', 'Glam'],
-      ['DAILY', 'Daily'],
+      { code: 'NATURAL', label: 'Natural' },
+      { code: 'SOFT_GLAM', label: 'Soft Glam' },
+      { code: 'GLAM', label: 'Glam' },
+      { code: 'DAILY', label: 'Daily' },
     ],
     BUDGET: [
-      ['LOW', 'Low'],
-      ['MEDIUM', 'Medium'],
-      ['HIGH', 'High'],
+      // Non-overlapping inclusive MAD ranges: 220 belongs to LOW;
+      // 350 belongs to MEDIUM.
+      {
+        code: 'LOW',
+        label: 'Low',
+        minNumericValue: '150.00',
+        maxNumericValue: '220.00',
+      },
+      {
+        code: 'MEDIUM',
+        label: 'Medium',
+        minNumericValue: '221.00',
+        maxNumericValue: '350.00',
+      },
+      {
+        code: 'HIGH',
+        label: 'High',
+        minNumericValue: '351.00',
+        maxNumericValue: '600.00',
+      },
     ],
-  } satisfies Record<AttributeGroupCode, Array<[string, string]>>;
+    OCCASION: [
+      { code: 'EVERYDAY', label: 'Everyday' },
+      { code: 'WORK', label: 'Work' },
+      { code: 'EVENING', label: 'Evening' },
+      { code: 'PARTY', label: 'Party' },
+      { code: 'WEDDING', label: 'Wedding' },
+    ],
+  } satisfies Record<AttributeGroupCode, AttributeOptionDefinition[]>;
 
-  const options = new Map<string, Awaited<ReturnType<typeof prisma.attributeOption.upsert>>>();
+  const options = new Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >();
 
-  for (const [groupCode, optionList] of Object.entries(optionDefinitions) as Array<
-    [AttributeGroupCode, Array<[string, string]>]
-  >) {
+  for (const [groupCode, optionList] of Object.entries(
+    optionDefinitions,
+  ) as Array<[AttributeGroupCode, AttributeOptionDefinition[]]>) {
     const group = groups.get(groupCode);
 
     if (!group) {
       throw new Error(`Missing attribute group ${groupCode}`);
     }
 
-    for (const [index, [code, label]] of optionList.entries()) {
+    for (const [index, optionDefinition] of optionList.entries()) {
+      const { code, label, minNumericValue, maxNumericValue } =
+        optionDefinition;
+      const budgetRangeData =
+        groupCode === 'BUDGET'
+          ? {
+              minNumericValue: minNumericValue ?? null,
+              maxNumericValue: maxNumericValue ?? null,
+            }
+          : {};
+
       const saved = await prisma.attributeOption.upsert({
         where: {
           attributeGroupId_code: {
@@ -194,6 +282,7 @@ async function seedAttributeOptions(
           label,
           sortOrder: index + 1,
           isActive: true,
+          ...budgetRangeData,
         },
         create: {
           attributeGroupId: group.id,
@@ -201,6 +290,7 @@ async function seedAttributeOptions(
           label,
           sortOrder: index + 1,
           isActive: true,
+          ...budgetRangeData,
         },
       });
 
@@ -212,8 +302,14 @@ async function seedAttributeOptions(
 }
 
 async function seedQuizQuestions(
-  groups: Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>,
-  options: Map<string, Awaited<ReturnType<typeof prisma.attributeOption.upsert>>>,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
+  options: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >,
 ) {
   const questions = [
     {
@@ -319,7 +415,10 @@ async function seedCatalog() {
     ['ACCESSORIES', 'Accessories'],
   ] satisfies Array<[string, string]>;
 
-  const categories = new Map<string, Awaited<ReturnType<typeof prisma.category.upsert>>>();
+  const categories = new Map<
+    string,
+    Awaited<ReturnType<typeof prisma.category.upsert>>
+  >();
 
   for (const [index, [code, name]] of categoryDefinitions.entries()) {
     const category = await prisma.category.upsert({
@@ -354,7 +453,13 @@ async function seedCatalog() {
   });
 
   const productDefinitions = [
-    ['foundation-x', 'Foundation X', 'FACE', 'Demo foundation shades.', '129.00'],
+    [
+      'foundation-x',
+      'Foundation X',
+      'FACE',
+      'Demo foundation shades.',
+      '129.00',
+    ],
     ['concealer-x', 'Concealer X', 'FACE', 'Demo concealer shades.', '89.00'],
     ['lipstick-y', 'Lipstick Y', 'LIPS', 'Demo lipstick shades.', '79.00'],
     ['mascara-z', 'Mascara Z', 'EYES', 'Demo black mascara.', '99.00'],
@@ -368,14 +473,50 @@ async function seedCatalog() {
     ],
   ] satisfies Array<[ProductCode, string, string, string, string]>;
 
-  const products = new Map<ProductCode, Awaited<ReturnType<typeof prisma.product.upsert>>>();
+  // Phase 4 demo enrichment (additive, nullable): product type, sale price,
+  // and teaser copy on a couple of products to exercise the new fields.
+  const productExtras: Partial<
+    Record<
+      string,
+      {
+        productType?: string;
+        shortDescription?: string;
+        compareAtPrice?: string;
+        ingredients?: string;
+        directions?: string;
+      }
+    >
+  > = {
+    'foundation-x': {
+      productType: 'foundation',
+      shortDescription: 'Buildable medium-coverage foundation.',
+      compareAtPrice: '159.00',
+    },
+    'setting-powder-b': {
+      productType: 'setting-powder',
+      shortDescription: 'Translucent blurring finish.',
+    },
+  };
 
-  for (const [slug, name, categoryCode, description, basePrice] of productDefinitions) {
+  const products = new Map<
+    ProductCode,
+    Awaited<ReturnType<typeof prisma.product.upsert>>
+  >();
+
+  for (const [
+    slug,
+    name,
+    categoryCode,
+    description,
+    basePrice,
+  ] of productDefinitions) {
     const category = categories.get(categoryCode);
 
     if (!category) {
       throw new Error(`Missing category ${categoryCode}`);
     }
+
+    const extras = productExtras[slug] ?? {};
 
     const product = await prisma.product.upsert({
       where: { slug },
@@ -388,6 +529,7 @@ async function seedCatalog() {
         currency: 'MAD',
         status: ProductStatus.ACTIVE,
         isActive: true,
+        ...extras,
       },
       create: {
         categoryId: category.id,
@@ -399,6 +541,7 @@ async function seedCatalog() {
         currency: 'MAD',
         status: ProductStatus.ACTIVE,
         isActive: true,
+        ...extras,
       },
     });
 
@@ -427,14 +570,71 @@ async function seedProductReferences(
     ['setting-powder-b', 'DEFAULT', 'Translucent', '95.00', true],
   ] satisfies Array<[ProductCode, string, string, string, boolean]>;
 
-  const references = new Map<string, Awaited<ReturnType<typeof prisma.productReference.upsert>>>();
+  // Phase 4 demo enrichment: structured shade identity + swatch hex +
+  // variation axis on foundation/lip shades; one foundation shade is left
+  // out of stock to exercise the "Sold out" / derived availability path.
+  const referenceExtras: Partial<
+    Record<
+      string,
+      {
+        shadeName?: string;
+        shadeCode?: string;
+        swatchHex?: string;
+        variationType?: VariationType;
+        measurement?: string;
+        stockQuantity?: number;
+      }
+    >
+  > = {
+    'foundation-x.RF1': {
+      shadeName: 'Light Cool',
+      shadeCode: 'C10',
+      swatchHex: '#F2D2B6',
+      variationType: VariationType.SHADE,
+    },
+    'foundation-x.RF2': {
+      shadeName: 'Medium Warm',
+      shadeCode: 'W30',
+      swatchHex: '#E8B98C',
+      variationType: VariationType.SHADE,
+    },
+    'foundation-x.RF3': {
+      shadeName: 'Dark Warm',
+      shadeCode: 'W60',
+      swatchHex: '#9C6B43',
+      variationType: VariationType.SHADE,
+      stockQuantity: 0,
+    },
+    'lipstick-y.RF1': {
+      shadeName: 'Nude',
+      swatchHex: '#C98B7A',
+      variationType: VariationType.SHADE,
+    },
+    'setting-powder-b.DEFAULT': {
+      measurement: '15g',
+      variationType: VariationType.SIZE,
+    },
+  };
 
-  for (const [productSlug, referenceCode, referenceName, priceOverride, isDefault] of referenceDefinitions) {
+  const references = new Map<
+    string,
+    Awaited<ReturnType<typeof prisma.productReference.upsert>>
+  >();
+
+  for (const [
+    productSlug,
+    referenceCode,
+    referenceName,
+    priceOverride,
+    isDefault,
+  ] of referenceDefinitions) {
     const product = products.get(productSlug);
 
     if (!product) {
       throw new Error(`Missing product ${productSlug}`);
     }
+
+    const extras = referenceExtras[`${productSlug}.${referenceCode}`] ?? {};
 
     const reference = await prisma.productReference.upsert({
       where: {
@@ -452,6 +652,7 @@ async function seedProductReferences(
         lowStockThreshold: 5,
         isDefault,
         isActive: true,
+        ...extras,
       },
       create: {
         productId: product.id,
@@ -464,6 +665,7 @@ async function seedProductReferences(
         lowStockThreshold: 5,
         isDefault,
         isActive: true,
+        ...extras,
       },
     });
 
@@ -474,9 +676,18 @@ async function seedProductReferences(
 }
 
 async function seedProductReferenceAttributes(
-  references: Map<string, Awaited<ReturnType<typeof prisma.productReference.upsert>>>,
-  groups: Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>,
-  options: Map<string, Awaited<ReturnType<typeof prisma.attributeOption.upsert>>>,
+  references: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.productReference.upsert>>
+  >,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
+  options: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >,
 ) {
   const attributes = [
     ['foundation-x.RF1', 'SKIN_COLOR', 'LIGHT'],
@@ -508,7 +719,9 @@ async function seedProductReferenceAttributes(
     const option = options.get(`${groupCode}.${optionCode}`);
 
     if (!reference || !group || !option) {
-      throw new Error(`Missing reference attribute fixture ${referenceKey}:${groupCode}.${optionCode}`);
+      throw new Error(
+        `Missing reference attribute fixture ${referenceKey}:${groupCode}.${optionCode}`,
+      );
     }
 
     await prisma.productReferenceAttribute.upsert({
@@ -540,8 +753,14 @@ async function upsertPackAttribute(
   packId: string,
   groupCode: AttributeGroupCode,
   optionCode: string,
-  groups: Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>,
-  options: Map<string, Awaited<ReturnType<typeof prisma.attributeOption.upsert>>>,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
+  options: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >,
 ) {
   const group = groups.get(groupCode);
   const option = options.get(`${groupCode}.${optionCode}`);
@@ -607,11 +826,266 @@ async function upsertPackItem(input: {
   });
 }
 
+async function replacePackCompatibilityProfiles(
+  packId: string,
+  profiles: PackCompatibilitySeedDefinition[],
+  options: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >,
+) {
+  await prisma.packCompatibilityProfile.deleteMany({ where: { packId } });
+
+  for (const profile of profiles) {
+    const mode = profile.mode ?? PackCompatibilityMode.RESTRICTED;
+    const optionCodes = profile.optionCodes ?? [];
+
+    if (mode === PackCompatibilityMode.UNIVERSAL && optionCodes.length > 0) {
+      throw new Error('UNIVERSAL compatibility profiles cannot seed values.');
+    }
+
+    const groupCode = compatibilityGroupByCriterion[profile.criterion];
+    const valueCreates = optionCodes.map((optionCode) => {
+      const option = options.get(`${groupCode}.${optionCode}`);
+
+      if (!option) {
+        throw new Error(
+          `Missing compatibility option ${groupCode}.${optionCode}`,
+        );
+      }
+
+      return { attributeOptionId: option.id };
+    });
+
+    await prisma.packCompatibilityProfile.create({
+      data: {
+        packId,
+        criterion: profile.criterion,
+        mode,
+        values:
+          valueCreates.length > 0
+            ? {
+                create: valueCreates,
+              }
+            : undefined,
+      },
+    });
+  }
+}
+
+async function seedManualRecommendationPacks(
+  products: Map<ProductCode, Awaited<ReturnType<typeof prisma.product.upsert>>>,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
+  options: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >,
+) {
+  const fixtureProduct = products.get('foundation-x');
+
+  if (!fixtureProduct) {
+    throw new Error(
+      'Missing manual recommendation fixture product foundation-x',
+    );
+  }
+
+  const exactProfiles: PackCompatibilitySeedDefinition[] = [
+    {
+      criterion: PackCompatibilityCriterion.SKIN_TONE,
+      optionCodes: ['MEDIUM'],
+    },
+    {
+      criterion: PackCompatibilityCriterion.SKIN_TYPE,
+      optionCodes: ['OILY'],
+    },
+    {
+      criterion: PackCompatibilityCriterion.MAKEUP_STYLE,
+      optionCodes: ['NATURAL'],
+    },
+    {
+      criterion: PackCompatibilityCriterion.BUDGET,
+      optionCodes: ['MEDIUM'],
+    },
+    {
+      criterion: PackCompatibilityCriterion.OCCASION,
+      optionCodes: ['EVERYDAY'],
+    },
+  ];
+
+  const fixtures = [
+    {
+      name: 'MANUAL-REC-EXACT',
+      slug: 'manual-rec-exact',
+      description: 'Development fixture: exact recommendation profile match.',
+      fixedPrice: '299.00',
+      priority: 40,
+      itemId: ids.manualRecExactFoundation,
+      packAttributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      compatibilityProfiles: exactProfiles,
+    },
+    {
+      name: 'MANUAL-REC-TONE-MISMATCH',
+      slug: 'manual-rec-tone-mismatch',
+      description: 'Development fixture: skin-tone hard mismatch.',
+      fixedPrice: '299.00',
+      priority: 35,
+      itemId: ids.manualRecToneMismatchFoundation,
+      packAttributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      compatibilityProfiles: exactProfiles.map((profile) =>
+        profile.criterion === PackCompatibilityCriterion.SKIN_TONE
+          ? { ...profile, optionCodes: ['LIGHT'] }
+          : profile,
+      ),
+    },
+    {
+      name: 'MANUAL-REC-SKIN-MISMATCH',
+      slug: 'manual-rec-skin-mismatch',
+      description: 'Development fixture: skin-type hard mismatch.',
+      fixedPrice: '299.00',
+      priority: 34,
+      itemId: ids.manualRecSkinMismatchFoundation,
+      packAttributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      compatibilityProfiles: exactProfiles.map((profile) =>
+        profile.criterion === PackCompatibilityCriterion.SKIN_TYPE
+          ? { ...profile, optionCodes: ['DRY'] }
+          : profile,
+      ),
+    },
+    {
+      name: 'MANUAL-REC-STYLE-MISMATCH',
+      slug: 'manual-rec-style-mismatch',
+      description: 'Development fixture: soft style mismatch.',
+      fixedPrice: '299.00',
+      priority: 30,
+      itemId: ids.manualRecStyleMismatchFoundation,
+      packAttributes: [
+        ['STYLE', 'GLAM'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      compatibilityProfiles: exactProfiles.map((profile) =>
+        profile.criterion === PackCompatibilityCriterion.MAKEUP_STYLE
+          ? { ...profile, optionCodes: ['GLAM'] }
+          : profile,
+      ),
+    },
+    {
+      name: 'MANUAL-REC-BUDGET-MISMATCH',
+      slug: 'manual-rec-budget-mismatch',
+      description: 'Development fixture: actual price above selected budget.',
+      fixedPrice: '399.00',
+      priority: 25,
+      itemId: ids.manualRecBudgetMismatchFoundation,
+      packAttributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      compatibilityProfiles: exactProfiles,
+    },
+    {
+      name: 'MANUAL-REC-UNCONFIGURED',
+      slug: 'manual-rec-unconfigured',
+      description: 'Development fixture: no compatibility profile rows.',
+      fixedPrice: '299.00',
+      priority: 20,
+      itemId: ids.manualRecUnconfiguredFoundation,
+      packAttributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      compatibilityProfiles: [],
+    },
+  ] satisfies Array<{
+    name: string;
+    slug: string;
+    description: string;
+    fixedPrice: string;
+    priority: number;
+    itemId: string;
+    packAttributes: Array<[AttributeGroupCode, string]>;
+    compatibilityProfiles: PackCompatibilitySeedDefinition[];
+  }>;
+
+  for (const fixture of fixtures) {
+    const pack = await prisma.pack.upsert({
+      where: { slug: fixture.slug },
+      update: {
+        name: fixture.name,
+        description: fixture.description,
+        priceMode: PriceMode.FIXED,
+        fixedPrice: fixture.fixedPrice,
+        minBudget: null,
+        maxBudget: null,
+        priority: fixture.priority,
+        status: PackStatus.ACTIVE,
+        isActive: true,
+      },
+      create: {
+        name: fixture.name,
+        slug: fixture.slug,
+        description: fixture.description,
+        priceMode: PriceMode.FIXED,
+        fixedPrice: fixture.fixedPrice,
+        minBudget: null,
+        maxBudget: null,
+        currency: 'MAD',
+        priority: fixture.priority,
+        status: PackStatus.ACTIVE,
+        isActive: true,
+      },
+    });
+
+    for (const [groupCode, optionCode] of fixture.packAttributes) {
+      await upsertPackAttribute(
+        pack.id,
+        groupCode,
+        optionCode,
+        groups,
+        options,
+      );
+    }
+
+    await upsertPackItem({
+      id: fixture.itemId,
+      packId: pack.id,
+      productId: fixtureProduct.id,
+      selectionMode: SelectionMode.AUTO_BEST_REFERENCE,
+      sortOrder: 1,
+    });
+
+    await replacePackCompatibilityProfiles(
+      pack.id,
+      fixture.compatibilityProfiles,
+      options,
+    );
+  }
+}
+
 async function seedPacks(
   products: Map<ProductCode, Awaited<ReturnType<typeof prisma.product.upsert>>>,
-  references: Map<string, Awaited<ReturnType<typeof prisma.productReference.upsert>>>,
-  groups: Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>,
-  options: Map<string, Awaited<ReturnType<typeof prisma.attributeOption.upsert>>>,
+  references: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.productReference.upsert>>
+  >,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
+  options: Map<
+    string,
+    Awaited<ReturnType<typeof prisma.attributeOption.upsert>>
+  >,
 ) {
   const packs = [
     {
@@ -627,8 +1101,18 @@ async function seedPacks(
         ['BUDGET', 'MEDIUM'],
       ],
       items: [
-        [ids.naturalFoundation, 'foundation-x', undefined, SelectionMode.AUTO_BEST_REFERENCE],
-        [ids.naturalMascara, 'mascara-z', 'mascara-z.DEFAULT', SelectionMode.FIXED_REFERENCE],
+        [
+          ids.naturalFoundation,
+          'foundation-x',
+          undefined,
+          SelectionMode.AUTO_BEST_REFERENCE,
+        ],
+        [
+          ids.naturalMascara,
+          'mascara-z',
+          'mascara-z.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
         [ids.naturalBlush, 'blush-a', undefined, SelectionMode.CUSTOMER_CHOICE],
       ],
     },
@@ -645,16 +1129,37 @@ async function seedPacks(
         ['BUDGET', 'MEDIUM'],
       ],
       items: [
-        [ids.softFoundation, 'foundation-x', undefined, SelectionMode.AUTO_BEST_REFERENCE],
-        [ids.softConcealer, 'concealer-x', undefined, SelectionMode.AUTO_BEST_REFERENCE],
-        [ids.softLipstick, 'lipstick-y', undefined, SelectionMode.CUSTOMER_CHOICE],
-        [ids.softMascara, 'mascara-z', 'mascara-z.DEFAULT', SelectionMode.FIXED_REFERENCE],
+        [
+          ids.softFoundation,
+          'foundation-x',
+          undefined,
+          SelectionMode.AUTO_BEST_REFERENCE,
+        ],
+        [
+          ids.softConcealer,
+          'concealer-x',
+          undefined,
+          SelectionMode.AUTO_BEST_REFERENCE,
+        ],
+        [
+          ids.softLipstick,
+          'lipstick-y',
+          undefined,
+          SelectionMode.CUSTOMER_CHOICE,
+        ],
+        [
+          ids.softMascara,
+          'mascara-z',
+          'mascara-z.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
       ],
     },
     {
       name: 'Full Glam Pack',
       slug: 'full-glam-pack',
-      description: 'Full face glam pack with complexion, lips, eyes, and setting powder.',
+      description:
+        'Full face glam pack with complexion, lips, eyes, and setting powder.',
       fixedPrice: '499.00',
       minBudget: '400.00',
       maxBudget: '700.00',
@@ -664,12 +1169,37 @@ async function seedPacks(
         ['BUDGET', 'HIGH'],
       ],
       items: [
-        [ids.glamFoundation, 'foundation-x', undefined, SelectionMode.AUTO_BEST_REFERENCE],
-        [ids.glamConcealer, 'concealer-x', undefined, SelectionMode.AUTO_BEST_REFERENCE],
-        [ids.glamLipstick, 'lipstick-y', undefined, SelectionMode.CUSTOMER_CHOICE],
-        [ids.glamMascara, 'mascara-z', 'mascara-z.DEFAULT', SelectionMode.FIXED_REFERENCE],
+        [
+          ids.glamFoundation,
+          'foundation-x',
+          undefined,
+          SelectionMode.AUTO_BEST_REFERENCE,
+        ],
+        [
+          ids.glamConcealer,
+          'concealer-x',
+          undefined,
+          SelectionMode.AUTO_BEST_REFERENCE,
+        ],
+        [
+          ids.glamLipstick,
+          'lipstick-y',
+          undefined,
+          SelectionMode.CUSTOMER_CHOICE,
+        ],
+        [
+          ids.glamMascara,
+          'mascara-z',
+          'mascara-z.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
         [ids.glamBlush, 'blush-a', undefined, SelectionMode.CUSTOMER_CHOICE],
-        [ids.glamPowder, 'setting-powder-b', 'setting-powder-b.DEFAULT', SelectionMode.FIXED_REFERENCE],
+        [
+          ids.glamPowder,
+          'setting-powder-b',
+          'setting-powder-b.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
       ],
     },
     {
@@ -685,9 +1215,58 @@ async function seedPacks(
         ['BUDGET', 'LOW'],
       ],
       items: [
-        [ids.dailyMascara, 'mascara-z', 'mascara-z.DEFAULT', SelectionMode.FIXED_REFERENCE],
-        [ids.dailyLipstick, 'lipstick-y', undefined, SelectionMode.CUSTOMER_CHOICE],
-        [ids.dailyPowder, 'setting-powder-b', 'setting-powder-b.DEFAULT', SelectionMode.FIXED_REFERENCE],
+        [
+          ids.dailyMascara,
+          'mascara-z',
+          'mascara-z.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
+        [
+          ids.dailyLipstick,
+          'lipstick-y',
+          undefined,
+          SelectionMode.CUSTOMER_CHOICE,
+        ],
+        [
+          ids.dailyPowder,
+          'setting-powder-b',
+          'setting-powder-b.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
+      ],
+    },
+    {
+      name: 'Automatic Recommendation Test Pack',
+      slug: 'automatic-recommendation-test-pack',
+      description:
+        'Manual testing pack with only automatic and fixed selections.',
+      fixedPrice: '299.00',
+      minBudget: '200.00',
+      maxBudget: '350.00',
+      priority: 6,
+      attributes: [
+        ['STYLE', 'NATURAL'],
+        ['BUDGET', 'MEDIUM'],
+      ],
+      items: [
+        [
+          ids.autoTestFoundation,
+          'foundation-x',
+          undefined,
+          SelectionMode.AUTO_BEST_REFERENCE,
+        ],
+        [
+          ids.autoTestMascara,
+          'mascara-z',
+          'mascara-z.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
+        [
+          ids.autoTestPowder,
+          'setting-powder-b',
+          'setting-powder-b.DEFAULT',
+          SelectionMode.FIXED_REFERENCE,
+        ],
       ],
     },
   ] satisfies Array<{
@@ -732,10 +1311,19 @@ async function seedPacks(
     });
 
     for (const [groupCode, optionCode] of packDefinition.attributes) {
-      await upsertPackAttribute(pack.id, groupCode, optionCode, groups, options);
+      await upsertPackAttribute(
+        pack.id,
+        groupCode,
+        optionCode,
+        groups,
+        options,
+      );
     }
 
-    for (const [index, [id, productSlug, referenceKey, selectionMode]] of packDefinition.items.entries()) {
+    for (const [
+      index,
+      [id, productSlug, referenceKey, selectionMode],
+    ] of packDefinition.items.entries()) {
       const product = products.get(productSlug);
       const reference = referenceKey ? references.get(referenceKey) : undefined;
 
@@ -757,17 +1345,46 @@ async function seedPacks(
       });
     }
   }
+
+  await seedManualRecommendationPacks(products, groups, options);
 }
 
 async function seedRecommendationRules(
-  groups: Map<AttributeGroupCode, Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>>,
+  groups: Map<
+    AttributeGroupCode,
+    Awaited<ReturnType<typeof prisma.attributeGroup.upsert>>
+  >,
 ) {
   const rules = [
-    ['SKIN_COLOR_MATCH', 'Skin Color Match', 'SKIN_COLOR', RecommendationTargetType.REFERENCE, 40],
-    ['UNDERTONE_MATCH', 'Undertone Match', 'UNDERTONE', RecommendationTargetType.REFERENCE, 25],
+    [
+      'SKIN_COLOR_MATCH',
+      'Skin Color Match',
+      'SKIN_COLOR',
+      RecommendationTargetType.REFERENCE,
+      40,
+    ],
+    [
+      'UNDERTONE_MATCH',
+      'Undertone Match',
+      'UNDERTONE',
+      RecommendationTargetType.REFERENCE,
+      25,
+    ],
     ['STYLE_MATCH', 'Style Match', 'STYLE', RecommendationTargetType.PACK, 20],
-    ['SKIN_TYPE_MATCH', 'Skin Type Match', 'SKIN_TYPE', RecommendationTargetType.REFERENCE, 15],
-    ['BUDGET_MATCH', 'Budget Match', 'BUDGET', RecommendationTargetType.PACK, 10],
+    [
+      'SKIN_TYPE_MATCH',
+      'Skin Type Match',
+      'SKIN_TYPE',
+      RecommendationTargetType.REFERENCE,
+      15,
+    ],
+    [
+      'BUDGET_MATCH',
+      'Budget Match',
+      'BUDGET',
+      RecommendationTargetType.PACK,
+      10,
+    ],
   ] satisfies Array<
     [string, string, AttributeGroupCode, RecommendationTargetType, number]
   >;

@@ -2,7 +2,175 @@
 
 ## 2026-06-11 21:39 +01:00
 
-Current stopping point: The backend feature implementation is paused after Admin Order Management. The current focus is full API documentation and manual validation through Swagger, Bruno, or Postman.
+Current stopping point: Task 15.5 Admin Dashboard Backend Readiness is implemented on `feature/task-14-media-management`. Do not start the next feature until explicitly requested.
+
+## 2026-06-13 20:56 +01:00
+
+Task 15.5 completed: Admin Dashboard Backend Readiness.
+
+Objective: prepare the existing NestJS backend for integration with a separate admin-dashboard frontend without building the frontend or adding unrelated business features.
+
+Files created or modified:
+- `src/main.ts`
+- `.env.example`
+- `frontend-handoff/openapi.json`
+- `frontend-handoff/openapi.yaml`
+- `frontend-handoff/FRONTEND_HANDOFF.md`
+- `frontend-handoff/PAGE_ENDPOINT_MAPPING.md`
+- `frontend-handoff/ROLE_PERMISSION_MATRIX.md`
+- `frontend-handoff/KNOWN_LIMITATIONS.md`
+- `frontend-handoff/.env.example`
+- `frontend-handoff/backend-version.txt`
+- `README.md`
+- `BACKEND_ROADMAP.md`
+- `docs/PROGRESS_LOG.md`
+- `docs/openapi.json`
+- `docs/openapi.yaml`
+
+Endpoints added:
+- None.
+
+Important notes:
+- CORS is controlled by `ADMIN_DASHBOARD_ORIGIN`.
+- Admin API coverage was verified for authentication, catalog, product references and stock, packs, quiz/attributes, recommendation rules, orders, and media.
+- Catalog media integration is available for product cover/gallery, pack cover/gallery, category image, and product-reference swatch.
+- The frontend handoff folder contains copied OpenAPI artifacts, setup guidance, page endpoint mapping, role permissions, limitations, and a frontend environment example.
+- Complete admin smoke flow passed against a temporary local backend on port `3015`: login, create category/brand, create product/reference, update stock, upload and attach images, create pack, configure quiz/rule, preview recommendation, create order, and confirm order.
+- `npx prisma validate` passed.
+- `npx prisma generate` passed.
+- `npm run build` passed.
+- `npm test -- --runInBand` passed.
+- `npm run swagger:generate` passed.
+- `npm run swagger:check` passed.
+- No admin-dashboard frontend was built.
+- No stock reservation, WhatsApp integration, delivery integration, online payment, refresh-token flow, or new business endpoint was added.
+
+## 2026-06-13 20:19 +01:00
+
+Task 14 completed: full Media Management and Image Upload API.
+
+Objective: implement Cloudinary-backed image management for products, product references/shades, packs, categories, recommendation responses, and future quiz-option extension points without storing image binaries on the backend server.
+
+Files created or modified:
+- `prisma/schema.prisma`
+- `prisma/migrations/20260613185217_add_media_management/migration.sql`
+- `src/modules/media/**`
+- `src/modules/products/products.service.ts`
+- `src/modules/packs/packs.service.ts`
+- `src/modules/categories/categories.service.ts`
+- `src/modules/product-references/product-references.service.ts`
+- `src/modules/recommendations/recommendations.service.ts`
+- `src/modules/recommendations/recommendation-engine.service.ts`
+- `src/common/swagger/api-response.models.ts`
+- `src/common/swagger/openapi.config.ts`
+- `.env.example`
+- `package.json`
+- `package-lock.json`
+- project documentation under `docs/`, `README.md`, `PROJECT_BRIEF.md`, `BACKEND_ROADMAP.md`, and `AGENTS.md`
+
+Endpoints added:
+- `POST /admin/products/:productId/images`
+- `PATCH /admin/products/:productId/images/reorder`
+- `PATCH /admin/products/:productId/images/:imageId`
+- `DELETE /admin/products/:productId/images/:imageId`
+- `POST /admin/packs/:packId/images`
+- `PATCH /admin/packs/:packId/images/reorder`
+- `PATCH /admin/packs/:packId/images/:imageId`
+- `DELETE /admin/packs/:packId/images/:imageId`
+- `PUT /admin/categories/:categoryId/image`
+- `DELETE /admin/categories/:categoryId/image`
+- `PUT /admin/product-references/:referenceId/image`
+- `DELETE /admin/product-references/:referenceId/image`
+
+Existing media endpoints retained:
+- `POST /admin/media/upload`
+- `GET /admin/media`
+- `GET /admin/media/:id`
+- `PATCH /admin/media/:id`
+- `DELETE /admin/media/:id`
+
+Validation/build status:
+- `npx prisma format` passed.
+- `npx prisma validate` passed.
+- `npx prisma migrate dev --name add_media_management` passed.
+- `npx prisma generate` passed.
+- `npm run build` passed.
+- `npm test -- --runInBand` passed.
+- `npm run test:e2e` passed.
+- `npm run swagger:generate` passed.
+- `npm run swagger:check` passed.
+- `npx prisma migrate status` passed.
+- `npm run lint` failed because the repository still has broad pre-existing unsafe TypeScript lint debt; Task 14-specific files also have some lint cleanup left around typed Prisma response helpers.
+
+Important notes:
+- Cloudinary SDK access is isolated to the storage provider layer.
+- Tests mock `MediaStorageProvider`; real Cloudinary credentials are not required for automated tests.
+- Product and pack cover behavior is transactional and demotes previous covers instead of deleting them.
+- Category and product-reference replacement uploads the new image first, commits database replacement, then attempts old-provider cleanup.
+- Entity deletion removes the database relationship before provider cleanup.
+- Optimized URL variants are generated at response time and are not stored in PostgreSQL.
+- Public product, pack, category, product-reference, and recommendation responses include image data additively.
+- Direct signed browser-to-Cloudinary upload is documented as future work only.
+- No real Cloudinary credentials were committed.
+- No recommendation scoring, order workflow, stock reservation/deduction, delivery integration, WhatsApp integration, or frontend work was added.
+
+## 2026-06-13 18:45 +01:00
+
+Task 14 completed: Media Management and Image Upload API.
+
+Objective: add a protected backend-only media foundation for image upload and media asset management without changing existing APIs.
+
+Files created or modified:
+- `prisma/schema.prisma`
+- `prisma/migrations/20260613183847_add_media_assets/migration.sql`
+- `src/modules/media/media.module.ts`
+- `src/modules/media/media.controller.ts`
+- `src/modules/media/media.service.ts`
+- `src/modules/media/cloudinary.service.ts`
+- `src/modules/media/dto/upload-media.dto.ts`
+- `src/modules/media/dto/query-media-assets.dto.ts`
+- `src/modules/media/dto/update-media-asset.dto.ts`
+- `src/modules/media/media.service.spec.ts`
+- `src/app.module.ts`
+- `src/common/swagger/api-response.models.ts`
+- `src/common/swagger/openapi.config.ts`
+- `.env.example`
+- `package.json`
+- `package-lock.json`
+- `BACKEND_ROADMAP.md`
+- `docs/PROGRESS_LOG.md`
+- `docs/DOMAIN_MODEL.md`
+- `docs/API_AUDIT_REPORT.md`
+- `docs/MANUAL_API_TEST_PLAN.md`
+- `docs/API_CURL_TESTS.md`
+- `README.md`
+
+Endpoints added:
+- `POST /admin/media/upload`
+- `GET /admin/media`
+- `GET /admin/media/:id`
+- `PATCH /admin/media/:id`
+- `DELETE /admin/media/:id`
+
+Validation/build status:
+- `npx prisma format` passed.
+- `npx prisma validate` passed.
+- `npx prisma migrate dev --name add_media_assets` passed.
+- `npx prisma generate` passed.
+- `npm run build` passed during implementation.
+
+Important notes:
+- All media endpoints require JWT authentication.
+- `OWNER` and `ADMIN` can upload, update metadata, and delete media assets.
+- `OWNER`, `ADMIN`, and `STAFF` can list/read media assets.
+- Upload accepts JPEG, PNG, and WEBP images.
+- Upload stores Cloudinary metadata in `MediaAsset`.
+- Delete removes the Cloudinary asset and soft-deletes the local row.
+- `PATCH /admin/media/:id` updates local metadata only; it does not replace the Cloudinary asset.
+- Safe Cloudinary placeholders were added to `.env.example`.
+- No real Cloudinary credentials were committed.
+- No existing APIs were removed or modified.
+- No recommendation logic, order workflow, stock reservation/deduction, delivery integration, WhatsApp integration, or frontend work was added.
 
 ## 2026-06-13
 
@@ -684,3 +852,5 @@ No active recommendation scoring issue is known after Task 7B. Larger packs no l
 - Admin pack CRUD: OK
 - Admin quiz, attributes, and recommendation rules CRUD: OK
 - Admin order management and status workflow: OK
+- Media management and image upload API: OK
+- Admin dashboard backend readiness: OK
