@@ -16,6 +16,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  optionalBoolean,
+  optionalJsonArray,
   optionalLowercase,
   optionalTrimmedString,
   optionalUppercase,
@@ -133,6 +135,7 @@ export class CreateProductDto {
 
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()
+  @Transform(({ value }) => optionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
 
@@ -142,6 +145,7 @@ export class CreateProductDto {
       'Product-level general suitability (skin type / concern / finish). Only groups flagged isProductAttribute may be assigned here.',
   })
   @IsOptional()
+  @Transform(({ value }) => optionalJsonArray(value))
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProductAttributeInputDto)

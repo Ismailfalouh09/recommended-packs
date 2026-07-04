@@ -21,4 +21,5 @@ OpenAPI is the main source of truth for implemented endpoint shapes. These limit
 - Order tracking is limited to backend order status, with no delivery-provider events.
 - Recommendation logic is rule-based V1.
 - Review submission is implemented but depends on delivered-order eligibility and moderation.
-- Media upload depends on Cloudinary configuration and uses backend-mediated multipart upload.
+- Media upload depends on Cloudinary configuration and uses backend-mediated multipart upload. Admin product and product-reference images can be uploaded during creation or later through edit-time media endpoints.
+- Each product reference has one swatch image plus an ordered multi-image gallery (`/admin/product-references/{referenceId}/gallery-images`). Exactly one gallery image per reference is primary; this is managed server-side (first upload becomes primary, deleting the primary promotes the next by position) and cannot be set to zero-or-multiple primaries from the client.

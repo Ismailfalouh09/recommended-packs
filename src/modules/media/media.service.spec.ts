@@ -166,6 +166,10 @@ describe('MediaService', () => {
         delete: jest.fn().mockResolvedValue(productImage),
         count: jest.fn().mockResolvedValue(0),
       },
+      productReferenceGalleryImage: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
       reviewImage: {
         count: jest.fn().mockResolvedValue(0),
       },

@@ -498,6 +498,7 @@ model ProductReference {
 
   attributes                ProductReferenceAttribute[]
   image                     ProductReferenceImage?
+  galleryImages             ProductReferenceGalleryImage[]
   packItems                 PackItem[]
   packItemAllowedReferences PackItemAllowedReference[]
   packAllowedAddOns         PackAllowedAddOn[]
@@ -1154,11 +1155,12 @@ model MediaAsset {
 
   uploadedByAdmin AdminUser? @relation(fields: [uploadedByAdminId], references: [id], onDelete: SetNull)
 
-  productImages          ProductImage[]
-  packImages             PackImage[]
-  categoryImages         CategoryImage[]
-  productReferenceImages ProductReferenceImage[]
-  reviewImages           ReviewImage[]
+  productImages                 ProductImage[]
+  packImages                    PackImage[]
+  categoryImages                CategoryImage[]
+  productReferenceImages        ProductReferenceImage[]
+  productReferenceGalleryImages ProductReferenceGalleryImage[]
+  reviewImages                  ReviewImage[]
 
   @@index([provider])
   @@index([assetType])
@@ -1243,6 +1245,46 @@ model ProductReferenceImage {
   @@index([productReferenceId])
   @@index([mediaId])
   @@map("product_reference_images")
+}
+
+/**
+ * Media Management (Task 14) — additive per-reference (per-shade) gallery.
+ *
+ * A ProductReference already carries exactly one swatch image via
+ * {@link ProductReferenceImage} (role SWATCH — the shade selector thumbnail).
+ * This model adds an ORDERED, MANY-image gallery scoped to one exact reference
+ * (e.g. multiple photos of "Cherry Red" lipstick: on-lip, on-hand, packaging of
+ * that shade). It is intentionally separate from the product-level
+ * {@link ProductImage} gallery, which stays reserved for images shared across
+ * every reference (packaging, texture, tips).
+ *
+ * Ordering mirrors ProductImage / ReviewImage (`position`, ascending). Exactly
+ * one row per reference may have `isPrimary = true`; that invariant is enforced
+ * both by the service layer (inside a transaction) and, at the database level,
+ * by a partial unique index added in the migration
+ * (`WHERE is_primary`) — not expressible in the Prisma schema itself. The first
+ * uploaded image becomes primary; deleting the primary promotes the next image
+ * by position. Each row links one reference to one MediaAsset and reuses the
+ * shared media pipeline — no image bytes live in PostgreSQL.
+ */
+model ProductReferenceGalleryImage {
+  id                 String   @id @default(uuid()) @db.Uuid
+  productReferenceId String   @map("product_reference_id") @db.Uuid
+  mediaId            String   @map("media_id") @db.Uuid
+  position           Int      @default(0)
+  isPrimary          Boolean  @default(false) @map("is_primary")
+  altText            String?  @map("alt_text") @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  productReference ProductReference @relation(fields: [productReferenceId], references: [id], onDelete: Cascade)
+  media            MediaAsset       @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([productReferenceId, mediaId])
+  @@index([productReferenceId, position])
+  @@index([productReferenceId, isPrimary])
+  @@index([mediaId])
+  @@map("product_reference_gallery_images")
 }
 
 /**

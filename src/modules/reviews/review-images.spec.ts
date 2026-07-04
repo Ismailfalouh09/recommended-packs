@@ -262,6 +262,7 @@ function buildEnv() {
     packImage: zeroCount,
     categoryImage: zeroCount,
     productReferenceImage: zeroCount,
+    productReferenceGalleryImage: zeroCount,
     $transaction: async (arg: any) =>
       Array.isArray(arg) ? Promise.all(arg) : arg(prisma),
   };

@@ -27,6 +27,10 @@ import {
 } from './constants/media.constants';
 import { MediaUrlService } from './media-url.service';
 import { QueryMediaAssetsDto } from './dto/query-media-assets.dto';
+import {
+  UpdateReferenceGalleryImageDto,
+  UploadReferenceGalleryImageDto,
+} from './dto/reference-gallery-image.dto';
 import { ReorderMediaDto } from './dto/reorder-media.dto';
 import { UpdateMediaAssetDto } from './dto/update-media-asset.dto';
 import { UpdateMediaDto } from './dto/update-media.dto';
@@ -707,6 +711,268 @@ export class MediaService {
     return { ...deleted, deleted: true };
   }
 
+  /**
+   * Media Management (Task 14) — lists a reference's gallery images (the ordered
+   * per-shade gallery), primary first is NOT forced; the natural order is by
+   * position then createdAt. This is a distinct collection from the single
+   * SWATCH image and the product-level gallery.
+   */
+  async listProductReferenceGalleryImages(referenceId: string) {
+    await this.ensureProductReferenceExists(referenceId);
+
+    const images = await this.prisma.productReferenceGalleryImage.findMany({
+      where: { productReferenceId: referenceId },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      include: { media: true },
+    });
+
+    return images.map((image) => this.toReferenceGalleryImageResponse(image));
+  }
+
+  /**
+   * Media Management (Task 14) — adds one gallery image to a reference. The very
+   * first image uploaded for a reference automatically becomes primary; later
+   * uploads are non-primary until explicitly promoted. Reuses the shared upload
+   * pipeline and the upload-then-persist rollback pattern.
+   */
+  async uploadProductReferenceGalleryImage(
+    referenceId: string,
+    file: ValidatedImageFile,
+    dto: UploadReferenceGalleryImageDto,
+    currentAdmin: CurrentAdmin,
+  ) {
+    await this.ensureProductReferenceExists(referenceId);
+    const uploaded = await this.uploadToProvider(
+      file,
+      'product-references',
+      referenceId,
+    );
+
+    try {
+      const image = await this.prisma.$transaction(async (tx) => {
+        const mediaAsset = await tx.mediaAsset.create({
+          data: this.toMediaAssetData(uploaded, file, currentAdmin, {
+            altText: dto.altText,
+            usageContext: 'PRODUCT_REFERENCE_GALLERY_IMAGE',
+            relatedEntity: 'PRODUCT_REFERENCE',
+            relatedEntityId: referenceId,
+          }),
+        });
+
+        // First image for this reference becomes primary automatically.
+        const existingCount = await tx.productReferenceGalleryImage.count({
+          where: { productReferenceId: referenceId },
+        });
+
+        return tx.productReferenceGalleryImage.create({
+          data: {
+            productReferenceId: referenceId,
+            mediaId: mediaAsset.id,
+            position:
+              dto.position ??
+              (await this.nextReferenceGalleryImagePosition(tx, referenceId)),
+            isPrimary: existingCount === 0,
+            altText: dto.altText ?? null,
+          },
+          include: { media: true },
+        });
+      });
+
+      this.logger.log({
+        operation: 'product_reference_gallery_image_attachment_succeeded',
+        entityType: 'PRODUCT_REFERENCE',
+        entityId: referenceId,
+        mediaId: image.mediaId,
+        publicId: image.media.publicId,
+        isPrimary: image.isPrimary,
+      });
+
+      return this.toReferenceGalleryImageResponse(image);
+    } catch (error) {
+      await this.cleanupUploadedAsset(
+        uploaded.publicId,
+        'product_reference_gallery_image_upload_rollback_cleanup_failed',
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Media Management (Task 14) — updates alt text and/or display position of one
+   * gallery image. Primacy is not editable here (use setPrimary).
+   */
+  async updateProductReferenceGalleryImage(
+    referenceId: string,
+    imageId: string,
+    dto: UpdateReferenceGalleryImageDto,
+  ) {
+    await this.ensureProductReferenceExists(referenceId);
+
+    const image = await this.prisma.$transaction(async (tx) => {
+      await this.ensureReferenceGalleryImageBelongsToReference(
+        tx,
+        referenceId,
+        imageId,
+      );
+
+      return tx.productReferenceGalleryImage.update({
+        where: { id: imageId },
+        data: {
+          ...(Object.prototype.hasOwnProperty.call(dto, 'altText')
+            ? { altText: dto.altText ?? null }
+            : {}),
+          ...(dto.position !== undefined ? { position: dto.position } : {}),
+        },
+        include: { media: true },
+      });
+    });
+
+    return this.toReferenceGalleryImageResponse(image);
+  }
+
+  /**
+   * Media Management (Task 14) — bulk-reorders a reference's gallery images in a
+   * transaction. Mirrors reorderProductImages: duplicate IDs, duplicate
+   * positions, negative positions, and foreign images are rejected.
+   */
+  async reorderProductReferenceGalleryImages(
+    referenceId: string,
+    dto: ReorderMediaDto,
+  ) {
+    await this.ensureProductReferenceExists(referenceId);
+    this.validateReorderInput(dto);
+
+    const images = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.productReferenceGalleryImage.findMany({
+        where: {
+          productReferenceId: referenceId,
+          id: { in: dto.items.map((item) => item.imageId) },
+        },
+        select: { id: true },
+      });
+
+      if (existing.length !== dto.items.length) {
+        throw new BadRequestException(
+          'All image IDs must belong to this product reference.',
+        );
+      }
+
+      for (const item of dto.items) {
+        await tx.productReferenceGalleryImage.update({
+          where: { id: item.imageId },
+          data: { position: item.position },
+        });
+      }
+
+      return tx.productReferenceGalleryImage.findMany({
+        where: { productReferenceId: referenceId },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        include: { media: true },
+      });
+    });
+
+    return images.map((image) => this.toReferenceGalleryImageResponse(image));
+  }
+
+  /**
+   * Media Management (Task 14) — promotes one gallery image to primary. The
+   * previous primary is unset first (in the same transaction) so the
+   * one-primary-per-reference invariant — also guarded by a partial unique
+   * index — is never transiently violated.
+   */
+  async setPrimaryProductReferenceGalleryImage(
+    referenceId: string,
+    imageId: string,
+  ) {
+    await this.ensureProductReferenceExists(referenceId);
+
+    const images = await this.prisma.$transaction(async (tx) => {
+      await this.ensureReferenceGalleryImageBelongsToReference(
+        tx,
+        referenceId,
+        imageId,
+      );
+
+      await tx.productReferenceGalleryImage.updateMany({
+        where: {
+          productReferenceId: referenceId,
+          isPrimary: true,
+          id: { not: imageId },
+        },
+        data: { isPrimary: false },
+      });
+
+      await tx.productReferenceGalleryImage.update({
+        where: { id: imageId },
+        data: { isPrimary: true },
+      });
+
+      return tx.productReferenceGalleryImage.findMany({
+        where: { productReferenceId: referenceId },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        include: { media: true },
+      });
+    });
+
+    return images.map((image) => this.toReferenceGalleryImageResponse(image));
+  }
+
+  /**
+   * Media Management (Task 14) — deletes one gallery image. When the primary is
+   * removed, the first remaining image by position is automatically promoted so
+   * a non-empty gallery always has exactly one primary. Provider cleanup happens
+   * only after the database transaction commits.
+   */
+  async deleteProductReferenceGalleryImage(
+    referenceId: string,
+    imageId: string,
+  ) {
+    await this.ensureProductReferenceExists(referenceId);
+
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const image = await this.ensureReferenceGalleryImageBelongsToReference(
+        tx,
+        referenceId,
+        imageId,
+      );
+
+      await tx.productReferenceGalleryImage.delete({ where: { id: imageId } });
+
+      if (image.isPrimary) {
+        const next = await tx.productReferenceGalleryImage.findFirst({
+          where: { productReferenceId: referenceId },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true },
+        });
+
+        if (next) {
+          await tx.productReferenceGalleryImage.update({
+            where: { id: next.id },
+            data: { isPrimary: true },
+          });
+        }
+      }
+
+      const deletedMedia = await this.deleteMediaAssetIfUnreferenced(
+        tx,
+        image.mediaId,
+      );
+
+      return {
+        imageId,
+        mediaAssetId: image.mediaId,
+        publicId: deletedMedia?.publicId,
+      };
+    });
+
+    await this.deleteProviderAfterDatabaseCleanup(
+      deleted.publicId,
+      'product_reference_gallery_image_delete_provider_failed',
+    );
+
+    return { ...deleted, deleted: true };
+  }
+
   async findAll(query: QueryMediaAssetsDto) {
     this.validateDateRange(query);
 
@@ -1066,6 +1332,37 @@ export class MediaService {
     return (aggregate._max.position ?? -1) + 1;
   }
 
+  private async nextReferenceGalleryImagePosition(
+    tx: Tx,
+    referenceId: string,
+  ) {
+    const aggregate = await tx.productReferenceGalleryImage.aggregate({
+      where: { productReferenceId: referenceId },
+      _max: { position: true },
+    });
+
+    return (aggregate._max.position ?? -1) + 1;
+  }
+
+  private async ensureReferenceGalleryImageBelongsToReference(
+    tx: Tx,
+    referenceId: string,
+    imageId: string,
+  ) {
+    const image = await tx.productReferenceGalleryImage.findFirst({
+      where: { id: imageId, productReferenceId: referenceId },
+      select: { id: true, mediaId: true, isPrimary: true },
+    });
+
+    if (!image) {
+      throw new NotFoundException(
+        'Product reference gallery image was not found.',
+      );
+    }
+
+    return image;
+  }
+
   private async assertReviewImageCapacity(
     client: Pick<PrismaService | Tx, 'reviewImage'>,
     reviewId: string,
@@ -1119,6 +1416,7 @@ export class MediaService {
       | 'packImage'
       | 'categoryImage'
       | 'productReferenceImage'
+      | 'productReferenceGalleryImage'
       | 'reviewImage'
     >,
     mediaId: string,
@@ -1128,12 +1426,14 @@ export class MediaService {
       packImages,
       categoryImages,
       productReferenceImages,
+      productReferenceGalleryImages,
       reviewImages,
     ] = await Promise.all([
       client.productImage.count({ where: { mediaId } }),
       client.packImage.count({ where: { mediaId } }),
       client.categoryImage.count({ where: { mediaId } }),
       client.productReferenceImage.count({ where: { mediaId } }),
+      client.productReferenceGalleryImage.count({ where: { mediaId } }),
       client.reviewImage.count({ where: { mediaId } }),
     ]);
 
@@ -1142,6 +1442,7 @@ export class MediaService {
       packImages +
       categoryImages +
       productReferenceImages +
+      productReferenceGalleryImages +
       reviewImages
     );
   }
@@ -1333,6 +1634,39 @@ export class MediaService {
       height: image.media.height,
       urls: this.mediaUrlService.buildUrls(image.media),
       createdAt: image.createdAt,
+    };
+  }
+
+  /**
+   * Media Management (Task 14) — admin-facing shape for one reference gallery
+   * image. Mirrors {@link toImageResponse} and adds the `isPrimary` flag. Gallery
+   * images always carry the GALLERY role.
+   */
+  toReferenceGalleryImageResponse(image: {
+    id: string;
+    mediaId: string;
+    position: number;
+    isPrimary: boolean;
+    altText: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    media: MediaAsset;
+  }) {
+    return {
+      id: image.id,
+      mediaAssetId: image.mediaId,
+      role: MediaRole.GALLERY,
+      position: image.position,
+      isPrimary: image.isPrimary,
+      altText: image.altText,
+      format: image.media.format,
+      mimeType: image.media.mimeType,
+      width: image.media.width,
+      height: image.media.height,
+      bytes: image.media.bytes,
+      urls: this.mediaUrlService.buildUrls(image.media),
+      createdAt: image.createdAt,
+      updatedAt: image.updatedAt,
     };
   }
 }

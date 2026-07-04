@@ -1259,6 +1259,216 @@ paths:
       security: *a29
       summary: Delete a product reference image
       tags: *a30
+  /admin/product-references/{referenceId}/gallery-images:
+    get:
+      description: OWNER, ADMIN, and STAFF can read the ordered gallery for one
+        shade/reference.
+      operationId: ProductReferenceGalleryMediaController_list
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          description: Product reference ID.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reference gallery images ordered by position.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaImageResponse"
+        "401": &a31
+          description: Authentication required.
+        "403": &a32
+          description: Insufficient admin role.
+        "404":
+          description: Product reference not found.
+      security: &a33
+        - bearer: []
+      summary: List product reference gallery images
+      tags: &a34
+        - Admin Product Reference Gallery
+    post:
+      description: Uploads one JPEG, PNG, or WEBP image to Cloudinary and attaches it
+        to a reference gallery. The first image uploaded for a reference
+        automatically becomes the primary image.
+      operationId: ProductReferenceGalleryMediaController_upload
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          description: Product reference ID.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                altText:
+                  type: string
+                position:
+                  type: integer
+                  minimum: 0
+      responses:
+        "201":
+          description: Reference gallery image added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid file or metadata.
+        "401": *a31
+        "403": *a32
+        "404":
+          description: Product reference not found.
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: *a33
+      summary: Add a product reference gallery image
+      tags: *a34
+  /admin/product-references/{referenceId}/gallery-images/reorder:
+    patch:
+      description: Updates gallery image display positions in a transaction. Duplicate
+        IDs, duplicate positions, negative positions, and foreign images are
+        rejected.
+      operationId: ProductReferenceGalleryMediaController_reorder
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderMediaDto"
+      responses:
+        "200":
+          description: Reference gallery images reordered.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaImageResponse"
+        "400":
+          description: Invalid reorder payload.
+        "401": *a31
+        "403": *a32
+        "404":
+          description: Product reference not found.
+      security: *a33
+      summary: Reorder product reference gallery images
+      tags: *a34
+  /admin/product-references/{referenceId}/gallery-images/{imageId}/primary:
+    patch:
+      description: Promotes one gallery image to primary; the previous primary is
+        unset in the same transaction.
+      operationId: ProductReferenceGalleryMediaController_setPrimary
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reference gallery images after primary change.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaImageResponse"
+        "401": *a31
+        "403": *a32
+        "404":
+          description: Reference gallery image not found.
+      security: *a33
+      summary: Set the primary product reference gallery image
+      tags: *a34
+  /admin/product-references/{referenceId}/gallery-images/{imageId}:
+    patch:
+      description: Updates alt text or display position of one gallery image.
+      operationId: ProductReferenceGalleryMediaController_update
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReferenceGalleryImageDto"
+      responses:
+        "200":
+          description: Reference gallery image updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaImageResponse"
+        "401": *a31
+        "403": *a32
+        "404":
+          description: Reference gallery image not found.
+      security: *a33
+      summary: Update product reference gallery image metadata
+      tags: *a34
+    delete:
+      description: Deletes the gallery image relationship and removes the Cloudinary
+        asset when no other relationship references it. Deleting the primary
+        image promotes the first remaining image by position.
+      operationId: ProductReferenceGalleryMediaController_delete
+      parameters:
+        - name: referenceId
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: imageId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reference gallery image deleted.
+        "401": *a31
+        "403": *a32
+        "404":
+          description: Reference gallery image not found.
+      security: *a33
+      summary: Delete a product reference gallery image
+      tags: *a34
   /brands:
     get:
       description: Returns active store brands for public brand filters, brand lists,
@@ -1317,14 +1527,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminBrandResponse"
-        "401": &a31
+        "401": &a35
           description: Authentication required.
-        "403": &a32
+        "403": &a36
           description: Insufficient admin role.
-      security: &a33
+      security: &a37
         - bearer: []
       summary: List admin brands
-      tags: &a34
+      tags: &a38
         - Admin Brands
     post:
       description: OWNER and ADMIN can create brands.
@@ -1339,13 +1549,13 @@ paths:
       responses:
         "200":
           description: Brand created.
-        "401": *a31
-        "403": *a32
+        "401": *a35
+        "403": *a36
         "409":
           description: Brand name already exists.
-      security: *a33
+      security: *a37
       summary: Create brand
-      tags: *a34
+      tags: *a38
   /admin/brands/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read brand details.
@@ -1363,13 +1573,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminBrandResponse"
-        "401": *a31
-        "403": *a32
+        "401": *a35
+        "403": *a36
         "404":
           description: Brand not found.
-      security: *a33
+      security: *a37
       summary: Get admin brand details
-      tags: *a34
+      tags: *a38
     patch:
       description: OWNER and ADMIN can update mutable brand fields.
       operationId: AdminBrandsController_update
@@ -1388,15 +1598,15 @@ paths:
       responses:
         "200":
           description: Brand updated.
-        "401": *a31
-        "403": *a32
+        "401": *a35
+        "403": *a36
         "404":
           description: Brand not found.
         "409":
           description: Brand name already exists.
-      security: *a33
+      security: *a37
       summary: Update brand
-      tags: *a34
+      tags: *a38
     delete:
       description: OWNER and ADMIN can soft-deactivate brands.
       operationId: AdminBrandsController_deactivate
@@ -1409,13 +1619,13 @@ paths:
       responses:
         "200":
           description: Brand deactivated.
-        "401": *a31
-        "403": *a32
+        "401": *a35
+        "403": *a36
         "404":
           description: Brand not found.
-      security: *a33
+      security: *a37
       summary: Deactivate brand
-      tags: *a34
+      tags: *a38
   /quiz/questions:
     get:
       description: Returns active quiz questions with active selectable options
@@ -1432,7 +1642,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/QuizQuestionResponse"
       summary: List active quiz questions
-      tags: &a35
+      tags: &a39
         - Quiz
   /quiz/profiles:
     post:
@@ -1458,7 +1668,7 @@ paths:
           description: Invalid group, invalid option, duplicate answer, or missing
             required answer.
       summary: Create a customer quiz profile
-      tags: *a35
+      tags: *a39
   /admin/quiz/questions:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated quiz questions.
@@ -1535,14 +1745,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QuizQuestionResponse"
-        "401": &a36
+        "401": &a40
           description: Authentication required.
-        "403": &a37
+        "403": &a41
           description: Insufficient admin role.
-      security: &a38
+      security: &a42
         - bearer: []
       summary: List admin quiz questions
-      tags: &a39
+      tags: &a43
         - Admin Quiz
     post:
       description: OWNER and ADMIN can create quiz questions and mapped answer
@@ -1558,13 +1768,13 @@ paths:
       responses:
         "200":
           description: Quiz question created.
-        "401": *a36
-        "403": *a37
+        "401": *a40
+        "403": *a41
         "409":
           description: Only one active question is allowed per attribute group.
-      security: *a38
+      security: *a42
       summary: Create quiz question
-      tags: *a39
+      tags: *a43
   /admin/quiz/questions/reorder:
     patch:
       description: OWNER and ADMIN can update quiz question step order in bulk.
@@ -1579,11 +1789,11 @@ paths:
       responses:
         "200":
           description: Quiz questions reordered.
-        "401": *a36
-        "403": *a37
-      security: *a38
+        "401": *a40
+        "403": *a41
+      security: *a42
       summary: Reorder quiz questions
-      tags: *a39
+      tags: *a43
   /admin/quiz/questions/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read quiz question details.
@@ -1601,13 +1811,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QuizQuestionResponse"
-        "401": *a36
-        "403": *a37
+        "401": *a40
+        "403": *a41
         "404":
           description: Quiz question not found.
-      security: *a38
+      security: *a42
       summary: Get admin quiz question details
-      tags: *a39
+      tags: *a43
     patch:
       description: OWNER and ADMIN can update quiz question fields and replace
         options. Active uniqueness per attribute group is enforced.
@@ -1627,15 +1837,15 @@ paths:
       responses:
         "200":
           description: Quiz question updated.
-        "401": *a36
-        "403": *a37
+        "401": *a40
+        "403": *a41
         "404":
           description: Quiz question not found.
         "409":
           description: Only one active question is allowed per attribute group.
-      security: *a38
+      security: *a42
       summary: Update quiz question
-      tags: *a39
+      tags: *a43
     delete:
       description: OWNER and ADMIN can soft-deactivate quiz questions.
       operationId: AdminQuizController_deactivate
@@ -1648,13 +1858,13 @@ paths:
       responses:
         "200":
           description: Quiz question deactivated.
-        "401": *a36
-        "403": *a37
+        "401": *a40
+        "403": *a41
         "404":
           description: Quiz question not found.
-      security: *a38
+      security: *a42
       summary: Deactivate quiz question
-      tags: *a39
+      tags: *a43
   /products:
     get:
       description: Returns active products with optional public search, filters,
@@ -1768,7 +1978,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/PublicProductCardResponse"
       summary: List active products
-      tags: &a40
+      tags: &a44
         - Products
   /products/slug/{slug}:
     get:
@@ -1800,7 +2010,7 @@ paths:
         "404":
           description: Product not found.
       summary: Get an active product by slug
-      tags: *a40
+      tags: *a44
   /products/{id}:
     get:
       description: Returns one active product with category, brand, references, and
@@ -1831,7 +2041,7 @@ paths:
         "404":
           description: Product not found.
       summary: Get an active product by ID
-      tags: *a40
+      tags: *a44
   /admin/products:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated products with admin-only
@@ -1917,35 +2127,120 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductResponse"
-        "401": &a41
+        "401": &a45
           description: Authentication required.
-        "403": &a42
+        "403": &a46
           description: Insufficient admin role.
-      security: &a43
+      security: &a47
         - bearer: []
       summary: List admin products
-      tags: &a44
+      tags: &a48
         - Admin Products
     post:
-      description: OWNER and ADMIN can create catalog products.
+      description: OWNER and ADMIN can create catalog products. Optional multipart
+        image fields attach a cover image and gallery images during creation.
       operationId: AdminProductsController_create
       parameters: []
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateProductDto"
+              type: object
+              required:
+                - categoryId
+                - name
+                - slug
+                - basePrice
+                - currency
+              properties:
+                categoryId:
+                  type: string
+                  format: uuid
+                brandId:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  example: Foundation X
+                slug:
+                  type: string
+                  example: foundation-x
+                productType:
+                  type: string
+                  example: face-serum
+                shortDescription:
+                  type: string
+                description:
+                  type: string
+                ingredients:
+                  type: string
+                directions:
+                  type: string
+                basePrice:
+                  type: number
+                  minimum: 0
+                  example: 120
+                compareAtPrice:
+                  type: number
+                  minimum: 0
+                  example: 150
+                costPrice:
+                  type: number
+                  minimum: 0
+                  example: 70
+                currency:
+                  type: string
+                  example: MAD
+                metaTitle:
+                  type: string
+                metaDescription:
+                  type: string
+                mainImageUrl:
+                  type: string
+                  format: uri
+                status:
+                  type: string
+                  enum:
+                    - DRAFT
+                    - ACTIVE
+                    - HIDDEN
+                    - ARCHIVED
+                isActive:
+                  type: boolean
+                  default: true
+                attributes:
+                  type: string
+                  description: JSON-encoded ProductAttributeInputDto[] when using
+                    multipart/form-data.
+                coverImage:
+                  type: string
+                  format: binary
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
       responses:
-        "200":
+        "201":
           description: Product created.
-        "401": *a41
-        "403": *a42
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+        "400":
+          description: Invalid product or image payload.
+        "401": *a45
+        "403": *a46
         "409":
           description: Product slug already exists.
-      security: *a43
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: *a47
       summary: Create product
-      tags: *a44
+      tags: *a48
   /admin/products/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read full product details.
@@ -1963,13 +2258,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductResponse"
-        "401": *a41
-        "403": *a42
+        "401": *a45
+        "403": *a46
         "404":
           description: Product not found.
-      security: *a43
+      security: *a47
       summary: Get admin product details
-      tags: *a44
+      tags: *a48
     patch:
       description: OWNER and ADMIN can update mutable product fields.
       operationId: AdminProductsController_update
@@ -1988,15 +2283,15 @@ paths:
       responses:
         "200":
           description: Product updated.
-        "401": *a41
-        "403": *a42
+        "401": *a45
+        "403": *a46
         "404":
           description: Product not found.
         "409":
           description: Product slug already exists.
-      security: *a43
+      security: *a47
       summary: Update product
-      tags: *a44
+      tags: *a48
     delete:
       description: OWNER and ADMIN can archive a product and deactivate its references.
       operationId: AdminProductsController_archive
@@ -2009,13 +2304,13 @@ paths:
       responses:
         "200":
           description: Product archived.
-        "401": *a41
-        "403": *a42
+        "401": *a45
+        "403": *a46
         "404":
           description: Product not found.
-      security: *a43
+      security: *a47
       summary: Archive product
-      tags: *a44
+      tags: *a48
   /admin/products/{productId}/references:
     get:
       description: OWNER, ADMIN, and STAFF can read references for one product.
@@ -2066,20 +2361,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductReferenceResponse"
-        "401": &a45
+        "401": &a49
           description: Authentication required.
-        "403": &a46
+        "403": &a50
           description: Insufficient admin role.
         "404":
           description: Product not found.
-      security: &a47
+      security: &a51
         - bearer: []
       summary: List product references for a product
-      tags: &a48
+      tags: &a52
         - Admin Product References
     post:
       description: OWNER and ADMIN can create product references and compatibility
-        attributes.
+        attributes. Optional multipart swatch attaches the reference image
+        during creation.
       operationId: AdminProductReferencesController_create
       parameters:
         - name: productId
@@ -2090,19 +2386,101 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/CreateProductReferenceDto"
+              type: object
+              required:
+                - referenceCode
+                - referenceName
+              properties:
+                referenceCode:
+                  type: string
+                  example: RF2
+                referenceName:
+                  type: string
+                  example: Medium Warm
+                shadeName:
+                  type: string
+                  nullable: true
+                shadeCode:
+                  type: string
+                  nullable: true
+                swatchHex:
+                  type: string
+                  example: "#E8B98C"
+                  nullable: true
+                measurement:
+                  type: string
+                  nullable: true
+                variationType:
+                  type: string
+                  enum:
+                    - SHADE
+                    - SIZE
+                    - BUNDLE
+                  nullable: true
+                barcode:
+                  type: string
+                  nullable: true
+                sku:
+                  type: string
+                  nullable: true
+                priceOverride:
+                  type: number
+                  minimum: 0
+                  nullable: true
+                priceDelta:
+                  type: number
+                  default: 0
+                imageUrl:
+                  type: string
+                  format: uri
+                  nullable: true
+                stockQuantity:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                reservedQuantity:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                lowStockThreshold:
+                  type: integer
+                  minimum: 0
+                  default: 5
+                isDefault:
+                  type: boolean
+                  default: false
+                isActive:
+                  type: boolean
+                  default: true
+                attributes:
+                  type: string
+                  description: JSON-encoded ReferenceAttributeInputDto[] when using
+                    multipart/form-data.
+                swatch:
+                  type: string
+                  format: binary
       responses:
-        "200":
+        "201":
           description: Product reference created.
-        "401": *a45
-        "403": *a46
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductReferenceResponse"
+        "400":
+          description: Invalid reference or image payload.
+        "401": *a49
+        "403": *a50
         "409":
           description: Duplicate reference code, SKU, or barcode.
-      security: *a47
+        "413":
+          description: Image file is too large.
+        "415":
+          description: Unsupported or mismatched image type.
+      security: *a51
       summary: Create product reference
-      tags: *a48
+      tags: *a52
   /admin/product-references/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read product reference details.
@@ -2120,13 +2498,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductReferenceResponse"
-        "401": *a45
-        "403": *a46
+        "401": *a49
+        "403": *a50
         "404":
           description: Product reference not found.
-      security: *a47
+      security: *a51
       summary: Get product reference details
-      tags: *a48
+      tags: *a52
     patch:
       description: OWNER and ADMIN can update references and replace compatibility
         attributes.
@@ -2146,15 +2524,15 @@ paths:
       responses:
         "200":
           description: Product reference updated.
-        "401": *a45
-        "403": *a46
+        "401": *a49
+        "403": *a50
         "404":
           description: Product reference not found.
         "409":
           description: Duplicate reference code, SKU, or barcode.
-      security: *a47
+      security: *a51
       summary: Update product reference
-      tags: *a48
+      tags: *a52
     delete:
       description: OWNER and ADMIN can soft-deactivate product references.
       operationId: AdminProductReferencesController_deactivate
@@ -2167,13 +2545,13 @@ paths:
       responses:
         "200":
           description: Product reference deactivated.
-        "401": *a45
-        "403": *a46
+        "401": *a49
+        "403": *a50
         "404":
           description: Product reference not found.
-      security: *a47
+      security: *a51
       summary: Deactivate product reference
-      tags: *a48
+      tags: *a52
   /admin/product-references/{id}/stock:
     patch:
       description: OWNER and ADMIN can update stock, reserved quantity, and low-stock
@@ -2194,13 +2572,13 @@ paths:
       responses:
         "200":
           description: Product reference stock updated.
-        "401": *a45
-        "403": *a46
+        "401": *a49
+        "403": *a50
         "404":
           description: Product reference not found.
-      security: *a47
+      security: *a51
       summary: Update product reference stock counts
-      tags: *a48
+      tags: *a52
   /packs:
     get:
       description: "Returns active packs with attributes, pack items, products, and
@@ -2329,7 +2707,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/PackResponse"
       summary: List active packs (public catalog discovery)
-      tags: &a49
+      tags: &a53
         - Packs
   /packs/{packId}/order:
     post:
@@ -2383,7 +2761,7 @@ paths:
         "404":
           description: Pack not found.
       summary: Place a Cash on Delivery order for a fixed pack
-      tags: *a49
+      tags: *a53
   /packs/{packId}/validate-configuration:
     post:
       description: Server-authoritative, read-only validation of a proposed
@@ -2439,7 +2817,7 @@ paths:
         "404":
           description: Pack not found.
       summary: Validate a proposed customizable pack configuration
-      tags: *a49
+      tags: *a53
   /packs/{packId}/configurations:
     post:
       description: "Server-authoritative persistence of a proposed customizable pack
@@ -2484,7 +2862,7 @@ paths:
         "404":
           description: Pack not found.
       summary: Persist a validated customizable pack configuration
-      tags: *a49
+      tags: *a53
   /packs/slug/{slug}:
     get:
       description: Returns the same public pack detail response shape as GET /packs/:id.
@@ -2507,7 +2885,7 @@ paths:
         "404":
           description: Pack not found.
       summary: Get an active pack by slug
-      tags: *a49
+      tags: *a53
   /packs/{id}:
     get:
       description: Returns one active pack with attributes, items, products, fixed
@@ -2531,7 +2909,7 @@ paths:
         "404":
           description: Pack not found.
       summary: Get an active pack by ID
-      tags: *a49
+      tags: *a53
   /configurations/{id}:
     get:
       description: Returns a previously persisted, server-validated pack configuration
@@ -2556,7 +2934,7 @@ paths:
         "404":
           description: Configuration not found.
       summary: Get a persisted pack configuration
-      tags: &a50
+      tags: &a54
         - Packs
   /configurations/{id}/share:
     post:
@@ -2588,7 +2966,7 @@ paths:
         "404":
           description: Configuration not found.
       summary: Create (or return) a public share link for a pack configuration
-      tags: *a50
+      tags: *a54
   /configurations/{id}/checkout:
     post:
       description: "Revalidates the persisted configuration against the current pack
@@ -2632,7 +3010,7 @@ paths:
         "404":
           description: Configuration not found.
       summary: Place a Cash on Delivery order from a pack configuration
-      tags: *a50
+      tags: *a54
   /recommendations/{resultId}/configure:
     post:
       description: Creates a persisted PackConfiguration (sourceType QUIZ_RECOMMENDED)
@@ -2798,14 +3176,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PackResponse"
-        "401": &a51
+        "401": &a55
           description: Authentication required.
-        "403": &a52
+        "403": &a56
           description: Insufficient admin role.
-      security: &a53
+      security: &a57
         - bearer: []
       summary: List admin packs
-      tags: &a54
+      tags: &a58
         - Admin Packs
     post:
       description: OWNER and ADMIN can create draft or active packs. Active packs must
@@ -2821,13 +3199,13 @@ paths:
       responses:
         "200":
           description: Pack created.
-        "401": *a51
-        "403": *a52
+        "401": *a55
+        "403": *a56
         "409":
           description: Pack slug already exists.
-      security: *a53
+      security: *a57
       summary: Create pack
-      tags: *a54
+      tags: *a58
   /admin/packs/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read full pack details.
@@ -2845,13 +3223,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PackResponse"
-        "401": *a51
-        "403": *a52
+        "401": *a55
+        "403": *a56
         "404":
           description: Pack not found.
-      security: *a53
+      security: *a57
       summary: Get admin pack details
-      tags: *a54
+      tags: *a58
     patch:
       description: OWNER and ADMIN can update packs. Nested items and attributes are
         replaced transactionally when provided.
@@ -2871,15 +3249,15 @@ paths:
       responses:
         "200":
           description: Pack updated.
-        "401": *a51
-        "403": *a52
+        "401": *a55
+        "403": *a56
         "404":
           description: Pack not found.
         "409":
           description: Pack slug already exists.
-      security: *a53
+      security: *a57
       summary: Update pack
-      tags: *a54
+      tags: *a58
     delete:
       description: OWNER and ADMIN can archive a pack without deleting historical relations.
       operationId: AdminPacksController_archive
@@ -2892,13 +3270,13 @@ paths:
       responses:
         "200":
           description: Pack archived.
-        "401": *a51
-        "403": *a52
+        "401": *a55
+        "403": *a56
         "404":
           description: Pack not found.
-      security: *a53
+      security: *a57
       summary: Archive pack
-      tags: *a54
+      tags: *a58
   /orders/checkout:
     post:
       description: Creates a normal-store Cash on Delivery order from direct cart
@@ -2948,7 +3326,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Create a Cash on Delivery order from cart items
-      tags: &a55
+      tags: &a59
         - Orders
   /orders:
     post:
@@ -2976,7 +3354,7 @@ paths:
         "404":
           description: Recommendation result not found.
       summary: Create a Cash on Delivery order
-      tags: *a55
+      tags: *a59
   /orders/{id}:
     get:
       description: Returns a limited public order summary. It intentionally excludes
@@ -3000,7 +3378,7 @@ paths:
         "404":
           description: Order not found.
       summary: Get safe public order summary
-      tags: *a55
+      tags: *a59
   /admin/orders:
     get:
       description: OWNER, ADMIN, and STAFF can search, filter, sort, and paginate orders.
@@ -3123,14 +3501,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": &a56
+        "401": &a60
           description: Authentication required.
-        "403": &a57
+        "403": &a61
           description: Insufficient admin role.
-      security: &a58
+      security: &a62
         - bearer: []
       summary: List admin orders
-      tags: &a59
+      tags: &a63
         - Admin Orders
   /admin/orders/{id}:
     get:
@@ -3151,13 +3529,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": *a56
-        "403": *a57
+        "401": *a60
+        "403": *a61
         "404":
           description: Order not found.
-      security: *a58
+      security: *a62
       summary: Get admin order details
-      tags: *a59
+      tags: *a63
   /admin/orders/{id}/status:
     patch:
       description: OWNER and ADMIN can move an order through the enforced workflow.
@@ -3183,13 +3561,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOrderDetailsResponse"
-        "401": *a56
-        "403": *a57
+        "401": *a60
+        "403": *a61
         "404":
           description: Order not found.
-      security: *a58
+      security: *a62
       summary: Update order status
-      tags: *a59
+      tags: *a63
   /recommendations:
     post:
       description: Loads profile answers and active packs/products/references, selects
@@ -3215,7 +3593,7 @@ paths:
         "404":
           description: Customer profile not found.
       summary: Generate recommendations for a customer profile
-      tags: &a60
+      tags: &a64
         - Recommendations
   /recommendations/{sessionId}:
     get:
@@ -3239,7 +3617,7 @@ paths:
         "404":
           description: Recommendation session not found.
       summary: Get a stored recommendation session
-      tags: *a60
+      tags: *a64
   /admin/recommendation-rules:
     get:
       description: OWNER, ADMIN, and STAFF can read paginated recommendation scoring rules.
@@ -3303,14 +3681,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationRuleResponse"
-        "401": &a61
+        "401": &a65
           description: Authentication required.
-        "403": &a62
+        "403": &a66
           description: Insufficient admin role.
-      security: &a63
+      security: &a67
         - bearer: []
       summary: List recommendation rules
-      tags: &a64
+      tags: &a68
         - Admin Recommendation Rules
     post:
       description: OWNER and ADMIN can create scoring rules. Rule codes are immutable
@@ -3326,13 +3704,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule created.
-        "401": *a61
-        "403": *a62
+        "401": *a65
+        "403": *a66
         "409":
           description: Recommendation rule code already exists.
-      security: *a63
+      security: *a67
       summary: Create recommendation rule
-      tags: *a64
+      tags: *a68
   /admin/recommendation-rules/preview:
     post:
       description: OWNER, ADMIN, and STAFF can preview current rule effects. This
@@ -3352,11 +3730,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationResponse"
-        "401": *a61
-        "403": *a62
-      security: *a63
+        "401": *a65
+        "403": *a66
+      security: *a67
       summary: Preview recommendations without persistence
-      tags: *a64
+      tags: *a68
   /admin/recommendation-rules/{id}:
     get:
       description: OWNER, ADMIN, and STAFF can read recommendation rule details.
@@ -3374,13 +3752,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RecommendationRuleResponse"
-        "401": *a61
-        "403": *a62
+        "401": *a65
+        "403": *a66
         "404":
           description: Recommendation rule not found.
-      security: *a63
+      security: *a67
       summary: Get recommendation rule details
-      tags: *a64
+      tags: *a68
     patch:
       description: OWNER and ADMIN can update mutable recommendation rule fields.
       operationId: AdminRecommendationRulesController_update
@@ -3399,13 +3777,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule updated.
-        "401": *a61
-        "403": *a62
+        "401": *a65
+        "403": *a66
         "404":
           description: Recommendation rule not found.
-      security: *a63
+      security: *a67
       summary: Update recommendation rule
-      tags: *a64
+      tags: *a68
     delete:
       description: OWNER and ADMIN can soft-deactivate recommendation rules.
       operationId: AdminRecommendationRulesController_deactivate
@@ -3418,13 +3796,13 @@ paths:
       responses:
         "200":
           description: Recommendation rule deactivated.
-        "401": *a61
-        "403": *a62
+        "401": *a65
+        "403": *a66
         "404":
           description: Recommendation rule not found.
-      security: *a63
+      security: *a67
       summary: Deactivate recommendation rule
-      tags: *a64
+      tags: *a68
   /wishlist/items:
     post:
       description: "Adds an active, public Product or an active, public Pack to the
@@ -3435,7 +3813,7 @@ paths:
         saveable yet)."
       operationId: WishlistController_addItem
       parameters:
-        - &a65
+        - &a69
           name: X-Session-Token
           in: header
           description: Anonymous session token returned by POST /quiz/profiles. Identifies
@@ -3472,7 +3850,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Save a Product or Pack to the wishlist
-      tags: &a66
+      tags: &a70
         - Wishlist
   /wishlist:
     get:
@@ -3481,7 +3859,7 @@ paths:
         ever read its own wishlist.
       operationId: WishlistController_list
       parameters:
-        - *a65
+        - *a69
         - name: x-session-token
           required: true
           in: header
@@ -3503,7 +3881,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: List the session wishlist
-      tags: *a66
+      tags: *a70
   /wishlist/items/{itemId}:
     delete:
       description: Removes a wishlist item owned by the session identified by
@@ -3511,7 +3889,7 @@ paths:
         returns 404 (a session can never remove another owner’s item).
       operationId: WishlistController_removeItem
       parameters:
-        - *a65
+        - *a69
         - name: x-session-token
           required: true
           in: header
@@ -3539,7 +3917,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Remove an item from the wishlist
-      tags: *a66
+      tags: *a70
   /reviews:
     post:
       description: Creates a PENDING review for a Product or Pack the customer
@@ -3584,7 +3962,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Submit a review for a purchased product or pack
-      tags: &a67
+      tags: &a71
         - Reviews
   /reviews/{reviewId}:
     patch:
@@ -3622,7 +4000,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Edit a pending review
-      tags: *a67
+      tags: *a71
     delete:
       description: Deletes a still-PENDING review. The original order id must be
         supplied as ownership proof (query parameter). APPROVED or REJECTED
@@ -3658,7 +4036,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Delete a pending review
-      tags: *a67
+      tags: *a71
   /reviews/{reviewId}/images:
     post:
       description: Uploads one JPEG, PNG, or WEBP image and attaches it to a
@@ -3732,7 +4110,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Attach an image to a pending review
-      tags: *a67
+      tags: *a71
   /reviews/{reviewId}/images/{imageId}:
     delete:
       description: Detaches an image from a still-PENDING review. The original order
@@ -3776,7 +4154,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: Remove an image from a pending review
-      tags: *a67
+      tags: *a71
   /products/{slug}/reviews:
     get:
       description: Returns APPROVED reviews only for an active product, with a safe
@@ -3815,7 +4193,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: List approved reviews for a product
-      tags: &a68
+      tags: &a72
         - Reviews
   /packs/{slug}/reviews:
     get:
@@ -3855,7 +4233,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
       summary: List approved reviews for a pack
-      tags: *a68
+      tags: *a72
   /admin/reviews:
     get:
       description: OWNER, ADMIN, and STAFF can filter and paginate reviews for
@@ -3910,14 +4288,14 @@ paths:
       responses:
         "200":
           description: Paginated admin review list.
-        "401": &a69
+        "401": &a73
           description: Authentication required.
-        "403": &a70
+        "403": &a74
           description: Insufficient admin role.
-      security: &a71
+      security: &a75
         - bearer: []
       summary: List reviews for moderation
-      tags: &a72
+      tags: &a76
         - Admin Reviews
   /admin/reviews/{reviewId}/moderation:
     patch:
@@ -3946,8 +4324,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
-        "401": *a69
-        "403": *a70
+        "401": *a73
+        "403": *a74
         "404":
           description: Review not found.
           content:
@@ -3960,9 +4338,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
-      security: *a71
+      security: *a75
       summary: Approve or reject a pending review
-      tags: *a72
+      tags: *a76
 info:
   title: Beauty Pack Recommendation API
   description: Backend API for beauty-pack personalization, recommendations, COD
@@ -4060,7 +4438,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: &a73
+          enum: &a77
             - OWNER
             - ADMIN
             - STAFF
@@ -4103,7 +4481,7 @@ components:
           example: admin@example.com
         role:
           type: string
-          enum: *a73
+          enum: *a77
           example: ADMIN
         isActive:
           type: boolean
@@ -4659,6 +5037,18 @@ components:
           description: Non-negative display position.
           example: 1
           minimum: 0
+    UpdateReferenceGalleryImageDto:
+      type: object
+      properties:
+        altText:
+          type: string
+          description: Alternative text describing the shade image.
+          example: Cherry Red lipstick swatch on the back of a hand
+        position:
+          type: number
+          description: Non-negative display position.
+          example: 1
+          minimum: 0
     PublicBrandResponse:
       type: object
       properties:
@@ -4956,7 +5346,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: &a74
+          enum: &a78
             - SINGLE
             - MULTIPLE
           default: SINGLE
@@ -4993,7 +5383,7 @@ components:
           example: Choose your preferred result
         selectionType:
           type: string
-          enum: *a74
+          enum: *a78
           default: SINGLE
         isRequired:
           type: boolean
@@ -5579,86 +5969,6 @@ components:
         - attributeOptionCode
         - matchType
         - scoreValue
-    CreateProductDto:
-      type: object
-      properties:
-        categoryId:
-          type: string
-          example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
-        brandId:
-          type: string
-          example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
-        name:
-          type: string
-          example: Foundation X
-        slug:
-          type: string
-          example: foundation-x
-        productType:
-          type: string
-          example: face-serum
-          description: Stable lowercase product-type code (kebab-case). Drives
-            required-by-type validation policy and storefront filtering.
-        shortDescription:
-          type: string
-          example: Lightweight buildable foundation.
-        description:
-          type: string
-          example: Demo foundation
-        ingredients:
-          type: string
-          example: Aqua, Glycerin, Niacinamide.
-        directions:
-          type: string
-          example: Apply morning and evening to clean skin.
-        basePrice:
-          type: number
-          example: 120
-        compareAtPrice:
-          type: number
-          example: 150
-          description: Original/compare-at price. Must be greater than basePrice to
-            register as on sale.
-        costPrice:
-          type: number
-          example: 70
-        currency:
-          type: string
-          example: MAD
-          default: MAD
-        metaTitle:
-          type: string
-          example: Foundation X | Demo Beauty
-        metaDescription:
-          type: string
-          example: Shop Foundation X, a lightweight foundation.
-        mainImageUrl:
-          type: string
-          example: https://example.com/product.jpg
-        status:
-          type: string
-          enum: &a75
-            - DRAFT
-            - ACTIVE
-            - HIDDEN
-            - ARCHIVED
-          default: DRAFT
-        isActive:
-          type: boolean
-          example: true
-          default: true
-        attributes:
-          description: Product-level general suitability (skin type / concern / finish).
-            Only groups flagged isProductAttribute may be assigned here.
-          type: array
-          items:
-            $ref: "#/components/schemas/ProductAttributeInputDto"
-      required:
-        - categoryId
-        - name
-        - slug
-        - basePrice
-        - currency
     UpdateProductDto:
       type: object
       properties:
@@ -5717,7 +6027,11 @@ components:
           example: https://example.com/product.jpg
         status:
           type: string
-          enum: *a75
+          enum:
+            - DRAFT
+            - ACTIVE
+            - HIDDEN
+            - ARCHIVED
           default: DRAFT
         isActive:
           type: boolean
@@ -5757,79 +6071,6 @@ components:
         - attributeOptionCode
         - matchType
         - scoreValue
-    CreateProductReferenceDto:
-      type: object
-      properties:
-        referenceCode:
-          type: string
-          example: RF2
-        referenceName:
-          type: string
-          example: Medium Warm
-        shadeName:
-          type: object
-          example: Medium Warm
-          description: Structured shade identity (augments referenceName).
-        shadeCode:
-          type: object
-          example: N20
-        swatchHex:
-          type: object
-          example: "#E8B98C"
-          description: Hex colour for swatch UI (#RRGGBB).
-        measurement:
-          type: object
-          example: 45ml
-        variationType:
-          type: string
-          enum: &a76
-            - SHADE
-            - SIZE
-            - BUNDLE
-          description: Single variation axis for this reference.
-        barcode:
-          type: object
-          example: null
-        sku:
-          type: object
-          example: FOUNDATION-X-RF2
-        priceOverride:
-          type: object
-          example: null
-        priceDelta:
-          type: number
-          example: 0
-          default: 0
-        imageUrl:
-          type: object
-          example: https://example.com/reference.jpg
-        stockQuantity:
-          type: number
-          example: 20
-          default: 0
-        reservedQuantity:
-          type: number
-          example: 0
-          default: 0
-        lowStockThreshold:
-          type: number
-          example: 5
-          default: 5
-        isDefault:
-          type: boolean
-          example: false
-          default: false
-        isActive:
-          type: boolean
-          example: true
-          default: true
-        attributes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReferenceAttributeInputDto"
-      required:
-        - referenceCode
-        - referenceName
     UpdateProductReferenceDto:
       type: object
       properties:
@@ -5855,7 +6096,10 @@ components:
           example: 45ml
         variationType:
           type: string
-          enum: *a76
+          enum:
+            - SHADE
+            - SIZE
+            - BUNDLE
           description: Single variation axis for this reference.
         barcode:
           type: object
@@ -6154,7 +6398,7 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: &a83
+          enum: &a85
             - PENDING_CONFIRMATION
             - CONFIRMED
             - PREPARING
@@ -6165,7 +6409,7 @@ components:
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: &a84
+          enum: &a86
             - UNPAID
             - PAID
             - REFUNDED
@@ -6777,7 +7021,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: &a77
+          enum: &a79
             - FIXED
             - SUM_ITEMS
             - SUM_ITEMS_WITH_DISCOUNT
@@ -6807,7 +7051,7 @@ components:
           default: 0
         status:
           type: string
-          enum: &a78
+          enum: &a80
             - DRAFT
             - ACTIVE
             - ARCHIVED
@@ -6848,14 +7092,14 @@ components:
           nullable: true
         tier:
           type: string
-          enum: &a79
+          enum: &a81
             - ESSENTIAL
             - PREMIUM
             - LUXE
           nullable: true
         occasion:
           type: string
-          enum: &a80
+          enum: &a82
             - EVERYDAY
             - WORK
             - EVENING
@@ -6865,7 +7109,7 @@ components:
           nullable: true
         experienceLevel:
           type: string
-          enum: &a81
+          enum: &a83
             - BEGINNER
             - INTERMEDIATE
             - EXPERT
@@ -6883,7 +7127,7 @@ components:
           example: false
           default: false
         tags:
-          example: &a82
+          example: &a84
             - bridal
             - glam
           description: Free-form discovery tags used by the public catalog filter.
@@ -6931,7 +7175,7 @@ components:
           example: https://example.com/pack.jpg
         priceMode:
           type: string
-          enum: *a77
+          enum: *a79
           example: FIXED
         fixedPrice:
           type: object
@@ -6958,7 +7202,7 @@ components:
           default: 0
         status:
           type: string
-          enum: *a78
+          enum: *a80
           default: DRAFT
         isActive:
           type: boolean
@@ -6996,15 +7240,15 @@ components:
           nullable: true
         tier:
           type: string
-          enum: *a79
+          enum: *a81
           nullable: true
         occasion:
           type: string
-          enum: *a80
+          enum: *a82
           nullable: true
         experienceLevel:
           type: string
-          enum: *a81
+          enum: *a83
           nullable: true
         isFeatured:
           type: boolean
@@ -7019,7 +7263,7 @@ components:
           example: false
           default: false
         tags:
-          example: *a82
+          example: *a84
           description: Free-form discovery tags used by the public catalog filter.
           type: array
           items:
@@ -7292,11 +7536,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a83
+          enum: *a85
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a84
+          enum: *a86
           example: UNPAID
         totalAmount:
           type: number
@@ -7418,11 +7662,11 @@ components:
           example: ORD-20260612-0001
         orderStatus:
           type: string
-          enum: *a83
+          enum: *a85
           example: PENDING_CONFIRMATION
         paymentStatus:
           type: string
-          enum: *a84
+          enum: *a86
           example: UNPAID
         totalAmount:
           type: number
@@ -7688,7 +7932,7 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: &a85
+          enum: &a87
             - PACK
             - PRODUCT
             - REFERENCE
@@ -7697,7 +7941,7 @@ components:
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: &a86
+          enum: &a88
             - MUST_MATCH
             - SHOULD_MATCH
             - EXCLUDE_IF_MATCH
@@ -7726,13 +7970,13 @@ components:
           example: Coverage match
         targetType:
           type: string
-          enum: *a85
+          enum: *a87
         attributeGroupId:
           type: object
           example: 9f72caaa-f55b-4423-b805-911e3e7f61bb
         conditionType:
           type: string
-          enum: *a86
+          enum: *a88
         scoreValue:
           type: number
           example: 15

@@ -3,6 +3,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { CategoryMediaController } from './controllers/category-media.controller';
 import { PackMediaController } from './controllers/pack-media.controller';
 import { ProductMediaController } from './controllers/product-media.controller';
+import { ProductReferenceGalleryMediaController } from './controllers/product-reference-gallery-media.controller';
 import { ProductReferenceMediaController } from './controllers/product-reference-media.controller';
 import { MediaController } from './media.controller';
 import { MediaUrlService } from './media-url.service';
@@ -19,6 +20,7 @@ import { MediaStorageProvider } from './providers/media-storage.provider';
     PackMediaController,
     CategoryMediaController,
     ProductReferenceMediaController,
+    ProductReferenceGalleryMediaController,
   ],
   providers: [
     MediaService,

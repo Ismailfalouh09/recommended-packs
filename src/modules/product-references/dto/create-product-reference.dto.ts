@@ -16,6 +16,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  optionalBoolean,
+  optionalJsonArray,
   optionalTrimmedString,
   optionalUppercase,
 } from '../../../common/transforms/query.transforms';
@@ -128,16 +130,19 @@ export class CreateProductReferenceDto {
 
   @ApiPropertyOptional({ example: false, default: false })
   @IsOptional()
+  @Transform(({ value }) => optionalBoolean(value))
   @IsBoolean()
   isDefault?: boolean;
 
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()
+  @Transform(({ value }) => optionalBoolean(value))
   @IsBoolean()
   isActive?: boolean;
 
   @ApiPropertyOptional({ type: [ReferenceAttributeInputDto] })
   @IsOptional()
+  @Transform(({ value }) => optionalJsonArray(value))
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ReferenceAttributeInputDto)

@@ -106,6 +106,16 @@ export class ProductsService {
             media: true,
           },
         },
+        galleryImages: {
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            position: true,
+            isPrimary: true,
+            altText: true,
+            media: true,
+          },
+        },
         stockQuantity: true,
         reservedQuantity: true,
         lowStockThreshold: true,
@@ -1031,6 +1041,21 @@ export class ProductsService {
     return this.toPublicSingleImageResponse(image, MediaRole.SWATCH, true);
   }
 
+  /**
+   * Media Management (Task 14) — public shape for a reference's per-shade
+   * gallery. Only display-safe fields are exposed (id, position, isPrimary,
+   * altText, urls); ordering is preserved from the query (position, createdAt).
+   */
+  private toPublicReferenceGalleryImages(galleryImages: any[] = []) {
+    return galleryImages.map((galleryImage) => ({
+      id: galleryImage.id,
+      position: galleryImage.position,
+      isPrimary: galleryImage.isPrimary,
+      altText: galleryImage.altText,
+      urls: this.buildUrls(galleryImage.media),
+    }));
+  }
+
   private toPublicSingleImageResponse(
     image: any,
     role: MediaRole,
@@ -1108,6 +1133,13 @@ export class ProductsService {
         : null;
     const stock = this.deriveStockSignal(reference);
     const image = this.toPublicReferenceImageResponse(reference.image);
+    const galleryImages = this.toPublicReferenceGalleryImages(
+      reference.galleryImages,
+    );
+    const primaryGalleryImage =
+      galleryImages.find((galleryImage) => galleryImage.isPrimary) ??
+      galleryImages[0] ??
+      null;
     const label =
       reference.shadeName ?? reference.measurement ?? reference.referenceName;
 
@@ -1134,6 +1166,11 @@ export class ProductsService {
       swatchHex: reference.swatchHex,
       image,
       imageUrl: image?.urls?.detail ?? reference.imageUrl ?? null,
+      // Media Management (Task 14) — images scoped to this exact shade/reference.
+      // Separate from `swatch` (the shade selector) and from
+      // `product.mediaGallery` (images shared across every reference).
+      galleryImages,
+      primaryImageUrl: primaryGalleryImage?.urls?.detail ?? null,
       price: {
         current: currentPrice,
         original: originalPrice,

@@ -22,6 +22,40 @@ export function optionalBoolean(value: unknown): boolean | undefined {
   return value as boolean;
 }
 
+export function optionalJsonArray(value: unknown): unknown[] | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    if (
+      value.length === 1 &&
+      typeof value[0] === 'string' &&
+      value[0].trim().startsWith('[')
+    ) {
+      try {
+        const parsed = JSON.parse(value[0]) as unknown;
+        return Array.isArray(parsed) ? parsed : value;
+      } catch {
+        return value;
+      }
+    }
+
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed : (value as unknown as unknown[]);
+    } catch {
+      return value as unknown as unknown[];
+    }
+  }
+
+  return value as unknown[];
+}
+
 export function optionalTrimmedString(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return value as string | undefined;

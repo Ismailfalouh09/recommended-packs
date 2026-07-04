@@ -2123,6 +2123,364 @@
         ]
       }
     },
+    "/admin/product-references/{referenceId}/gallery-images": {
+      "get": {
+        "description": "OWNER, ADMIN, and STAFF can read the ordered gallery for one shade/reference.",
+        "operationId": "ProductReferenceGalleryMediaController_list",
+        "parameters": [
+          {
+            "name": "referenceId",
+            "required": true,
+            "in": "path",
+            "description": "Product reference ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference gallery images ordered by position.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaImageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Product reference not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List product reference gallery images",
+        "tags": [
+          "Admin Product Reference Gallery"
+        ]
+      },
+      "post": {
+        "description": "Uploads one JPEG, PNG, or WEBP image to Cloudinary and attaches it to a reference gallery. The first image uploaded for a reference automatically becomes the primary image.",
+        "operationId": "ProductReferenceGalleryMediaController_upload",
+        "parameters": [
+          {
+            "name": "referenceId",
+            "required": true,
+            "in": "path",
+            "description": "Product reference ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "altText": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reference gallery image added.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaImageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file or metadata."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Product reference not found."
+          },
+          "413": {
+            "description": "Image file is too large."
+          },
+          "415": {
+            "description": "Unsupported or mismatched image type."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a product reference gallery image",
+        "tags": [
+          "Admin Product Reference Gallery"
+        ]
+      }
+    },
+    "/admin/product-references/{referenceId}/gallery-images/reorder": {
+      "patch": {
+        "description": "Updates gallery image display positions in a transaction. Duplicate IDs, duplicate positions, negative positions, and foreign images are rejected.",
+        "operationId": "ProductReferenceGalleryMediaController_reorder",
+        "parameters": [
+          {
+            "name": "referenceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reference gallery images reordered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaImageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid reorder payload."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Product reference not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reorder product reference gallery images",
+        "tags": [
+          "Admin Product Reference Gallery"
+        ]
+      }
+    },
+    "/admin/product-references/{referenceId}/gallery-images/{imageId}/primary": {
+      "patch": {
+        "description": "Promotes one gallery image to primary; the previous primary is unset in the same transaction.",
+        "operationId": "ProductReferenceGalleryMediaController_setPrimary",
+        "parameters": [
+          {
+            "name": "referenceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference gallery images after primary change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MediaImageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Reference gallery image not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set the primary product reference gallery image",
+        "tags": [
+          "Admin Product Reference Gallery"
+        ]
+      }
+    },
+    "/admin/product-references/{referenceId}/gallery-images/{imageId}": {
+      "patch": {
+        "description": "Updates alt text or display position of one gallery image.",
+        "operationId": "ProductReferenceGalleryMediaController_update",
+        "parameters": [
+          {
+            "name": "referenceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReferenceGalleryImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reference gallery image updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaImageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Reference gallery image not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update product reference gallery image metadata",
+        "tags": [
+          "Admin Product Reference Gallery"
+        ]
+      },
+      "delete": {
+        "description": "Deletes the gallery image relationship and removes the Cloudinary asset when no other relationship references it. Deleting the primary image promotes the first remaining image by position.",
+        "operationId": "ProductReferenceGalleryMediaController_delete",
+        "parameters": [
+          {
+            "name": "referenceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reference gallery image deleted."
+          },
+          "401": {
+            "description": "Authentication required."
+          },
+          "403": {
+            "description": "Insufficient admin role."
+          },
+          "404": {
+            "description": "Reference gallery image not found."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a product reference gallery image",
+        "tags": [
+          "Admin Product Reference Gallery"
+        ]
+      }
+    },
     "/brands": {
       "get": {
         "description": "Returns active store brands for public brand filters, brand lists, and optional brand strips. Brand logo URLs are returned only from the existing brand logoUrl field.",
@@ -3193,22 +3551,130 @@
         ]
       },
       "post": {
-        "description": "OWNER and ADMIN can create catalog products.",
+        "description": "OWNER and ADMIN can create catalog products. Optional multipart image fields attach a cover image and gallery images during creation.",
         "operationId": "AdminProductsController_create",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/CreateProductDto"
+                "type": "object",
+                "required": [
+                  "categoryId",
+                  "name",
+                  "slug",
+                  "basePrice",
+                  "currency"
+                ],
+                "properties": {
+                  "categoryId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "brandId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "example": "Foundation X"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "example": "foundation-x"
+                  },
+                  "productType": {
+                    "type": "string",
+                    "example": "face-serum"
+                  },
+                  "shortDescription": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "ingredients": {
+                    "type": "string"
+                  },
+                  "directions": {
+                    "type": "string"
+                  },
+                  "basePrice": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 120
+                  },
+                  "compareAtPrice": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 150
+                  },
+                  "costPrice": {
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 70
+                  },
+                  "currency": {
+                    "type": "string",
+                    "example": "MAD"
+                  },
+                  "metaTitle": {
+                    "type": "string"
+                  },
+                  "metaDescription": {
+                    "type": "string"
+                  },
+                  "mainImageUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT",
+                      "ACTIVE",
+                      "HIDDEN",
+                      "ARCHIVED"
+                    ]
+                  },
+                  "isActive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "attributes": {
+                    "type": "string",
+                    "description": "JSON-encoded ProductAttributeInputDto[] when using multipart/form-data."
+                  },
+                  "coverImage": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "images": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Product created."
+          "201": {
+            "description": "Product created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid product or image payload."
           },
           "401": {
             "description": "Authentication required."
@@ -3218,6 +3684,12 @@
           },
           "409": {
             "description": "Product slug already exists."
+          },
+          "413": {
+            "description": "Image file is too large."
+          },
+          "415": {
+            "description": "Unsupported or mismatched image type."
           }
         },
         "security": [
@@ -3458,7 +3930,7 @@
         ]
       },
       "post": {
-        "description": "OWNER and ADMIN can create product references and compatibility attributes.",
+        "description": "OWNER and ADMIN can create product references and compatibility attributes. Optional multipart swatch attaches the reference image during creation.",
         "operationId": "AdminProductReferencesController_create",
         "parameters": [
           {
@@ -3473,16 +3945,119 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/CreateProductReferenceDto"
+                "type": "object",
+                "required": [
+                  "referenceCode",
+                  "referenceName"
+                ],
+                "properties": {
+                  "referenceCode": {
+                    "type": "string",
+                    "example": "RF2"
+                  },
+                  "referenceName": {
+                    "type": "string",
+                    "example": "Medium Warm"
+                  },
+                  "shadeName": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "shadeCode": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "swatchHex": {
+                    "type": "string",
+                    "example": "#E8B98C",
+                    "nullable": true
+                  },
+                  "measurement": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "variationType": {
+                    "type": "string",
+                    "enum": [
+                      "SHADE",
+                      "SIZE",
+                      "BUNDLE"
+                    ],
+                    "nullable": true
+                  },
+                  "barcode": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "sku": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "priceOverride": {
+                    "type": "number",
+                    "minimum": 0,
+                    "nullable": true
+                  },
+                  "priceDelta": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "imageUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "nullable": true
+                  },
+                  "stockQuantity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0
+                  },
+                  "reservedQuantity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 0
+                  },
+                  "lowStockThreshold": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 5
+                  },
+                  "isDefault": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "isActive": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "attributes": {
+                    "type": "string",
+                    "description": "JSON-encoded ReferenceAttributeInputDto[] when using multipart/form-data."
+                  },
+                  "swatch": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Product reference created."
+          "201": {
+            "description": "Product reference created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductReferenceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid reference or image payload."
           },
           "401": {
             "description": "Authentication required."
@@ -3492,6 +4067,12 @@
           },
           "409": {
             "description": "Duplicate reference code, SKU, or barcode."
+          },
+          "413": {
+            "description": "Image file is too large."
+          },
+          "415": {
+            "description": "Unsupported or mismatched image type."
           }
         },
         "security": [
@@ -7304,6 +7885,22 @@
           }
         }
       },
+      "UpdateReferenceGalleryImageDto": {
+        "type": "object",
+        "properties": {
+          "altText": {
+            "type": "string",
+            "description": "Alternative text describing the shade image.",
+            "example": "Cherry Red lipstick swatch on the back of a hand"
+          },
+          "position": {
+            "type": "number",
+            "description": "Non-negative display position.",
+            "example": 1,
+            "minimum": 0
+          }
+        }
+      },
       "PublicBrandResponse": {
         "type": "object",
         "properties": {
@@ -8560,107 +9157,6 @@
           "scoreValue"
         ]
       },
-      "CreateProductDto": {
-        "type": "object",
-        "properties": {
-          "categoryId": {
-            "type": "string",
-            "example": "9f72caaa-f55b-4423-b805-911e3e7f61bb"
-          },
-          "brandId": {
-            "type": "string",
-            "example": "9f72caaa-f55b-4423-b805-911e3e7f61bb"
-          },
-          "name": {
-            "type": "string",
-            "example": "Foundation X"
-          },
-          "slug": {
-            "type": "string",
-            "example": "foundation-x"
-          },
-          "productType": {
-            "type": "string",
-            "example": "face-serum",
-            "description": "Stable lowercase product-type code (kebab-case). Drives required-by-type validation policy and storefront filtering."
-          },
-          "shortDescription": {
-            "type": "string",
-            "example": "Lightweight buildable foundation."
-          },
-          "description": {
-            "type": "string",
-            "example": "Demo foundation"
-          },
-          "ingredients": {
-            "type": "string",
-            "example": "Aqua, Glycerin, Niacinamide."
-          },
-          "directions": {
-            "type": "string",
-            "example": "Apply morning and evening to clean skin."
-          },
-          "basePrice": {
-            "type": "number",
-            "example": 120
-          },
-          "compareAtPrice": {
-            "type": "number",
-            "example": 150,
-            "description": "Original/compare-at price. Must be greater than basePrice to register as on sale."
-          },
-          "costPrice": {
-            "type": "number",
-            "example": 70
-          },
-          "currency": {
-            "type": "string",
-            "example": "MAD",
-            "default": "MAD"
-          },
-          "metaTitle": {
-            "type": "string",
-            "example": "Foundation X | Demo Beauty"
-          },
-          "metaDescription": {
-            "type": "string",
-            "example": "Shop Foundation X, a lightweight foundation."
-          },
-          "mainImageUrl": {
-            "type": "string",
-            "example": "https://example.com/product.jpg"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "ACTIVE",
-              "HIDDEN",
-              "ARCHIVED"
-            ],
-            "default": "DRAFT"
-          },
-          "isActive": {
-            "type": "boolean",
-            "example": true,
-            "default": true
-          },
-          "attributes": {
-            "description": "Product-level general suitability (skin type / concern / finish). Only groups flagged isProductAttribute may be assigned here.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProductAttributeInputDto"
-            }
-          }
-        },
-        "required": [
-          "categoryId",
-          "name",
-          "slug",
-          "basePrice",
-          "currency"
-        ]
-      },
       "UpdateProductDto": {
         "type": "object",
         "properties": {
@@ -8790,102 +9286,6 @@
           "attributeOptionCode",
           "matchType",
           "scoreValue"
-        ]
-      },
-      "CreateProductReferenceDto": {
-        "type": "object",
-        "properties": {
-          "referenceCode": {
-            "type": "string",
-            "example": "RF2"
-          },
-          "referenceName": {
-            "type": "string",
-            "example": "Medium Warm"
-          },
-          "shadeName": {
-            "type": "object",
-            "example": "Medium Warm",
-            "description": "Structured shade identity (augments referenceName)."
-          },
-          "shadeCode": {
-            "type": "object",
-            "example": "N20"
-          },
-          "swatchHex": {
-            "type": "object",
-            "example": "#E8B98C",
-            "description": "Hex colour for swatch UI (#RRGGBB)."
-          },
-          "measurement": {
-            "type": "object",
-            "example": "45ml"
-          },
-          "variationType": {
-            "type": "string",
-            "enum": [
-              "SHADE",
-              "SIZE",
-              "BUNDLE"
-            ],
-            "description": "Single variation axis for this reference."
-          },
-          "barcode": {
-            "type": "object",
-            "example": null
-          },
-          "sku": {
-            "type": "object",
-            "example": "FOUNDATION-X-RF2"
-          },
-          "priceOverride": {
-            "type": "object",
-            "example": null
-          },
-          "priceDelta": {
-            "type": "number",
-            "example": 0,
-            "default": 0
-          },
-          "imageUrl": {
-            "type": "object",
-            "example": "https://example.com/reference.jpg"
-          },
-          "stockQuantity": {
-            "type": "number",
-            "example": 20,
-            "default": 0
-          },
-          "reservedQuantity": {
-            "type": "number",
-            "example": 0,
-            "default": 0
-          },
-          "lowStockThreshold": {
-            "type": "number",
-            "example": 5,
-            "default": 5
-          },
-          "isDefault": {
-            "type": "boolean",
-            "example": false,
-            "default": false
-          },
-          "isActive": {
-            "type": "boolean",
-            "example": true,
-            "default": true
-          },
-          "attributes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReferenceAttributeInputDto"
-            }
-          }
-        },
-        "required": [
-          "referenceCode",
-          "referenceName"
         ]
       },
       "UpdateProductReferenceDto": {

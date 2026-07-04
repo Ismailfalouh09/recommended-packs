@@ -358,6 +358,19 @@ export class ProductReferencesService {
           media: true,
         },
       },
+      galleryImages: {
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          mediaId: true,
+          position: true,
+          isPrimary: true,
+          altText: true,
+          createdAt: true,
+          updatedAt: true,
+          media: true,
+        },
+      },
       stockQuantity: true,
       reservedQuantity: true,
       lowStockThreshold: true,
@@ -423,6 +436,9 @@ export class ProductReferencesService {
       priceDelta: toMoneyNumber(reference.priceDelta),
       imageUrl: reference.imageUrl,
       image: this.toReferenceImageResponse(reference.image),
+      galleryImages: (reference.galleryImages ?? []).map((galleryImage: any) =>
+        this.toReferenceGalleryImageResponse(galleryImage),
+      ),
       stockQuantity: reference.stockQuantity,
       reservedQuantity: reference.reservedQuantity,
       availableStock,
@@ -464,6 +480,33 @@ export class ProductReferencesService {
       },
       createdAt: image.createdAt,
       updatedAt: image.updatedAt,
+    };
+  }
+
+  /**
+   * Media Management (Task 14) — admin shape for one per-shade gallery image.
+   * Includes the `isPrimary` flag and the standard media URL variants.
+   */
+  private toReferenceGalleryImageResponse(galleryImage: any) {
+    return {
+      id: galleryImage.id,
+      mediaAssetId: galleryImage.mediaId,
+      position: galleryImage.position,
+      isPrimary: galleryImage.isPrimary,
+      altText: galleryImage.altText,
+      format: galleryImage.media.format,
+      mimeType: galleryImage.media.mimeType,
+      width: galleryImage.media.width,
+      height: galleryImage.media.height,
+      bytes: galleryImage.media.bytes,
+      urls: this.mediaUrlService?.buildUrls(galleryImage.media) ?? {
+        original: galleryImage.media.secureUrl,
+        thumbnail: galleryImage.media.secureUrl,
+        card: galleryImage.media.secureUrl,
+        detail: galleryImage.media.secureUrl,
+      },
+      createdAt: galleryImage.createdAt,
+      updatedAt: galleryImage.updatedAt,
     };
   }
 
